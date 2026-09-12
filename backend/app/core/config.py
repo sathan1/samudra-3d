@@ -12,12 +12,7 @@ class Settings(BaseModel):
     NETCDF_PATH: Path = SAMPLE_DATA_DIR / "model_indian_ocean.nc"
     ARGO_PATH: Path = SAMPLE_DATA_DIR / "argo_profiles.json"
     
-    # CORS Origins
-    CORS_ORIGINS: list[str] = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:4175",
-        "http://127.0.0.1:4175",
-    ]
+    # CORS Origins (Allow all origins for cloud preview & production deployment)
+    CORS_ORIGINS: list[str] = ["*"]
 
 settings = Settings()
