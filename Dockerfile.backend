@@ -1,0 +1,33 @@
+# SAMUDRA-3D Backend Dockerfile
+# Smart India Hackathon 2026 - Problem Statement SIH26067
+# Ministry of Earth Sciences (MoES) / INCOIS
+FROM python:3.11-slim
+
+LABEL maintainer="Team Nexus Nova - SIH 2026"
+LABEL description="SAMUDRA-3D FastAPI 4D Ocean Data Service and AI Assistant"
+
+WORKDIR /app
+
+# Install system dependencies required for HDF5 / NetCDF4 compilation if needed
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libhdf5-dev \
+    libnetcdf-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy backend requirements and install Python dependencies
+COPY backend/requirements.txt /app/backend/requirements.txt
+RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+
+# Copy backend application source code and sample NetCDF datasets
+COPY backend/ /app/backend/
+
+# Expose FastAPI service port
+EXPOSE 8000
+
+# Health check to ensure service readiness
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://127.0.0.1:8000/api/health || exit 1
+
+# Launch uvicorn ASGI production server
+CMD ["python", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

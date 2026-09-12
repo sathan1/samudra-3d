@@ -1,0 +1,23 @@
+Timestamp: 2026-09-11T10:53:55.0129338+05:30
+Directory: D:\Samudra 3D
+Command: Get-Date -Format o; $PSVersionTable; node --version; npm.cmd --version; python --version; git --version; Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,OSArchitecture; Get-CimInstance Win32_Processor | Select-Object Name
+PowerShell: 7.6.5
+2026-09-11T10:53:55.0548104+05:30
+
+Name                           Value
+----                           -----
+PSVersion                      7.6.5
+PSEdition                      Core
+GitCommitId                    7.6.5
+OS                             Microsoft Windows 10.0.26200
+Platform                       Win32NT
+PSCompatibleVersions           {1.0, 2.0, 3.0, 4.0…}
+PSRemotingProtocolVersion      2.4
+SerializationVersion           1.1.0.1
+WSManStackVersion              3.0
+v24.18.0
+11.16.0
+Python 3.14.6
+git version 2.54.0.windows.1
+
+Exit code: 0

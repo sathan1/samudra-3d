@@ -1,0 +1,62 @@
+{
+  "timestamp": "2026-09-12T04:21:52.077Z",
+  "browser": "153.0.4234.32",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "layout": {
+    "boxes": [
+      {
+        "x": 16,
+        "y": 414.125,
+        "width": 358,
+        "height": 1016.171875,
+        "right": 374,
+        "bottom": 1430.296875
+      },
+      {
+        "x": 16,
+        "y": 1448.296875,
+        "width": 358,
+        "height": 686,
+        "right": 374,
+        "bottom": 2134.296875
+      },
+      {
+        "x": 16,
+        "y": 2152.296875,
+        "width": 358,
+        "height": 695.078125,
+        "right": 374,
+        "bottom": 2847.375
+      }
+    ],
+    "scrollWidth": 390,
+    "clientWidth": 390,
+    "tailwindDisplay": "flex",
+    "minHeight": "844px"
+  },
+  "focus": {
+    "outline": "solid",
+    "width": "3px",
+    "top": 8
+  },
+  "errors": [],
+  "requests": [
+    "http://127.0.0.1:4175/",
+    "http://127.0.0.1:4175/assets/index-B4nOAV3w.js",
+    "http://127.0.0.1:4175/assets/index-nmN-gq6A.css",
+    "http://127.0.0.1:4175/favicon.svg",
+    "http://127.0.0.1:8000/api/ocean-data?variable=temperature&time_idx=0&depth=0",
+    "http://127.0.0.1:4175/favicon.svg",
+    "http://127.0.0.1:4175/",
+    "http://127.0.0.1:4175/assets/index-B4nOAV3w.js",
+    "http://127.0.0.1:4175/assets/index-nmN-gq6A.css",
+    "http://127.0.0.1:4175/favicon.svg",
+    "http://127.0.0.1:8000/api/ocean-data?variable=temperature&time_idx=0&depth=0"
+  ],
+  "disabledControls": 6,
+  "refreshTextStable": true,
+  "result": "PASS"
+}

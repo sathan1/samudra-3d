@@ -1,0 +1,163 @@
+Timestamp: 2026-09-11T10:51:25.9541390+05:30
+Directory: D:\Samudra 3D\frontend
+Command: node tests/check-environment.mjs
+PowerShell: 7.6.5
+{
+  "timestamp": "2026-09-11T05:21:26.151Z",
+  "node": "v24.18.0",
+  "platform": "win32",
+  "architecture": "x64",
+  "packages": {
+    "react": {
+      "version": "18.3.1",
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "react-dom": {
+      "version": "18.3.1",
+      "peerDependencies": {
+        "react": "^18.3.1"
+      }
+    },
+    "@eslint/js": {
+      "version": "9.39.5",
+      "engines": {
+        "node": "^18.18.0 || ^20.9.0 || >=21.1.0"
+      }
+    },
+    "@playwright/test": {
+      "version": "1.63.0",
+      "engines": {
+        "node": ">=20"
+      }
+    },
+    "@vitejs/plugin-react": {
+      "version": "6.1.1",
+      "engines": {
+        "node": "^20.19.0 || >=22.12.0"
+      },
+      "peerDependencies": {
+        "@rolldown/plugin-babel": "^0.1.7 || ^0.2.0",
+        "babel-plugin-react-compiler": "^1.0.0",
+        "oxc-transform-react": "^0.145.0",
+        "vite": "^8.0.0"
+      },
+      "peerDependenciesMeta": {
+        "@rolldown/plugin-babel": {
+          "optional": true
+        },
+        "babel-plugin-react-compiler": {
+          "optional": true
+        },
+        "oxc-transform-react": {
+          "optional": true
+        }
+      }
+    },
+    "eslint": {
+      "version": "9.39.5",
+      "engines": {
+        "node": "^18.18.0 || ^20.9.0 || >=21.1.0"
+      },
+      "peerDependencies": {
+        "jiti": "*"
+      },
+      "peerDependenciesMeta": {
+        "jiti": {
+          "optional": true
+        }
+      }
+    },
+    "eslint-plugin-react-hooks": {
+      "version": "7.1.1",
+      "engines": {
+        "node": ">=18"
+      },
+      "peerDependencies": {
+        "eslint": "^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0-0 || ^9.0.0 || ^10.0.0"
+      }
+    },
+    "tailwindcss": {
+      "version": "3.4.17",
+      "engines": {
+        "node": ">=14.0.0"
+      }
+    },
+    "postcss": {
+      "version": "8.5.28",
+      "engines": {
+        "node": "^10 || ^12 || >=14"
+      }
+    },
+    "autoprefixer": {
+      "version": "10.5.6",
+      "engines": {
+        "node": "^10 || ^12 || >=14"
+      },
+      "peerDependencies": {
+        "postcss": "^8.1.0"
+      }
+    },
+    "vite": {
+      "version": "8.3.0",
+      "engines": {
+        "node": "^20.19.0 || >=22.12.0"
+      },
+      "peerDependencies": {
+        "@types/node": "^20.19.0 || >=22.12.0",
+        "@vitejs/devtools": "^0.7.1",
+        "esbuild": "^0.27.0 || ^0.28.0",
+        "jiti": ">=1.21.0",
+        "less": "^4.0.0",
+        "sass": "^1.70.0",
+        "sass-embedded": "^1.70.0",
+        "stylus": ">=0.54.8",
+        "sugarss": "^5.0.0",
+        "terser": "^5.16.0",
+        "tsx": "^4.8.1",
+        "yaml": "^2.4.2"
+      },
+      "peerDependenciesMeta": {
+        "@types/node": {
+          "optional": true
+        },
+        "@vitejs/devtools": {
+          "optional": true
+        },
+        "esbuild": {
+          "optional": true
+        },
+        "jiti": {
+          "optional": true
+        },
+        "sass": {
+          "optional": true
+        },
+        "sass-embedded": {
+          "optional": true
+        },
+        "stylus": {
+          "optional": true
+        },
+        "less": {
+          "optional": true
+        },
+        "sugarss": {
+          "optional": true
+        },
+        "terser": {
+          "optional": true
+        },
+        "tsx": {
+          "optional": true
+        },
+        "yaml": {
+          "optional": true
+        }
+      }
+    }
+  },
+  "result": "PASS"
+}
+Exit code: 0

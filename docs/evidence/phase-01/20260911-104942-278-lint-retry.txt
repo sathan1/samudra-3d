@@ -1,0 +1,18 @@
+Timestamp: 2026-09-11T10:49:42.3218339+05:30
+Directory: D:\Samudra 3D\frontend
+Command: npm.cmd run lint
+PowerShell: 7.6.5
+
+> samudra-3d-frontend@0.1.0 lint
+> eslint . --max-warnings 0
+
+
+D:\Samudra 3D\frontend\tests\shell.spec.js
+  31:142  error  'getComputedStyle' is not defined  no-undef
+  31:214  error  'getComputedStyle' is not defined  no-undef
+  48:75   error  'getComputedStyle' is not defined  no-undef
+  48:117  error  'getComputedStyle' is not defined  no-undef
+
+✖ 4 problems (4 errors, 0 warnings)
+
+Exit code: 1

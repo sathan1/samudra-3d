@@ -1,0 +1,654 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SAMUDRA-3D Ocean Intelligence Platform",
+    "description": "High-performance backend API serving numerical ocean model outputs and in-situ observations (SIH26067 - MoES / INCOIS)",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Ocean Intelligence"
+        ],
+        "summary": "Backend health and dataset readiness check",
+        "description": "Returns backend system status and confirms NetCDF dataset load readiness.",
+        "operationId": "get_health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/metadata": {
+      "get": {
+        "tags": [
+          "Ocean Intelligence"
+        ],
+        "summary": "Retrieve dataset CF metadata and dimensions",
+        "description": "Returns available variables, coordinate extents, depth levels, and time steps.\nUsed by frontend controls to populate selectable options truthfully.",
+        "operationId": "get_metadata_api_metadata_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OceanMetadataResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ocean-data": {
+      "get": {
+        "tags": [
+          "Ocean Intelligence"
+        ],
+        "summary": "Slice 2D ocean field by depth, time, and bounds",
+        "description": "Slices precomputed numerical ocean model outputs on the backend.\nReturns 2D horizontal field with land points and missing values serialized as JSON null.",
+        "operationId": "get_ocean_data_api_ocean_data_get",
+        "parameters": [
+          {
+            "name": "variable",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Target variable (temperature, salinity, currents, u_current, v_current)",
+              "default": "temperature",
+              "title": "Variable"
+            },
+            "description": "Target variable (temperature, salinity, currents, u_current, v_current)"
+          },
+          {
+            "name": "time_idx",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Time index (0 to 7)",
+              "default": 0,
+              "title": "Time Idx"
+            },
+            "description": "Time index (0 to 7)"
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 0.0,
+              "description": "Requested depth in meters (0 to 4000)",
+              "default": 0.0,
+              "title": "Depth"
+            },
+            "description": "Requested depth in meters (0 to 4000)"
+          },
+          {
+            "name": "lat_min",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum latitude bounding filter",
+              "title": "Lat Min"
+            },
+            "description": "Minimum latitude bounding filter"
+          },
+          {
+            "name": "lat_max",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Maximum latitude bounding filter",
+              "title": "Lat Max"
+            },
+            "description": "Maximum latitude bounding filter"
+          },
+          {
+            "name": "lon_min",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum longitude bounding filter",
+              "title": "Lon Min"
+            },
+            "description": "Minimum longitude bounding filter"
+          },
+          {
+            "name": "lon_max",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Maximum longitude bounding filter",
+              "title": "Lon Max"
+            },
+            "description": "Maximum longitude bounding filter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OceanDataSliceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/insitu/profiles": {
+      "get": {
+        "tags": [
+          "Ocean Intelligence"
+        ],
+        "summary": "Retrieve in-situ Argo and Glider profiles",
+        "description": "Returns normalized in-situ observations with vertical depth profiles and QC flags.",
+        "operationId": "get_insitu_profiles_api_insitu_profiles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Get Insitu Profiles Api Insitu Profiles Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Root",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "example": "healthy"
+          },
+          "dataset_loaded": {
+            "type": "boolean",
+            "title": "Dataset Loaded",
+            "example": true
+          },
+          "variables_available": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Variables Available",
+            "example": [
+              "temperature",
+              "salinity",
+              "currents"
+            ]
+          },
+          "dataset_path": {
+            "type": "string",
+            "title": "Dataset Path"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "dataset_loaded",
+          "variables_available",
+          "dataset_path",
+          "timestamp"
+        ],
+        "title": "HealthResponse"
+      },
+      "OceanDataSliceResponse": {
+        "properties": {
+          "variable": {
+            "type": "string",
+            "title": "Variable"
+          },
+          "units": {
+            "type": "string",
+            "title": "Units"
+          },
+          "time_idx": {
+            "type": "integer",
+            "title": "Time Idx"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "requested_depth": {
+            "type": "number",
+            "title": "Requested Depth"
+          },
+          "selected_depth": {
+            "type": "number",
+            "title": "Selected Depth"
+          },
+          "shape": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Shape"
+          },
+          "lats": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Lats"
+          },
+          "lons": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Lons"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Values"
+          },
+          "u_values": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "U Values"
+          },
+          "v_values": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "V Values"
+          },
+          "min_val": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Val"
+          },
+          "max_val": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Val"
+          },
+          "missing_count": {
+            "type": "integer",
+            "title": "Missing Count"
+          },
+          "valid_count": {
+            "type": "integer",
+            "title": "Valid Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "variable",
+          "units",
+          "time_idx",
+          "timestamp",
+          "requested_depth",
+          "selected_depth",
+          "shape",
+          "lats",
+          "lons",
+          "values",
+          "missing_count",
+          "valid_count"
+        ],
+        "title": "OceanDataSliceResponse"
+      },
+      "OceanMetadataResponse": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "conventions": {
+            "type": "string",
+            "title": "Conventions"
+          },
+          "institution": {
+            "type": "string",
+            "title": "Institution"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "synthetic": {
+            "type": "boolean",
+            "title": "Synthetic"
+          },
+          "dimensions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Dimensions"
+          },
+          "variables": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/VariableMetadata"
+            },
+            "type": "object",
+            "title": "Variables"
+          },
+          "time_steps_hours": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Time Steps Hours"
+          },
+          "time_timestamps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Time Timestamps"
+          },
+          "depth_levels_m": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Depth Levels M"
+          },
+          "lat_bounds": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Lat Bounds",
+            "example": [
+              0.0,
+              25.0
+            ]
+          },
+          "lon_bounds": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Lon Bounds",
+            "example": [
+              65.0,
+              95.0
+            ]
+          },
+          "spatial_resolution": {
+            "type": "string",
+            "title": "Spatial Resolution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "conventions",
+          "institution",
+          "source",
+          "synthetic",
+          "dimensions",
+          "variables",
+          "time_steps_hours",
+          "time_timestamps",
+          "depth_levels_m",
+          "lat_bounds",
+          "lon_bounds",
+          "spatial_resolution"
+        ],
+        "title": "OceanMetadataResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VariableMetadata": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "long_name": {
+            "type": "string",
+            "title": "Long Name"
+          },
+          "units": {
+            "type": "string",
+            "title": "Units"
+          },
+          "standard_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Standard Name"
+          },
+          "valid_range": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Range"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "long_name",
+          "units"
+        ],
+        "title": "VariableMetadata"
+      }
+    }
+  }
+}

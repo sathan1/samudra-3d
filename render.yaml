@@ -1,0 +1,17 @@
+﻿# SAMUDRA-3D Render.com Free Tier Deployment Configuration
+# 100% Free Hosting for FastAPI Python Service + Persistent SQLite Database
+services:
+  - type: web
+    name: samudra-3d-backend
+    env: python
+    region: singapore # Closest low-latency region to Indian Ocean / India
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: python -m uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: PORT
+        value: 10000
+      - key: CORS_ORIGINS
+        value: "*"

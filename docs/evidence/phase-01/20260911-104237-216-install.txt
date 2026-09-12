@@ -1,0 +1,12 @@
+Timestamp: 2026-09-11T10:42:37.2612795+05:30
+Directory: D:\Samudra 3D\frontend
+Command: npm install --cache .npm-cache --prefer-online --offline=false
+PowerShell: 7.6.5
+
+added 212 packages, and audited 213 packages in 48s
+
+53 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+Exit code: 0

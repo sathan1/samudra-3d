@@ -1,0 +1,594 @@
+{
+  "timestamp": "2026-09-12T11:20:50.814672+05:30",
+  "workspace": "D:\\Studies\\SIH\\Samudra 3D",
+  "phase": "phase-13",
+  "git": "No repository at entry; no commit created",
+  "exclusions": [
+    ".npm-cache",
+    ".pytest_cache",
+    "__pycache__",
+    "dist",
+    "docs/evidence (separately retained)",
+    "large binary datasets (*.nc recorded separately in report)",
+    "node_modules",
+    "playwright-report",
+    "test-results"
+  ],
+  "files": [
+    {
+      "file": ".gitignore",
+      "bytes": 225,
+      "sha256": "79a9f11f61538744cd95aa14467ee542c6627657ba7b0717cdbfd2bce6cd26a0"
+    },
+    {
+      "file": "backend/app/__init__.py",
+      "bytes": 41,
+      "sha256": "9087437b38ce44f30340684910716b960efc300039c94f95bc2df6612cde9338"
+    },
+    {
+      "file": "backend/app/core/__init__.py",
+      "bytes": 14,
+      "sha256": "d4427d52d40f3985e5e87e6f31ac9d4d3fc545bfcb5623c444c6cadaa0a3c1fe"
+    },
+    {
+      "file": "backend/app/core/config.py",
+      "bytes": 684,
+      "sha256": "f7b5ae694c15e140232df469c685d24825ef4304c30774f0e0b4ff3d7bccc88a"
+    },
+    {
+      "file": "backend/app/main.py",
+      "bytes": 2066,
+      "sha256": "7f4c8d62fbaa5830e74c459e4995577d0aceb566434622874c2bb82fdb829923"
+    },
+    {
+      "file": "backend/app/routers/__init__.py",
+      "bytes": 10,
+      "sha256": "4158c87e89c442c90f79240ba6b69b22786d0a5f7b7bb9e291b483b2e00bdbaf"
+    },
+    {
+      "file": "backend/app/routers/collocation.py",
+      "bytes": 2502,
+      "sha256": "9ec3f1c8a917dd67d999df4d8e8ac32c457a97c0b55df4d67b25c1f9a4fcaf85"
+    },
+    {
+      "file": "backend/app/routers/ocean.py",
+      "bytes": 3647,
+      "sha256": "d3fbc118e84dc726801342a05bc2a021dd7b9990503d630517c0fe320c5f3730"
+    },
+    {
+      "file": "backend/app/routers/routes_insitu.py",
+      "bytes": 3752,
+      "sha256": "dee7fc10d4921bfe56c73e93e705a13d096059fb67dbe351929259da9545cc2e"
+    },
+    {
+      "file": "backend/app/schemas/__init__.py",
+      "bytes": 10,
+      "sha256": "8732fc45e4510327ca130624fd5e6dfe437c1cb073f78c75ce4a3e64ae08b959"
+    },
+    {
+      "file": "backend/app/schemas/collocation.py",
+      "bytes": 5238,
+      "sha256": "216169e82d1f56c1ecbef955f766346ac1ea45ee9610d80d321ef8fed51a3ef2"
+    },
+    {
+      "file": "backend/app/schemas/insitu.py",
+      "bytes": 4065,
+      "sha256": "91e18e68ae749815ae07f5fe2dc734a9ea698708e56fa701c4366395583bca85"
+    },
+    {
+      "file": "backend/app/schemas/ocean.py",
+      "bytes": 1487,
+      "sha256": "802e02bb06b09a056e1c72950c6bacc0065ae1a1a4b4ffb22bdbe2c6accc4027"
+    },
+    {
+      "file": "backend/app/services/__init__.py",
+      "bytes": 11,
+      "sha256": "43ee368f95197c45693af46ea490457a58d6960f89273bc18e7c243270e9dacf"
+    },
+    {
+      "file": "backend/app/services/collocation.py",
+      "bytes": 26860,
+      "sha256": "ff342df83184b4f5c8b6c794f0c8cd43317dc41b5f71099ad8186e79273d43da"
+    },
+    {
+      "file": "backend/app/services/insitu_service.py",
+      "bytes": 14516,
+      "sha256": "5bbc090a8348c0a243e6af386046b768adff38fe884b3cb02ae1653b66bd9d20"
+    },
+    {
+      "file": "backend/app/services/ocean_service.py",
+      "bytes": 10763,
+      "sha256": "c2eea4e437c109017de1959d5409a6afe998f1915258b9460e01ef3d88771edc"
+    },
+    {
+      "file": "backend/requirements.txt",
+      "bytes": 298,
+      "sha256": "820758e01c90be448971c0d99e9f8eb4c1a19d27df25d7cde29f58b9edc1518c"
+    },
+    {
+      "file": "backend/sample_data/argo_profiles.json",
+      "bytes": 3902,
+      "sha256": "37513dd691b97c03f0452ecf10dc42a1498cbb66566d915999e5c0103f9ae997"
+    },
+    {
+      "file": "backend/sample_data/generate_synthetic_data.py",
+      "bytes": 13823,
+      "sha256": "263f6823531f23b44d60c55efab944a1a6165e20606f029258c6eab33983310d"
+    },
+    {
+      "file": "backend/sample_data/glider_transects.json",
+      "bytes": 12040,
+      "sha256": "9f6de2c52783d8692ccef66be49869e7f434ea902b764fcf375abbea04c2eb11"
+    },
+    {
+      "file": "backend/sample_data/real_argo_sample.json",
+      "bytes": 1455,
+      "sha256": "d73d343cf6944bdc192a5eb68d413903c0ff6cf9889639d026689b2337e3ea78"
+    },
+    {
+      "file": "backend/sample_data/real_glider_sample.json",
+      "bytes": 4058,
+      "sha256": "807e2bd5696be23b6fe2c821c032fa3ffa53ba1a930969f3e05cc2fcc3ca01c2"
+    },
+    {
+      "file": "backend/tests/test_api.py",
+      "bytes": 10613,
+      "sha256": "e5d2001a19cfb3f272e6c77a9b8a0df2e220a3281135ed7973b0328e2f5d4c22"
+    },
+    {
+      "file": "backend/tests/test_collocation.py",
+      "bytes": 8344,
+      "sha256": "9ced4fbdd69ba2150d0b9b31359022e297563181f4ce034c4e529815aace87e1"
+    },
+    {
+      "file": "backend/tests/test_gliders.py",
+      "bytes": 3756,
+      "sha256": "1494e1b837a4d1196bbf4b79cdcbd9c646ff4056bfc29ceadfb8b1c155057f6c"
+    },
+    {
+      "file": "backend/tests/test_insitu.py",
+      "bytes": 5881,
+      "sha256": "b53546cde8acf37ffa30e90967eecf2c1f3957d52d9ed590fad1529051c46b43"
+    },
+    {
+      "file": "backend/tests/test_synthetic_data.py",
+      "bytes": 8286,
+      "sha256": "4c81e6eb603bc195c0b84e4ea14611a756297b8ec7122d2c5d1c6a733f79f018"
+    },
+    {
+      "file": "docs/acceptance-phase-01.md",
+      "bytes": 2633,
+      "sha256": "5015a22d93f6bae0098fa7a58282cc3cdd2169864ca38087eb407aaa5e0c3b31"
+    },
+    {
+      "file": "docs/acceptance-phase-02.md",
+      "bytes": 3126,
+      "sha256": "72d763376b38a90d95141cb23e6f40caa3cecb519f78a8e4f3fe982e0de14046"
+    },
+    {
+      "file": "docs/acceptance-phase-03.md",
+      "bytes": 3539,
+      "sha256": "ba27a455ec2cfd16072eaffadc4ee1b7829256ea2e73074aaa9c52185648ed17"
+    },
+    {
+      "file": "docs/acceptance-phase-04.md",
+      "bytes": 2991,
+      "sha256": "b184b66e104bd32ae5e38cd96054b3426a616d419294dd1cdcf5c59a088927a0"
+    },
+    {
+      "file": "docs/acceptance-phase-05.md",
+      "bytes": 3530,
+      "sha256": "448c3fd7874f05c0733b914284a2b6678eaa1216df4cd0c83eaff76020ef3e12"
+    },
+    {
+      "file": "docs/acceptance-phase-06.md",
+      "bytes": 3107,
+      "sha256": "ea091ff53b8bd90ca68a774b3cb8de2980372fcf7fdab3eeef503369859dc9dc"
+    },
+    {
+      "file": "docs/acceptance-phase-07.md",
+      "bytes": 3433,
+      "sha256": "f37d12df2b6c199edff33cf23a305331b41a98052d17b8d66e450f6abf9a4c83"
+    },
+    {
+      "file": "docs/acceptance-phase-08.md",
+      "bytes": 3921,
+      "sha256": "307124e0a7e469f3f5e32372fa579f67a892d296fe5307a464ab9861c6d16d6c"
+    },
+    {
+      "file": "docs/acceptance-phase-09.md",
+      "bytes": 4060,
+      "sha256": "99e0cb4a847de268912d2ff8edba33c65d0e71a136af87beed4e9e29f710e835"
+    },
+    {
+      "file": "docs/acceptance-phase-10.md",
+      "bytes": 3977,
+      "sha256": "2ef00383185d19d7823fdf03f49e812a61f256b1f972104c4601b66a552bc340"
+    },
+    {
+      "file": "docs/acceptance-phase-11.md",
+      "bytes": 4497,
+      "sha256": "f06e429ef03f7cb0c7d1a994eac91b45b3a6731b1fc5b1aee7755ca3df56deee"
+    },
+    {
+      "file": "docs/acceptance-phase-12.md",
+      "bytes": 5375,
+      "sha256": "74395d745a4c35945bd0a1aa2c61af7499d0bdd0944b380d43149df722663077"
+    },
+    {
+      "file": "docs/acceptance-phase-13.md",
+      "bytes": 4548,
+      "sha256": "49d86c5a0bfd93ed9d31d90a839a90a7a586d499ee7b533cabe62c93305811f8"
+    },
+    {
+      "file": "docs/decisions.md",
+      "bytes": 27537,
+      "sha256": "7e67fb56470144ca4b2e5f6c0f36c606349031a321f1b4defa1779519ae558e2"
+    },
+    {
+      "file": "docs/phase-reports/phase-01-report.md",
+      "bytes": 13801,
+      "sha256": "0243c7921bea8cd9820462cac8921b5fb193cafa3b33d70bfa1428892a04b092"
+    },
+    {
+      "file": "docs/phase-reports/phase-02-report.md",
+      "bytes": 14923,
+      "sha256": "58cac6bcde1cca2e1ca8e2b74fad83cd7ececb9629dcc7b387d89a342f7e32a5"
+    },
+    {
+      "file": "docs/phase-reports/phase-03-report.md",
+      "bytes": 14909,
+      "sha256": "6721d942cbcd8790f0d8ce04ec5b7a8fb7315fa1c5b820509355911ed299c38c"
+    },
+    {
+      "file": "docs/phase-reports/phase-04-report.md",
+      "bytes": 14087,
+      "sha256": "6c7f17f65b2f0c6d38c18460ca84feca83b373d66b01d117c4003d7261e0f862"
+    },
+    {
+      "file": "docs/phase-reports/phase-05-report.md",
+      "bytes": 14859,
+      "sha256": "91651fc0a3ca0fff944af606147c1abb3ccfa44529d9d575c98d6ee1b7422997"
+    },
+    {
+      "file": "docs/phase-reports/phase-06-report.md",
+      "bytes": 13221,
+      "sha256": "1afe73d592c5b8731bd817a0a60c1eb6b8bcf1d5d3bdff99d2efb114ca891e96"
+    },
+    {
+      "file": "docs/phase-reports/phase-07-report.md",
+      "bytes": 12868,
+      "sha256": "4ef41881fc6372fdae689f74829b67949a26b9f19c096b2ad338aa2d28c563e6"
+    },
+    {
+      "file": "docs/phase-reports/phase-08-report.md",
+      "bytes": 13610,
+      "sha256": "391ac3ae7d6f9440e53edfbce5eed6890859c6dedf81531c7a9e391e0bf9f7b7"
+    },
+    {
+      "file": "docs/phase-reports/phase-09-report.md",
+      "bytes": 14955,
+      "sha256": "cc9102636f6e2bf99f063c111b250380074b98549966a9b4129453cb5d9683fd"
+    },
+    {
+      "file": "docs/phase-reports/phase-10-report.md",
+      "bytes": 15861,
+      "sha256": "aa23ee6595c044bb21ab58e85fec2737ea2f306961c1c0127fde6b3441170999"
+    },
+    {
+      "file": "docs/phase-reports/phase-11-report.md",
+      "bytes": 13822,
+      "sha256": "07a7d3ca7103ded5607f88f9dabd5db2e531d47c7b08f0a0ded79c471290971b"
+    },
+    {
+      "file": "docs/phase-reports/phase-12-report.md",
+      "bytes": 7604,
+      "sha256": "46d33f2d2df46a89c35cecad2f016130e9050f839a9d8d809311375144b5aac4"
+    },
+    {
+      "file": "docs/phase-status.md",
+      "bytes": 7673,
+      "sha256": "4daae23f249b662bf562e5f62869a9024b1edd9c10e2434e7a12bbc2dec707fd"
+    },
+    {
+      "file": "docs/requirements-traceability.md",
+      "bytes": 12596,
+      "sha256": "f5e849bf492b62843e5c816103dd66768503a2faed3c63bbb4260e3fef8ad9be"
+    },
+    {
+      "file": "docs/source-audit.md",
+      "bytes": 4292,
+      "sha256": "afc9a54d4b810ab8db0b3d036a2611b1ac65baf3eb6eafb28375cd2d4c76d1e1"
+    },
+    {
+      "file": "docs/source-conflicts.md",
+      "bytes": 5915,
+      "sha256": "3c0b0affafb6527fcb8dc205cdac2ff682f5a4e1842ec144bd08bbc60e34dc40"
+    },
+    {
+      "file": "frontend/.env.example",
+      "bytes": 239,
+      "sha256": "95b20bb9033c0e8a4c1878272c0e4a5ec3480817cf9d7b0a873e6d1dbb1de219"
+    },
+    {
+      "file": "frontend/eslint.config.js",
+      "bytes": 827,
+      "sha256": "678221a3d1bd455bf1cae60f30addd3b89208a3e434d87ad82d637e91eb32785"
+    },
+    {
+      "file": "frontend/index.html",
+      "bytes": 566,
+      "sha256": "e5712f1626ad089df48e52febb084015a480ef6f850704604b90651769e7644f"
+    },
+    {
+      "file": "frontend/package-lock.json",
+      "bytes": 118098,
+      "sha256": "3011a67d53306aa93ea549b674389db6682a08ef1d03255f4986af2e58f14ad3"
+    },
+    {
+      "file": "frontend/package.json",
+      "bytes": 778,
+      "sha256": "31e03a44fbb0fc4423e9a1ada667b401dbc07c5e08e7ce78d9b5de9da272da88"
+    },
+    {
+      "file": "frontend/playwright.config.js",
+      "bytes": 448,
+      "sha256": "e6df1713f9df49972371c06118b4ef08109ea0c3e14f30c6702250013c514c3e"
+    },
+    {
+      "file": "frontend/postcss.config.js",
+      "bytes": 66,
+      "sha256": "45027a2befa94d6f46875c529d1088c12548d8f0bee31133e4ebb00ebc581e33"
+    },
+    {
+      "file": "frontend/public/favicon.svg",
+      "bytes": 217,
+      "sha256": "1e8f1082bdc2e7e475d89aa846f8be1a857812eba058afca152ec38d98e012e0"
+    },
+    {
+      "file": "frontend/src/App.jsx",
+      "bytes": 10432,
+      "sha256": "1ad16254f71b2f76ed68b803af5b916eb48fc1bc5f5da8e3f13f0a95f2768cb2"
+    },
+    {
+      "file": "frontend/src/components/AIAssistantModal.jsx",
+      "bytes": 393,
+      "sha256": "802207adc2f897b9979100242af513546e5e2f97d7ca637f037c903a755d0724"
+    },
+    {
+      "file": "frontend/src/components/ColorBarLegend.jsx",
+      "bytes": 3458,
+      "sha256": "ad250a4342a32740116bf467003c3de30d94fef468f6b5dcdff01cb94d16510e"
+    },
+    {
+      "file": "frontend/src/components/ComparisonPanel.jsx",
+      "bytes": 3977,
+      "sha256": "0256a7ddd5b2a314980d086ac32e7cea3ce50527832d3f330b3820f215751d7e"
+    },
+    {
+      "file": "frontend/src/components/Header.jsx",
+      "bytes": 736,
+      "sha256": "c2ff290495ab4b886ff44c4018f8fa1fc59d1e5a7c8429b8ebf407d8d6073567"
+    },
+    {
+      "file": "frontend/src/components/OceanCanvas.jsx",
+      "bytes": 28913,
+      "sha256": "d270d8d0133b1f88a10ddfc7bd05decd7f8587e6972b2b89772a42b64a6780c5"
+    },
+    {
+      "file": "frontend/src/components/ProfileModal.jsx",
+      "bytes": 33739,
+      "sha256": "88e305e665a5c3b293245711e42296b67aed41b95cc1a8fb6fadd238fb1f680e"
+    },
+    {
+      "file": "frontend/src/components/SidebarControls.jsx",
+      "bytes": 13890,
+      "sha256": "3e8e5e6c8708a65f2c5fa02707ef3b9e17be679f80ecac7fd6e49510401ace5a"
+    },
+    {
+      "file": "frontend/src/index.css",
+      "bytes": 8181,
+      "sha256": "09b5d48501e9554e78a65b107ed20b7a1a3a6f0db5e9fd1299a799264210bcad"
+    },
+    {
+      "file": "frontend/src/main.jsx",
+      "bytes": 227,
+      "sha256": "10e24c7ad57dc024803dfc05a03248e1b87398e82ba41d1b0f3b37fa888f04c6"
+    },
+    {
+      "file": "frontend/src/services/api.js",
+      "bytes": 5683,
+      "sha256": "4ed271afac1300c8ff5f9b19a1b693fd424dba26bab6805d0cc08c7460a2e396"
+    },
+    {
+      "file": "frontend/src/utils/argoProfiles.js",
+      "bytes": 9874,
+      "sha256": "dde740199d7eee8d15cd288b2657cfb4f754dd615b98a5da36b9138c81e9fa62"
+    },
+    {
+      "file": "frontend/src/utils/colormaps.js",
+      "bytes": 3203,
+      "sha256": "c9a697fcd89410c6ce090ffd2e158963c6cf726183c21283fa511f13467fa470"
+    },
+    {
+      "file": "frontend/src/utils/coordinates.js",
+      "bytes": 4260,
+      "sha256": "0876edcec807c2c826ec9ceef5f28fb4de91daf717a2d18961e4822b43444d77"
+    },
+    {
+      "file": "frontend/src/utils/earthTexture.js",
+      "bytes": 7885,
+      "sha256": "c106e6553fe5ecd1abdbe1765cba624f9df824e0a5041976488efda767923e59"
+    },
+    {
+      "file": "frontend/src/utils/gliderTransects.js",
+      "bytes": 13038,
+      "sha256": "fe41fd75b501a30f34d328c4097eb308a3a185468cebcb457818c664bc8b7360"
+    },
+    {
+      "file": "frontend/src/utils/particleStreamlines.js",
+      "bytes": 9166,
+      "sha256": "5d93b310b89553f115ad7f5e0f05e9af5085667c9630c2087c7c54ea06be5a6d"
+    },
+    {
+      "file": "frontend/src/utils/profileCharts.js",
+      "bytes": 10104,
+      "sha256": "80a3e59a7a968cbb796e5d87ee6a71baa39c99f195ef19e8c1e8ed753f8c3f75"
+    },
+    {
+      "file": "frontend/src/utils/scalarField.js",
+      "bytes": 4829,
+      "sha256": "91cedbaa5456d57009481d2373c4b8621b66e2bd5972898359fad55b8446f9d3"
+    },
+    {
+      "file": "frontend/src/utils/timeAnimation.js",
+      "bytes": 3509,
+      "sha256": "825da181651b572bd7c689e854ad60096a8fd9b385baee4519c3c0603f53f5b5"
+    },
+    {
+      "file": "frontend/tailwind.config.js",
+      "bytes": 185,
+      "sha256": "539d4556c2882c31f78ee7c413f43aee65093bf04302cb51adaab30e3577f18e"
+    },
+    {
+      "file": "frontend/tests/argo.spec.js",
+      "bytes": 6177,
+      "sha256": "dedf4ffcfda5a2f5c74397ead745078517413c32cfa996fda7c6bc083c2891c7"
+    },
+    {
+      "file": "frontend/tests/check-environment.mjs",
+      "bytes": 1023,
+      "sha256": "e2914f77024e4e6090be715beff91e677a8a100c242556a5146706f3b90d7251"
+    },
+    {
+      "file": "frontend/tests/collocation.spec.js",
+      "bytes": 6604,
+      "sha256": "d17dcefddf44e02d5b49c0d7f1115c38d81c2d3868a085a62f754cc8dbc34dc0"
+    },
+    {
+      "file": "frontend/tests/colormaps.spec.js",
+      "bytes": 3890,
+      "sha256": "8fb0c7bddeaa4149b964365e49539f0be76dc2631cc1b68ce40d4c2cfc73ea46"
+    },
+    {
+      "file": "frontend/tests/currents.spec.js",
+      "bytes": 5527,
+      "sha256": "405f3765b30268caa86702cda51136f36eb94f2802f1d889e47d2e0ebb461b11"
+    },
+    {
+      "file": "frontend/tests/depth.spec.js",
+      "bytes": 6544,
+      "sha256": "f7eddd8a9f113ab3dc447b293eb65f175a1bbb5ccda73a6b265e90a91ea3424f"
+    },
+    {
+      "file": "frontend/tests/glider.spec.js",
+      "bytes": 7640,
+      "sha256": "da30f545fb609d42fcb2f92393b1ba307f3a18970c7c2050cfc4a9e391ca4c9d"
+    },
+    {
+      "file": "frontend/tests/globe.spec.js",
+      "bytes": 7357,
+      "sha256": "32ddf869dc8c176a0bd1ea1f42691e869f3d68f0ca29ee36f11b70c9846cbb04"
+    },
+    {
+      "file": "frontend/tests/profile-modal.spec.js",
+      "bytes": 7668,
+      "sha256": "9e10565c12023e7205c4f2833e3b6b69be58f684199316aab6639258c08c81fe"
+    },
+    {
+      "file": "frontend/tests/scalar-field.spec.js",
+      "bytes": 5169,
+      "sha256": "4a821029186e2829df827296f2febebaf40ce136323f9d0dfe132fb06924d5a7"
+    },
+    {
+      "file": "frontend/tests/shell.spec.js",
+      "bytes": 7309,
+      "sha256": "5a0d65a1eae17dedf2428f191118ba8654a0be2245dab58985861c7f3d51eda3"
+    },
+    {
+      "file": "frontend/tests/test-argo.mjs",
+      "bytes": 6098,
+      "sha256": "25f1be88920044fd11eae5f3ceaae50ac263c0f32b91755ecf87e2ffeaa014b5"
+    },
+    {
+      "file": "frontend/tests/test-collocation.mjs",
+      "bytes": 5120,
+      "sha256": "16a4b8d4c0ab91bbdf084c6231542bfae3549d8d9ac799de2811698a0f69c4c2"
+    },
+    {
+      "file": "frontend/tests/test-colormaps.mjs",
+      "bytes": 3234,
+      "sha256": "d0a18e74f94864dbf281720e4304fc94a0c1fdbeac6911fe88135751158bb457"
+    },
+    {
+      "file": "frontend/tests/test-coordinates.mjs",
+      "bytes": 4184,
+      "sha256": "a5cafad7586cef5a6c5af38d44a595ce8599683de5733c7bf5b46aceebe441fe"
+    },
+    {
+      "file": "frontend/tests/test-currents.mjs",
+      "bytes": 5320,
+      "sha256": "b996218792eea17362493320238bcb520623b332c8f50099c657c151c4f6340a"
+    },
+    {
+      "file": "frontend/tests/test-depth.mjs",
+      "bytes": 3530,
+      "sha256": "1517f557494c640d837a1e463b489aaa59d9b231eac29986769effe5df7e4d48"
+    },
+    {
+      "file": "frontend/tests/test-glider-transects.mjs",
+      "bytes": 7698,
+      "sha256": "5d25ef45ff76a39888e45cad235f7a9ad5cfbe833d6cc11cc2c968887a3a9bca"
+    },
+    {
+      "file": "frontend/tests/test-profile-charts.mjs",
+      "bytes": 6565,
+      "sha256": "e677bfb9165ed94b3797b910593fd2f7f640dd2f9c8cc35ce12e6c485c3355eb"
+    },
+    {
+      "file": "frontend/tests/test-scalar-grid.mjs",
+      "bytes": 3649,
+      "sha256": "43833b668c1a0fff965623ad9f0e026f8413e72275b43e0866f409d3c3dc1339"
+    },
+    {
+      "file": "frontend/tests/test-time-animation.mjs",
+      "bytes": 3646,
+      "sha256": "2e23bc25d5d10351f67f5bee825d3c14de7f71436172b31d258674086d2950da"
+    },
+    {
+      "file": "frontend/tests/time.spec.js",
+      "bytes": 5700,
+      "sha256": "d6787bc2ad87ec67cb8fd44c71db2083b18295ca36de161832acdfea8a106a7d"
+    },
+    {
+      "file": "frontend/vite.config.js",
+      "bytes": 130,
+      "sha256": "2e22169dcf47cfa4b5ed63f65ff54d622a6f8d6927e2950e216ada60ae1d1566"
+    },
+    {
+      "file": "README.md",
+      "bytes": 3099,
+      "sha256": "bde5b4388f5d7c2803eb25cffc27754c567c02fd17f56d524138a811f6946aa1"
+    },
+    {
+      "file": "scripts/audit-sources.py",
+      "bytes": 3707,
+      "sha256": "6415f13c03b6b22de8f0f99d5f23633c634571e4ec4af13b5278afbe452f8931"
+    },
+    {
+      "file": "scripts/check-baseline.py",
+      "bytes": 4305,
+      "sha256": "bafecb5788ca693a79620a46a56473f7977bf1fd22ad3184529a661bcac4d839"
+    },
+    {
+      "file": "scripts/record-command.ps1",
+      "bytes": 1401,
+      "sha256": "2f7f7891fc537e54c506144e4bc63ec1292357914c5a3e398f0aa31abd3ad0af"
+    },
+    {
+      "file": "scripts/snapshot-baseline.py",
+      "bytes": 1754,
+      "sha256": "bda8b78d0cc78b33b93c562b02a4e80369eeb5389923064ced8ac0bcfd7e5606"
+    }
+  ]
+}

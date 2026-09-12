@@ -1,0 +1,36 @@
+# SAMUDRA-3D Docker Compose Specification
+# Smart India Hackathon 2026 - Problem Statement SIH26067
+# Ministry of Earth Sciences (MoES) / INCOIS
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: samudra-3d-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - ENVIRONMENT=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: samudra-3d-frontend
+    ports:
+      - "80:80"
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-12T16:55:46.127Z",
+  "browser": "153.0.4234.32",
+  "measurements": {
+    "framesMeasured": 166,
+    "durationMs": 1000.0999999996275,
+    "measuredFps": 166,
+    "avgFrameTimeMs": 6.02,
+    "hardwareConcurrency": 16,
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0"
+  },
+  "result": "PASS"
+}

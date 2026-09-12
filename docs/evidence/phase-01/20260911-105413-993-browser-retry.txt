@@ -1,0 +1,19 @@
+Timestamp: 2026-09-11T10:54:14.0320800+05:30
+Directory: D:\Samudra 3D\frontend
+Command: npm.cmd run test:browser
+PowerShell: 7.6.5
+
+> samudra-3d-frontend@0.1.0 test:browser
+> playwright test
+
+
+Running 5 tests using 1 worker
+
+  ok 1 tests\shell.spec.js:9:3 › shell at 1440px: layout, focus, availability, theme and refresh (1.8s)
+  ok 2 tests\shell.spec.js:9:3 › shell at 1024px: layout, focus, availability, theme and refresh (1.4s)
+  ok 3 tests\shell.spec.js:9:3 › shell at 768px: layout, focus, availability, theme and refresh (1.4s)
+  ok 4 tests\shell.spec.js:9:3 › shell at 390px: layout, focus, availability, theme and refresh (1.4s)
+  ok 5 tests\shell.spec.js:9:3 › shell at 320px: layout, focus, availability, theme and refresh (1.4s)
+
+  5 passed (13.6s)
+Exit code: 0

@@ -1,0 +1,19 @@
+Timestamp: 2026-09-11T10:49:34.9406583+05:30
+Directory: D:\Samudra 3D\frontend
+Command: npm.cmd run build
+PowerShell: 7.6.5
+
+> samudra-3d-frontend@0.1.0 build
+> vite build
+
+vite v8.3.0 building client environment for production...
+transforming...
+✓ 22 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.66 kB │ gzip:  0.39 kB
+dist/assets/index-DWZ-oprN.css   10.82 kB │ gzip:  3.36 kB
+dist/assets/index-C1cUxEy3.js   149.35 kB │ gzip: 48.16 kB
+
+✓ built in 17.33s
+Exit code: 0

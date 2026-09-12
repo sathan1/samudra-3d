@@ -1,0 +1,9 @@
+# SAMUDRA-3D Backend Dependencies (SIH26067)
+# Note: netCDF4 + numpy + scipy provide native, high-performance CF NetCDF4 handling.
+# xarray/pandas optional due to Windows Application Control policy on pandas C-extensions.
+
+netCDF4==1.7.4
+numpy==2.4.6
+scipy==1.17.1
+fastapi==0.141.1
+uvicorn==0.52.4

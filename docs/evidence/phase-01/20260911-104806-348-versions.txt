@@ -1,0 +1,20 @@
+Timestamp: 2026-09-11T10:48:06.3951560+05:30
+Directory: D:\Samudra 3D\frontend
+Command: npm.cmd ls --depth=0; node --version; npm.cmd --version; node -p "JSON.stringify({vite:require('vite/package.json').engines,plugin:require('@vitejs/plugin-react/package.json').engines,tailwind:require('tailwindcss/package.json').engines})"
+PowerShell: 7.6.5
+samudra-3d-frontend@0.1.0 D:\Samudra 3D\frontend
+├── @eslint/js@9.39.5
+├── @playwright/test@1.63.0
+├── @vitejs/plugin-react@6.1.1
+├── autoprefixer@10.5.6
+├── eslint-plugin-react-hooks@7.1.1
+├── eslint@9.39.5
+├── postcss@8.5.28
+├── react-dom@18.3.1
+├── react@18.3.1
+├── tailwindcss@3.4.17
+└── vite@8.3.0
+
+v24.18.0
+11.16.0
+Exit code: 1
