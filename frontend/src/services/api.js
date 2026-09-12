@@ -3,10 +3,10 @@
  * Connects frontend to the FastAPI backend service layer.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || (
-  typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+const API_BASE = (
+  typeof window !== 'undefined' && (window.location.hostname.endsWith('.vercel.app') || window.location.hostname.includes('trycloudflare.com'))
     ? '/api'
-    : 'http://127.0.0.1:8000/api'
+    : (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api')
 );
 
 /**
