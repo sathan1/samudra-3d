@@ -5,6 +5,7 @@ import OceanCanvas from './components/OceanCanvas.jsx';
 import ComparisonPanel from './components/ComparisonPanel.jsx';
 import AIAssistantModal from './components/AIAssistantModal.jsx';
 import LoginModal from './components/LoginModal.jsx';
+import DataSourcesModal from './components/DataSourcesModal.jsx';
 import {
   fetchAnomalyField,
   fetchArgoFloats,
@@ -50,6 +51,7 @@ export default function App() {
 
   // Phase 15: AI Ocean Assistant Modal state
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [isSourcesOpen, setIsSourcesOpen] = useState(false);
   // MoES/INCOIS Operational Authentication & Session state
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -354,6 +356,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         onOpenAssistant={() => setIsAssistantOpen(true)}
+        onOpenSources={() => setIsSourcesOpen(true)}
         onOpenLogin={() => setIsLoginOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
@@ -362,15 +365,15 @@ export default function App() {
         <div className="workspace-heading flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="eyebrow text-ocean">OCEAN EXPLORATION</p>
-            <h1>Indian Ocean workspace</h1>
-            <p className="muted">Model fields and in-situ observations, together in one view.</p>
+            <h1>Indian Ocean explorer</h1>
+            <p className="muted">Explore a model field, then compare it with sample ocean observations.</p>
           </div>
-          <span className="phase-label">OPERATIONAL PLATFORM // MOES-INCOIS 4D OCEAN DIGITAL TWIN</span>
+          <span className="phase-label">INTERACTIVE DEMO · 3D MODEL + OBSERVATIONS</span>
         </div>
         <div className="notice" role="status">
           <span className="status-dot" aria-hidden="true" />
           <p>
-            <strong>3D Earth Globe active.</strong> 4D ocean animation, current streamlines, Argo profiling floats, and underwater glider sawtooth transects active.
+            <strong>Start with a variable, depth and time.</strong> Then switch on Argo or glider observations to inspect a profile and compare it with the model field.
           </p>
         </div>
         <div className="dashboard">
@@ -446,8 +449,10 @@ export default function App() {
           />
         </div>
         <footer className="workspace-footer flex flex-wrap justify-between gap-3">
-          <span>Ministry of Earth Sciences (MoES) <span aria-hidden="true">·</span> INCOIS Ocean Information Services</span>
-          <span>INCOIS ROMS Simulation Model Connected (CF-1.8)</span>
+          <span>Research demonstrator for Indian Ocean data exploration</span>
+          <button type="button" className="footer-source-link" onClick={() => setIsSourcesOpen(true)}>
+            Demo ROMS-style field · source directory
+          </button>
         </footer>
         <AIAssistantModal
           isOpen={isAssistantOpen}
@@ -459,6 +464,7 @@ export default function App() {
             timeIndex
           }}
         />
+        <DataSourcesModal isOpen={isSourcesOpen} onClose={() => setIsSourcesOpen(false)} />
         <LoginModal
           isOpen={isLoginOpen}
           onClose={() => setIsLoginOpen(false)}

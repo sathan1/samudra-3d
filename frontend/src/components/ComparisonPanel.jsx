@@ -63,7 +63,7 @@ export default function ComparisonPanel({
               4D Collocation Active
             </span>
             <p className="helper" style={{ margin: '4px 0 6px 0' }}>
-              Trilinear spatial & bounding temporal collocation against INCOIS ROMS simulation.
+              Trilinear spatial and bounding temporal collocation against the packaged ROMS-style demonstration field.
             </p>
             <div className="metric-placeholder" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>Difference</span>

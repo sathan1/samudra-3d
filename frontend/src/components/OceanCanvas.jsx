@@ -861,13 +861,13 @@ export default function OceanCanvas({
               {showArgo && (
                 <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-amber-300 shadow bg-slate-900/90 border border-amber-600 max-w-full" data-testid="hud-argo-badge">
                   <span className="text-amber-400 font-semibold">ARGO FLOATS:</span>{' '}
-                  {argoFloats.length} active (INCOIS-DAC)
+                  {argoFloats.length} loaded sample profiles
                 </div>
               )}
               {showGliders && (
                 <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-emerald-300 shadow bg-slate-900/90 border border-emerald-600 max-w-full" data-testid="hud-glider-badge">
                   <span className="text-emerald-400 font-semibold">GLIDERS:</span>{' '}
-                  {gliderTransects.length} active (INCOIS-Seaglider)
+                  {gliderTransects.length} loaded sample missions
                 </div>
               )}
               {showAnomalyField && (

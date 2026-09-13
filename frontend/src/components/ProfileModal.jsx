@@ -104,7 +104,7 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
   }
 
   const wmoId = selectedFloat.wmo_id || selectedFloat.metadata?.wmo_id || selectedFloat.id;
-  const dataCentre = selectedFloat.metadata?.data_centre || 'INCOIS-DAC';
+  const dataCentre = selectedFloat.metadata?.data_centre || 'Not supplied';
   const cycleNumber = selectedFloat.metadata?.cycle_number ?? 'N/A';
   const sourceMode = selectedFloat.source_mode || 'SYNTHETIC';
   const qc = selectedFloat.qc_summary || { pass_rate_pct: 100, good: 0, total: 0 };

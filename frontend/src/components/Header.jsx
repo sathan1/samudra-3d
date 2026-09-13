@@ -4,6 +4,7 @@ export default function Header({
   theme,
   onToggleTheme,
   onOpenAssistant,
+  onOpenSources,
   onOpenLogin,
   currentUser = null,
   onLogout = null
@@ -14,10 +15,18 @@ export default function Header({
         <span className="brand-mark" aria-hidden="true">≈</span>
         <div>
           <span className="brand-name">SAMUDRA<span className="text-ocean">-3D</span></span>
-          <p className="brand-subtitle">4D Ocean Digital Twin & Intelligence</p>
+          <p className="brand-subtitle">Indian Ocean data explorer</p>
         </div>
       </div>
       <div className="header-actions flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          className="header-secondary-action"
+          onClick={onOpenSources}
+          title="Browse the official data sources used by SAMUDRA-3D"
+        >
+          Data sources
+        </button>
         <button
           type="button"
           data-testid="open-assistant-btn"
@@ -80,7 +89,7 @@ export default function Header({
 
         <span className="connection">
           <span className="status-dot" aria-hidden="true" />
-          Data connected
+          Demo data loaded
         </span>
         <button className="theme-button" type="button" aria-pressed={theme === 'light'} onClick={onToggleTheme}>
           Light theme

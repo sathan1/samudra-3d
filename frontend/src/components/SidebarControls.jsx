@@ -51,6 +51,15 @@ export default function SidebarControls({
         <h2 id="controls-heading">Ocean controls</h2>
       </div>
 
+      <details className="quick-start" open>
+        <summary>New here? Follow these three steps</summary>
+        <ol>
+          <li>Choose temperature or salinity.</li>
+          <li>Set the depth and forecast time.</li>
+          <li>Turn on an observation layer, then select a marker on the globe.</li>
+        </ol>
+      </details>
+
       <div className="control-group">
         <label htmlFor="variable">Ocean variable</label>
         <select
@@ -334,7 +343,7 @@ export default function SidebarControls({
           </span>
         </label>
         <p id="layers-help" className="helper">
-          ROMS ocean current streamlines and INCOIS in-situ sensor profiling markers.
+          Model current streamlines and packaged sample observation markers for this interactive demo.
         </p>
       </fieldset>
     </aside>
