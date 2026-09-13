@@ -2,19 +2,16 @@ import * as THREE from 'three';
 import { geoToCartesian, DEFAULT_GLOBE_RADIUS, DEFAULT_VERTICAL_EXAGGERATION } from './coordinates.js';
 import { sampleColormap } from './colormaps.js';
 
-/**
- * Maps normalized scalar value t in [0, 1] to RGB color (Oceanographic Thermal Palette).
- */
+/** Maps normalized scalar value t in [0, 1] to an oceanographic thermal palette. */
 export function getThermalColor(t) {
   const clamped = Math.max(0.0, Math.min(1.0, t));
-  // Palette stops: [stop, [r, g, b]]
   const stops = [
-    [0.00, [0.05, 0.25, 0.65]], // Deep ocean abyssal blue (~2°C)
-    [0.25, [0.02, 0.55, 0.75]], // Subsurface cyan (~12°C)
-    [0.50, [0.10, 0.72, 0.50]], // Thermocline transition green-teal (~18°C)
-    [0.75, [0.92, 0.75, 0.12]], // Warm yellow (~24°C)
-    [0.90, [0.96, 0.45, 0.08]], // Tropical surface orange (~27°C)
-    [1.00, [0.92, 0.18, 0.15]]  // Peak tropical coral red (~30°C)
+    [0.00, [0.05, 0.25, 0.65]],
+    [0.25, [0.02, 0.55, 0.75]],
+    [0.50, [0.10, 0.72, 0.50]],
+    [0.75, [0.92, 0.75, 0.12]],
+    [0.90, [0.96, 0.45, 0.08]],
+    [1.00, [0.92, 0.18, 0.15]]
   ];
 
   for (let i = 0; i < stops.length - 1; i++) {
@@ -33,13 +30,9 @@ export function getThermalColor(t) {
 }
 
 /**
- * Builds a Three.js BufferGeometry for a 2D scalar field slice.
- * Strict Land-Mask Handling: Any quad containing a null/missing vertex is skipped,
- * ensuring zero false triangles are rendered over the Indian subcontinent.
- * 
- * @param {Object} sliceData - Response from /api/ocean-data
- * @param {Object} options - Configuration options
- * @returns {THREE.BufferGeometry}
+ * Build a land-masked, geographically positioned scalar field.
+ * Subsurface slices are kept inside the Earth radius so depth selection
+ * reads as an actual ocean section rather than a second surface.
  */
 export function buildScalarFieldGeometry(sliceData, options = {}) {
   const {
@@ -53,15 +46,9 @@ export function buildScalarFieldGeometry(sliceData, options = {}) {
 
   const globeRadius = options.globeRadius ?? DEFAULT_GLOBE_RADIUS;
   const verticalExaggeration = options.verticalExaggeration ?? DEFAULT_VERTICAL_EXAGGERATION;
-
-  // Tiny radial offset at surface to prevent z-fighting with the base globe
-  const surfaceOffset = depth === 0 ? 0.25 : 0.0;
-  const effectiveRadius = globeRadius + surfaceOffset;
-
   const ny = lats.length;
   const nx = lons.length;
 
-  // Determine normalization scale
   let vMin = customMin ?? 2.0;
   let vMax = customMax ?? 30.0;
   if (vMin >= vMax) {
@@ -72,8 +59,6 @@ export function buildScalarFieldGeometry(sliceData, options = {}) {
   const variable = sliceData.variable || 'temperature';
   const palette = options.palette || (variable === 'salinity' ? 'haline' : 'thermal');
 
-  // Pre-calculate 3D Cartesian coordinates and colors for all grid points
-  // Grid layout: pointGrid[j][i] = { pos: [x, y, z], color: [r, g, b], valid: bool }
   const pointGrid = [];
   for (let j = 0; j < ny; j++) {
     const row = [];
@@ -81,68 +66,72 @@ export function buildScalarFieldGeometry(sliceData, options = {}) {
     for (let i = 0; i < nx; i++) {
       const lon = lons[i];
       const val = values[j][i];
-      if (val === null || val === undefined || isNaN(val)) {
+      if (val === null || val === undefined || Number.isNaN(Number(val))) {
         row.push({ valid: false });
-      } else {
-        const cart = geoToCartesian(lat, lon, depth, {
-          globeRadius: effectiveRadius,
-          verticalExaggeration
-        });
-        const t = (val - vMin) / vRange;
-        const rgb = sampleColormap(palette, t);
-        row.push({
-          valid: true,
-          pos: [cart.x, cart.y, cart.z],
-          color: rgb
-        });
+        continue;
       }
+
+      // Surface field sits just above the base Earth. Subsurface fields move
+      // inward by depth, while keeping a small offset to avoid z-fighting.
+      const surfaceOffset = depth === 0 ? 0.34 : -0.18;
+      const cart = geoToCartesian(lat, lon, depth, {
+        globeRadius: globeRadius + surfaceOffset,
+        verticalExaggeration
+      });
+      const t = (Number(val) - vMin) / vRange;
+      const rgb = sampleColormap(palette, t);
+      row.push({ valid: true, pos: [cart.x, cart.y, cart.z], color: rgb });
     }
     pointGrid.push(row);
   }
 
-  // Assemble triangle vertex arrays
   const positions = [];
   const colors = [];
+  const indices = [];
+
+  // Indexed geometry reduces duplicate vertices and gives Three.js cleaner
+  // normal computation. Null/masked cells are still completely omitted.
+  const vertexGrid = Array.from({ length: ny }, () => Array(nx).fill(-1));
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const p = pointGrid[j][i];
+      if (!p.valid) continue;
+      vertexGrid[j][i] = positions.length / 3;
+      positions.push(...p.pos);
+      colors.push(...p.color);
+    }
+  }
 
   for (let j = 0; j < ny - 1; j++) {
     for (let i = 0; i < nx - 1; i++) {
-      const p00 = pointGrid[j][i];
-      const p10 = pointGrid[j + 1][i];
-      const p01 = pointGrid[j][i + 1];
-      const p11 = pointGrid[j + 1][i + 1];
-
-      // If all 4 vertices are valid ocean points, construct 2 triangles
-      if (p00.valid && p10.valid && p01.valid && p11.valid) {
-        // Triangle 1: (j, i) -> (j+1, i) -> (j, i+1)
-        positions.push(...p00.pos, ...p10.pos, ...p01.pos);
-        colors.push(...p00.color, ...p10.color, ...p01.color);
-
-        // Triangle 2: (j+1, i) -> (j+1, i+1) -> (j, i+1)
-        positions.push(...p10.pos, ...p11.pos, ...p01.pos);
-        colors.push(...p10.color, ...p11.color, ...p01.color);
-      }
+      const a = vertexGrid[j][i];
+      const b = vertexGrid[j + 1][i];
+      const c = vertexGrid[j][i + 1];
+      const d = vertexGrid[j + 1][i + 1];
+      if (a < 0 || b < 0 || c < 0 || d < 0) continue;
+      indices.push(a, b, c, b, d, c);
     }
   }
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setIndex(indices);
   geometry.computeVertexNormals();
-
+  geometry.computeBoundingSphere();
   return geometry;
 }
 
-/**
- * Creates a standard material for the scalar field mesh.
- */
+/** Scientific field material: bright data, restrained specular response. */
 export function createScalarFieldMaterial() {
   return new THREE.MeshStandardMaterial({
     vertexColors: true,
     side: THREE.DoubleSide,
-    roughness: 0.35,
-    metalness: 0.05,
+    roughness: 0.62,
+    metalness: 0.0,
     transparent: true,
-    opacity: 0.90,
-    depthWrite: true
+    opacity: 0.92,
+    depthWrite: true,
+    flatShading: false
   });
 }
