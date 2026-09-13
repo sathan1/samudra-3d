@@ -422,21 +422,50 @@ h1 {
   grid-template-columns: 280px minmax(320px, 1fr) 580px;
 }
 
-.dashboard.full-view-mode {
-  grid-template-columns: minmax(320px, 1fr);
-  grid-template-areas: "viewport";
+/* Full View Mode - Expansive Globe with Floating Overlay Drawer */
+.dashboard.full-view-mode,
+.dashboard.full-view-mode.has-open-drawer {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-areas: "viewport" !important;
 }
 
-.dashboard.full-view-mode aside.controls,
-.dashboard.full-view-mode aside.inspection {
-  display: none;
+.dashboard.full-view-mode aside.controls {
+  display: none !important;
+}
+
+/* Hide inspection when drawer is closed in full-view mode */
+.dashboard.full-view-mode.drawer-closed aside.inspection,
+.dashboard.full-view-mode:not(.has-open-drawer) aside.inspection {
+  display: none !important;
+}
+
+/* When a point is probed or drawer is open in full-view mode, slide out as floating overlay drawer */
+.dashboard.full-view-mode.has-open-drawer aside.inspection {
+  display: flex !important;
+  flex-direction: column;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: min(540px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  z-index: 50;
+  box-shadow: -12px 12px 48px rgba(0, 0, 0, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  background: rgba(11, 19, 34, 0.96);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 12px;
+  overflow-y: auto;
 }
 
 .dashboard.full-view-mode section.viewport {
+  width: 100% !important;
   min-height: 780px;
 }
 
 .dashboard.full-view-mode .viewport-canvas-container {
+  width: 100% !important;
   min-height: 720px;
 }
 
@@ -940,7 +969,7 @@ fieldset {
   gap: 16px;
 }
 
-.dashboard.has-open-drawer {
+.dashboard.has-open-drawer:not(.full-view-mode) {
   grid-template-columns: 280px minmax(320px, 1fr) 580px;
   gap: 16px;
 }

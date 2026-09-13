@@ -103,12 +103,14 @@ export default function OceanCanvas({
   viewMode = 'globe',
   probedPoint = null,
   probeData = null,
+  isProbeLoading = false,
   onProbePoint = null,
   activeTransect = null,
   isFullView = false,
   onToggleFullView = null
 }) {
   const containerRef = useRef(null);
+  const rendererRef = useRef(null);
   const controlsRef = useRef(null);
   const cameraRef = useRef(null);
   const sceneRef = useRef(null);
@@ -498,6 +500,29 @@ export default function OceanCanvas({
     }
   }, [viewMode]);
 
+  // 7b. Full View Mode Dynamic Viewport Resize Effect
+  useEffect(() => {
+    if (!rendererRef.current || !cameraRef.current || !containerRef.current) return;
+    const updateSize = () => {
+      const container = containerRef.current;
+      if (!container) return;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w > 0 && h > 0) {
+        cameraRef.current.aspect = w / h;
+        cameraRef.current.updateProjectionMatrix();
+        rendererRef.current.setSize(w, h);
+      }
+    };
+    updateSize();
+    const t1 = setTimeout(updateSize, 60);
+    const t2 = setTimeout(updateSize, 280);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [isFullView]);
+
   // 8. Main Three.js Scene Setup & Lifecycle Effect
   useEffect(() => {
     if (!webglAvailable) return;
@@ -540,6 +565,7 @@ export default function OceanCanvas({
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
     container.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
 
     // Orbit Controls
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -1013,6 +1039,7 @@ export default function OceanCanvas({
         if (renderer.domElement && container.contains(renderer.domElement)) {
           container.removeChild(renderer.domElement);
         }
+        rendererRef.current = null;
       }
       sceneRef.current = null;
     };
@@ -1168,8 +1195,23 @@ export default function OceanCanvas({
                 </div>
               )}
               {probedPoint && (
-                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-emerald-300 shadow bg-slate-900/90 border border-emerald-600 max-w-full">
-                  <span className="text-emerald-400 font-semibold">PROBED CTD:</span> {probedPoint.lat}°N, {probedPoint.lon}°E
+                <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10px] text-emerald-300 shadow bg-slate-900/95 border border-emerald-500/80 max-w-full flex items-center gap-1.5 flex-wrap" data-testid="hud-probed-badge">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                  <span className="text-emerald-400 font-semibold">PROBED CTD:</span>
+                  <span>{probedPoint.lat}°N, {probedPoint.lon}°E</span>
+                  {probeData && probeData.sst !== null && probeData.sst !== undefined && (
+                    <span className="text-amber-300 font-bold border-l border-slate-700 pl-1.5">
+                      SST: {probeData.sst}°C
+                    </span>
+                  )}
+                  {probeData && probeData.mld !== null && probeData.mld !== undefined && (
+                    <span className="text-sky-300 hidden sm:inline">
+                      · MLD: {probeData.mld}m
+                    </span>
+                  )}
+                  {isProbeLoading && (
+                    <span className="text-amber-400 animate-pulse text-[9.5px]">⟳ Profiling...</span>
+                  )}
                 </div>
               )}
               {activeTransect && (
@@ -1327,22 +1369,31 @@ export default function OceanCanvas({
 
           {/* Floating Probed Station Chip on Canvas */}
           {probedPoint && (
-            <div className="probed-floating-chip pointer-events-auto absolute bottom-10 left-1/2 -translate-x-1/2 z-10 bg-slate-900/95 backdrop-blur border border-sky-500/60 rounded-full px-3.5 py-1.5 shadow-2xl flex items-center gap-2.5 text-xs text-white">
-              <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping inline-block" />
-              <span className="font-mono text-xs font-bold text-sky-300">
+            <div className="probed-floating-chip pointer-events-auto absolute bottom-12 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 backdrop-blur border border-sky-500/70 rounded-full px-4 py-1.5 shadow-2xl flex items-center gap-2.5 text-xs text-white max-w-[95%]">
+              <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping inline-block flex-shrink-0" />
+              <span className="font-mono text-xs font-bold text-sky-300 flex-shrink-0">
                 📍 {probedPoint.lat}°N, {probedPoint.lon}°E
               </span>
-              {probeData && (
-                <span className="text-slate-300 font-mono text-[11px] hidden sm:inline">
-                  {probeData.sst !== null && probeData.sst !== undefined ? `SST: ${probeData.sst}°C` : ''}
-                  {probeData.mld !== null && probeData.mld !== undefined ? ` · MLD: ${probeData.mld}m` : ''}
+              {probeData ? (
+                <span className="text-slate-200 font-mono text-[11px] flex items-center gap-2 flex-wrap">
+                  <span className="text-amber-300 font-bold">SST: {probeData.sst}°C</span>
+                  {probeData.sss !== null && probeData.sss !== undefined && (
+                    <span className="text-cyan-300 hidden sm:inline">SSS: {probeData.sss} PSU</span>
+                  )}
+                  {probeData.mld !== null && probeData.mld !== undefined && (
+                    <span className="text-sky-300 hidden md:inline">MLD: {probeData.mld}m</span>
+                  )}
+                </span>
+              ) : (
+                <span className="text-amber-300 text-[11px] animate-pulse font-mono">
+                  {isProbeLoading ? 'Slicing 9-depth water column...' : 'Probed Station'}
                 </span>
               )}
               <span
                 role="button"
                 tabIndex={-1}
                 onClick={() => onProbePoint?.(null)}
-                className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer select-none ml-1"
+                className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer select-none ml-1 flex-shrink-0"
                 title="Clear probe station"
               >
                 ✕

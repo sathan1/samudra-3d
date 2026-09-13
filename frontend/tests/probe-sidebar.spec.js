@@ -112,4 +112,41 @@ test.describe('Full View Globe Navigation & Location Probe Sidebar', () => {
     // Screenshot 5: Click-to-probe on 3D Globe
     await safeScreenshot(page, '05-click-to-probe-globe-interaction.png');
   });
+
+  test('4. Probing a location while in Full View Mode displays floating data drawer without shrinking globe', async ({ page }) => {
+    // 1. Activate Full View Globe
+    const fullViewBtn = page.locator('[data-testid="toggle-full-view-btn"]');
+    await fullViewBtn.click();
+    await expect(page.locator('.dashboard')).toHaveClass(/full-view-mode/);
+
+    // 2. Click on the 3D globe to probe data
+    const canvas = page.locator('[data-testid="three-canvas-container"] canvas');
+    await expect(canvas).toBeVisible();
+    const box = await canvas.boundingBox();
+    if (box) {
+      await page.mouse.click(box.x + box.width * 0.48, box.y + box.height * 0.52);
+    }
+
+    // 3. Probed CTD HUD badge and floating chip should display instantly with data
+    const hudBadge = page.locator('[data-testid="hud-probed-badge"]');
+    await expect(hudBadge).toBeVisible({ timeout: 5000 });
+    await expect(hudBadge).toContainText('PROBED CTD:');
+    await expect(hudBadge).toContainText('SST:');
+
+    // 4. Floating overlay inspection drawer should be visible with CTD metrics
+    const drawer = page.locator('[data-testid="inspector-drawer"]');
+    await expect(drawer).toBeVisible();
+    const probedSection = page.locator('.probed-station-section');
+    await expect(probedSection).toBeVisible();
+    await expect(probedSection).toContainText('SST (Surface Temp)');
+
+    // 5. Verify the viewport still maintains wide full-width layout
+    const viewport = page.locator('section.viewport');
+    const viewportBox = await viewport.boundingBox();
+    expect(viewportBox.width).toBeGreaterThan(1000);
+
+    // Screenshot 6: Probing in Full View Mode with floating data drawer
+    await safeScreenshot(page, '06-full-view-probe-floating-drawer.png');
+  });
 });
+
