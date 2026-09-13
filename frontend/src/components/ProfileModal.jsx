@@ -727,6 +727,30 @@ function VerticalDepthSvgChart({
         />
       ))}
 
+      {/* Active Hover Crosshairs (rendered behind points with pointerEvents: none) */}
+      {hoveredPoint && (
+        <g style={{ pointerEvents: 'none' }} pointerEvents="none">
+          <line
+            x1={padding.left}
+            y1={hoveredPoint.y}
+            x2={chartWidth - padding.right}
+            y2={hoveredPoint.y}
+            stroke="rgba(245, 158, 11, 0.6)"
+            strokeDasharray="3,3"
+            style={{ pointerEvents: 'none' }}
+          />
+          <line
+            x1={hoveredPoint.x}
+            y1={padding.top}
+            x2={hoveredPoint.x}
+            y2={chartHeight - padding.bottom}
+            stroke="rgba(245, 158, 11, 0.6)"
+            strokeDasharray="3,3"
+            style={{ pointerEvents: 'none' }}
+          />
+        </g>
+      )}
+
       {/* Observation Points */}
       {pointCoords.map((pt, i) => {
         const isBad = !pt.isGood;
@@ -742,7 +766,7 @@ function VerticalDepthSvgChart({
               fill={isBad ? '#f43f5e' : '#0f172a'}
               stroke={ptColor}
               strokeWidth={isHovered ? 2.5 : 1.8}
-              style={{ cursor: 'pointer', transition: 'r 0.15s ease' }}
+              style={{ cursor: 'pointer' }}
               onMouseEnter={() => onHoverPoint?.({ ...pt, unit, color: ptColor })}
               onMouseLeave={() => onHoverPoint?.(null)}
               data-testid={isBad ? 'qc-outlier-point' : 'profile-point'}
@@ -762,28 +786,6 @@ function VerticalDepthSvgChart({
           </g>
         );
       })}
-
-      {/* Active Hover Crosshairs */}
-      {hoveredPoint && (
-        <g pointerEvents="none">
-          <line
-            x1={padding.left}
-            y1={hoveredPoint.y}
-            x2={chartWidth - padding.right}
-            y2={hoveredPoint.y}
-            stroke="rgba(245, 158, 11, 0.6)"
-            strokeDasharray="3,3"
-          />
-          <line
-            x1={hoveredPoint.x}
-            y1={padding.top}
-            x2={hoveredPoint.x}
-            y2={chartHeight - padding.bottom}
-            stroke="rgba(245, 158, 11, 0.6)"
-            strokeDasharray="3,3"
-          />
-        </g>
-      )}
 
       {/* QC Gap Notification Banner */}
       {hasGaps && (

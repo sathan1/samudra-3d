@@ -69,10 +69,71 @@ export async function fetchOceanData({
 }
 
 /**
+ * Evaluates vertical water column CTD profile, derived metrics (MLD, D20, D26, TCHP),
+ * and nearest in-situ observation collocation for a probed coordinate.
+ */
+export async function fetchOceanProbe({ lat, lon, time_idx = 0, signal = null } = {}) {
+  const params = new URLSearchParams();
+  params.set('lat', String(lat));
+  params.set('lon', String(lon));
+  params.set('time_idx', String(time_idx));
+
+  const res = await fetch(`${API_BASE}/ocean/probe?${params.toString()}`, { signal });
+  if (!res.ok) {
+    let errorDetail = `HTTP ${res.status}`;
+    try {
+      const errJson = await res.json();
+      if (errJson.detail) errorDetail = errJson.detail;
+    } catch {
+      // ignore
+    }
+    throw new Error(errorDetail);
+  }
+  return res.json();
+}
+
+/**
+ * Interpolates 100 points along transect for ODV-style vertical cross-section plotting.
+ */
+export async function fetchOceanTransect({
+  lat1,
+  lon1,
+  lat2,
+  lon2,
+  variable = 'temperature',
+  time_idx = 0,
+  signal = null
+} = {}) {
+  const params = new URLSearchParams();
+  params.set('lat1', String(lat1));
+  params.set('lon1', String(lon1));
+  params.set('lat2', String(lat2));
+  params.set('lon2', String(lon2));
+  params.set('variable', variable);
+  params.set('time_idx', String(time_idx));
+
+  const res = await fetch(`${API_BASE}/ocean/transect?${params.toString()}`, { signal });
+  if (!res.ok) {
+    let errorDetail = `HTTP ${res.status}`;
+    try {
+      const errJson = await res.json();
+      if (errJson.detail) errorDetail = errJson.detail;
+    } catch {
+      // ignore
+    }
+    throw new Error(errorDetail);
+  }
+  return res.json();
+}
+
+/**
  * Retrieves in-situ observation profiles (Argo floats and Glider transects).
  */
-export async function fetchInsituProfiles(signal = null) {
-  const res = await fetch(`${API_BASE}/insitu/profiles`, { signal });
+export async function fetchInsituProfiles({ source_mode = null, signal = null } = {}) {
+  const params = new URLSearchParams();
+  if (source_mode) params.set('source_mode', source_mode);
+  const qs = params.toString();
+  const res = await fetch(`${API_BASE}/insitu/profiles${qs ? `?${qs}` : ''}`, { signal });
   if (!res.ok) {
     throw new Error(`Failed to fetch in-situ profiles: HTTP ${res.status}`);
   }

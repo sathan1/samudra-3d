@@ -98,6 +98,55 @@ export function createArgoMarker(floatData, isSelected = false) {
   stemMesh.position.set(0, -0.4, 0);
   group.add(stemMesh);
 
+  // 1b. 3D vertical profiling stem extending from surface down to 2000m depth
+  const maxDepth = floatData.max_depth || 2000.0;
+  const stemLength = (Math.min(maxDepth, 2000.0) / 2000.0) * 7.5;
+  const profileStemGeom = new THREE.CylinderGeometry(0.08, 0.08, stemLength, 8);
+  const profileStemMat = new THREE.MeshBasicMaterial({
+    color: isSelected ? 0x38bdf8 : 0x0284c7,
+    transparent: true,
+    opacity: isSelected ? 0.95 : 0.75,
+    depthTest: false
+  });
+  const profileStemMesh = new THREE.Mesh(profileStemGeom, profileStemMat);
+  profileStemMesh.name = 'profiling-stem';
+  profileStemMesh.position.set(0, -stemLength / 2, 0);
+  profileStemMesh.renderOrder = 998;
+  group.add(profileStemMesh);
+
+  // Depth marker rings along the profiling stem (500m, 1000m, 2000m)
+  const markerDepths = [500, 1000, 2000].filter((d) => d <= maxDepth);
+  markerDepths.forEach((d) => {
+    const dOffset = -(d / 2000.0) * 7.5;
+    const tickGeom = new THREE.RingGeometry(0.25, 0.45, 16);
+    const tickMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85,
+      depthTest: false
+    });
+    const tickMesh = new THREE.Mesh(tickGeom, tickMat);
+    tickMesh.rotation.x = Math.PI / 2;
+    tickMesh.position.set(0, dOffset, 0);
+    tickMesh.renderOrder = 999;
+    group.add(tickMesh);
+  });
+
+  // Profiler CTD sensor capsule at parking/max depth
+  const sensorCapsuleGeom = new THREE.SphereGeometry(0.35, 12, 12);
+  const sensorCapsuleMat = new THREE.MeshStandardMaterial({
+    color: isSelected ? 0x38bdf8 : 0x0ea5e9,
+    emissive: isSelected ? 0x38bdf8 : 0x0369a1,
+    emissiveIntensity: 0.6,
+    depthTest: false
+  });
+  const sensorCapsuleMesh = new THREE.Mesh(sensorCapsuleGeom, sensorCapsuleMat);
+  sensorCapsuleMesh.name = 'ctd-sensor-capsule';
+  sensorCapsuleMesh.position.set(0, -stemLength, 0);
+  sensorCapsuleMesh.renderOrder = 999;
+  group.add(sensorCapsuleMesh);
+
   // 2. Main beacon sphere
   const isOutlier = floatData.qc_summary && floatData.qc_summary.bad > 0;
   const baseColor = isSelected
@@ -222,6 +271,19 @@ export function updateMarkerSelectionVisuals(markersGroup, selectedId) {
       glow.material.color.setHex(color);
       glow.material.opacity = isSelected ? 0.4 : 0.15;
       glow.scale.setScalar(isSelected ? 1.4 : 1.0);
+    }
+
+    const stem = group.getObjectByName('profiling-stem');
+    if (stem && stem.material) {
+      stem.material.color.setHex(isSelected ? 0x38bdf8 : 0x0284c7);
+      stem.material.opacity = isSelected ? 0.95 : 0.65;
+    }
+
+    const ctdCapsule = group.getObjectByName('ctd-sensor-capsule');
+    if (ctdCapsule && ctdCapsule.material) {
+      ctdCapsule.material.color.setHex(isSelected ? 0x38bdf8 : 0x0ea5e9);
+      ctdCapsule.material.emissive.setHex(isSelected ? 0x38bdf8 : 0x0369a1);
+      ctdCapsule.material.emissiveIntensity = isSelected ? 1.2 : 0.6;
     }
   });
 }

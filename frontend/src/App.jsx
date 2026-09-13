@@ -18,7 +18,9 @@ import {
   fetchGliderById,
   fetchCurrentUser,
   logoutUser,
-  fetchCustomSensors
+  fetchCustomSensors,
+  fetchOceanProbe,
+  fetchOceanTransect
 } from './services/api.js';
 import {
   computeNextStep,
@@ -54,13 +56,21 @@ export default function App() {
   const [anomalyThreshold, setAnomalyThreshold] = useState(0.5);
   const [anomalyData, setAnomalyData] = useState(null);
 
+  // Modern Dual View Modes, Click-to-Probe & ODV Transect state
+  const [viewMode, setViewMode] = useState('globe'); // 'globe' | 'block'
+  const [probedPoint, setProbedPoint] = useState(null); // { lat, lon }
+  const [probeData, setProbeData] = useState(null);
+  const [isProbeLoading, setIsProbeLoading] = useState(false);
+  const [activeTransect, setActiveTransect] = useState(null);
+  const [isClickToProbeActive, setIsClickToProbeActive] = useState(true);
+
   // Phase 15: AI Ocean Assistant Modal state
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isSourcesOpen, setIsSourcesOpen] = useState(false);
   // MoES/INCOIS Admin & Sensor Management state
   const [isAdminUsersOpen, setIsAdminUsersOpen] = useState(false);
   const [isSensorRegisterOpen, setIsSensorRegisterOpen] = useState(false);
-  const [customSensors, setCustomSensors] = useState([]);
+  const [, setCustomSensors] = useState([]);
   // MoES/INCOIS Operational Authentication & Session state
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -415,6 +425,86 @@ export default function App() {
     setTimeIndex(newIdx);
   }, []);
 
+  // Click-to-Probe Water Column Sounding Handler
+  const handleProbePoint = useCallback((geo) => {
+    if (!geo) {
+      setProbedPoint(null);
+      setProbeData(null);
+      return;
+    }
+    setProbedPoint(geo);
+    setIsProbeLoading(true);
+    fetchOceanProbe({
+      lat: geo.lat,
+      lon: geo.lon,
+      time_idx: timeIndex,
+      variable: selectedVariable
+    })
+      .then((data) => {
+        setProbeData(data);
+        setIsProbeLoading(false);
+      })
+      .catch((err) => {
+        console.warn('Probe fetch error:', err);
+        setIsProbeLoading(false);
+      });
+  }, [timeIndex, selectedVariable]);
+
+  // Operational Preset Scenarios Handler
+  const handleApplyPreset = useCallback((preset) => {
+    if (preset === 'cyclone') {
+      setSelectedVariable('temperature');
+      setRequestedDepth(0);
+      setViewMode('block');
+      setShowCurrents(true);
+      setShowArgo(true);
+      handleProbePoint({ lat: 14.0, lon: 84.0 });
+    } else if (preset === 'sar') {
+      setSelectedVariable('currents');
+      setRequestedDepth(0);
+      setShowCurrents(true);
+      setShowArgo(true);
+      setShowGliders(true);
+      setViewMode('globe');
+      handleProbePoint({ lat: 10.5, lon: 76.5 });
+    } else if (preset === 'fishery') {
+      setSelectedVariable('salinity');
+      setRequestedDepth(50);
+      setShowCurrents(false);
+      setShowArgo(true);
+      setViewMode('block');
+      handleProbePoint({ lat: 12.0, lon: 72.0 });
+    }
+  }, [handleProbePoint]);
+
+  // ODV Vertical Transect Handler
+  const handleTriggerSampleTransect = useCallback(() => {
+    setViewMode('block');
+    fetchOceanTransect({
+      lat1: 5.0,
+      lon1: 80.0,
+      lat2: 18.0,
+      lon2: 88.0,
+      time_idx: timeIndex,
+      variable: selectedVariable
+    })
+      .then((data) => {
+        setActiveTransect(data);
+      })
+      .catch((err) => {
+        console.warn('Transect fetch error:', err);
+      });
+  }, [timeIndex, selectedVariable]);
+
+  // Close Inspector Drawer
+  const handleCloseDrawer = useCallback(() => {
+    setSelectedFloat(null);
+    setSelectedGlider(null);
+    setProbedPoint(null);
+    setProbeData(null);
+    setActiveTransect(null);
+  }, []);
+
   if (currentPath === '/login') {
     return (
       <LoginPage
@@ -435,6 +525,8 @@ export default function App() {
     );
   }
 
+  const isDrawerOpen = Boolean(selectedFloat || probedPoint || activeTransect);
+
   return (
     <div className="app min-h-screen" data-theme={theme}>
       <a className="skip-link" href="#workspace">Skip to ocean workspace</a>
@@ -443,12 +535,15 @@ export default function App() {
         onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         onOpenAssistant={() => setIsAssistantOpen(true)}
         onOpenSources={() => setIsSourcesOpen(true)}
-        onOpenLogin={() => handleNavigate('/login')}
+        onOpenLogin={() => setIsLoginOpen(true)}
         onOpenRegisterSensor={() => setIsSensorRegisterOpen(true)}
         onOpenAdminUsers={() => handleNavigate('/admin')}
         currentUser={currentUser}
         onLogout={handleLogout}
         onNavigate={handleNavigate}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        onApplyPreset={handleApplyPreset}
       />
       <main id="workspace" tabIndex={-1} className="workspace">
         <div className="workspace-heading flex flex-wrap items-end justify-between gap-4">
@@ -465,7 +560,7 @@ export default function App() {
             <strong>3D Earth Globe active.</strong> Start with a variable, depth and time, then switch on Argo floats or gliders to inspect in-situ observation profiles.
           </p>
         </div>
-        <div className="dashboard">
+        <div className={`dashboard ${isDrawerOpen ? 'has-open-drawer' : 'drawer-closed'}`}>
           <SidebarControls
             selectedVariable={selectedVariable}
             onSelectVariable={setSelectedVariable}
@@ -497,6 +592,9 @@ export default function App() {
             gliderTransects={gliderTransects}
             selectedGliderId={selectedGlider?.id || null}
             onSelectGliderId={handleSelectGliderId}
+            isClickToProbeActive={isClickToProbeActive}
+            onToggleClickToProbe={setIsClickToProbeActive}
+            onTriggerSampleTransect={handleTriggerSampleTransect}
           />
           <OceanCanvas
             selectedVariable={selectedVariable}
@@ -520,6 +618,10 @@ export default function App() {
             showAnomalyField={showAnomalyField}
             anomalyPoints={anomalyData?.points || []}
             onSelectAnomalyPoint={handleSelectAnomalyPoint}
+            viewMode={viewMode}
+            probedPoint={probedPoint}
+            onProbePoint={handleProbePoint}
+            activeTransect={activeTransect}
           />
           <ComparisonPanel
             selectedFloat={selectedFloat}
@@ -535,6 +637,12 @@ export default function App() {
             onChangeAnomalyThreshold={setAnomalyThreshold}
             anomalyData={anomalyData}
             onSelectAnomalyPoint={handleSelectAnomalyPoint}
+            probedPoint={probedPoint}
+            probeData={probeData}
+            isProbeLoading={isProbeLoading}
+            activeTransect={activeTransect}
+            onClearTransect={() => setActiveTransect(null)}
+            onCloseDrawer={handleCloseDrawer}
           />
         </div>
         <footer className="workspace-footer flex flex-wrap justify-between gap-3">

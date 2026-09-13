@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { loadEarthTextures, createAtmosphereMaterial } from '../utils/earthTexture.js';
-import { geoToCartesian, DEFAULT_GLOBE_RADIUS } from '../utils/coordinates.js';
+import { geoToCartesian, cartesianToGeo, DEFAULT_GLOBE_RADIUS } from '../utils/coordinates.js';
 import { buildScalarFieldGeometry, createScalarFieldMaterial } from '../utils/scalarField.js';
 import { fetchOceanData } from '../services/api.js';
 import ColorBarLegend from './ColorBarLegend.jsx';
@@ -28,6 +28,13 @@ import {
   updateGliderOcclusion,
   disposeGliderTransects
 } from '../utils/gliderTransects.js';
+import {
+  createOceanVolumeBlock,
+  disposeOceanVolumeBlock,
+  createProbePinMesh,
+  createTransectCurtainMesh,
+  blockToGeo
+} from '../utils/oceanVolumeBlock.js';
 
 /**
  * Checks if WebGL is available in the current browser runtime.
@@ -52,8 +59,13 @@ const INITIAL_CAM_POS = geoToCartesian(5, 75, 0, {
 });
 
 /**
- * OceanCanvas - Interactive 3D Earth Globe & 3D Scalar Field Visualizer
+ * OceanCanvas - Interactive 3D Earth Globe & 3D Regional Ocean Volume Block
  * Authority: Master Handbook physical pp. 6-7, 9-11; roadmap p. 10 (SIH26067)
+ * 
+ * Supports Dual View Modes:
+ * - View Mode 1: Solid Realistic Earth Globe (no see-through ghost effect)
+ * - View Mode 2: Regional 3D Ocean Volume Block (Northern Indian Ocean 0-25°N, 65-95°E)
+ *   with 4 vertical boundary depth curtains from 0m down to 4000m and ODV slices.
  */
 export default function OceanCanvas({
   selectedVariable = 'temperature',
@@ -75,7 +87,11 @@ export default function OceanCanvas({
   onSelectGlider = null,
   showAnomalyField = false,
   anomalyPoints = [],
-  onSelectAnomalyPoint = null
+  onSelectAnomalyPoint = null,
+  viewMode = 'globe',
+  probedPoint = null,
+  onProbePoint = null,
+  activeTransect = null
 }) {
   const containerRef = useRef(null);
   const controlsRef = useRef(null);
@@ -84,24 +100,30 @@ export default function OceanCanvas({
   const scalarMeshRef = useRef(null);
   const globeMaterialRef = useRef(null);
   const earthMeshRef = useRef(null);
+  const cloudsMeshRef = useRef(null);
+  const atmosphereMeshRef = useRef(null);
   const latestRequestIdRef = useRef(0);
   const particleSystemRef = useRef(null);
   const currentsDataRef = useRef(null);
   const requestedDepthRef = useRef(requestedDepth);
+
+  const viewModeRef = useRef(viewMode);
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+  }, [viewMode]);
+
+  const onProbePointRef = useRef(onProbePoint);
+  useEffect(() => {
+    onProbePointRef.current = onProbePoint;
+  }, [onProbePoint]);
+
+  const oceanBlockGroupRef = useRef(null);
+  const probeGroupRef = useRef(null);
+  const transectGroupRef = useRef(null);
+
+  // Earth remains 100% photorealistic and solid - no see-through ghost effect
   useEffect(() => {
     requestedDepthRef.current = requestedDepth;
-    if (globeMaterialRef.current) {
-      if (requestedDepth === 0) {
-        globeMaterialRef.current.transparent = false;
-        globeMaterialRef.current.opacity = 1.0;
-        globeMaterialRef.current.depthWrite = true;
-      } else {
-        globeMaterialRef.current.transparent = true;
-        globeMaterialRef.current.opacity = 0.68;
-        globeMaterialRef.current.depthWrite = false;
-      }
-      globeMaterialRef.current.needsUpdate = true;
-    }
   }, [requestedDepth]);
 
   const argoMarkersGroupRef = useRef(null);
@@ -147,8 +169,17 @@ export default function OceanCanvas({
 
   const handleResetCamera = () => {
     if (cameraRef.current && controlsRef.current) {
-      cameraRef.current.position.set(INITIAL_CAM_POS.x, INITIAL_CAM_POS.y, INITIAL_CAM_POS.z);
-      controlsRef.current.target.set(0, 0, 0);
+      if (viewMode === 'block') {
+        cameraRef.current.position.set(65, 55, 75);
+        controlsRef.current.target.set(0, -15, 0);
+        controlsRef.current.minDistance = 20;
+        controlsRef.current.maxDistance = 350;
+      } else {
+        cameraRef.current.position.set(INITIAL_CAM_POS.x, INITIAL_CAM_POS.y, INITIAL_CAM_POS.z);
+        controlsRef.current.target.set(0, 0, 0);
+        controlsRef.current.minDistance = 108;
+        controlsRef.current.maxDistance = 420;
+      }
       controlsRef.current.update();
     }
   };
@@ -164,7 +195,6 @@ export default function OceanCanvas({
     const controller = new AbortController();
     const currentRequestId = ++latestRequestIdRef.current;
 
-    // Zero delay when actively playing; 100ms debounce during manual slider scrubbing
     const delay = isPlaying ? 0 : 100;
     const timer = setTimeout(() => {
       onBufferingChange?.(true);
@@ -269,12 +299,11 @@ export default function OceanCanvas({
     };
   }, [showCurrents, timeIndex, requestedDepth, fieldState.sliceData]);
 
-  // 3. Three.js Scalar Mesh Update Effect
+  // 3. Three.js Scalar Mesh Update Effect (Draped onto Globe)
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
 
-    // Remove previous scalar field mesh
     if (scalarMeshRef.current) {
       scene.remove(scalarMeshRef.current);
       scalarMeshRef.current.geometry?.dispose();
@@ -282,11 +311,15 @@ export default function OceanCanvas({
       scalarMeshRef.current = null;
     }
 
-    // Add new scalar field mesh if slice data is present
     if (fieldState.sliceData) {
       const isSalinity = fieldState.sliceData.variable === 'salinity';
       const depth = fieldState.sliceData.selected_depth ?? 0.0;
-      const geometry = buildScalarFieldGeometry(fieldState.sliceData, {
+      // Draped directly on surface of globe so subsurface levels are visible without ghost transparency
+      const drapeSlice = {
+        ...fieldState.sliceData,
+        selected_depth: 0.0
+      };
+      const geometry = buildScalarFieldGeometry(drapeSlice, {
         globeRadius: DEFAULT_GLOBE_RADIUS,
         palette: isSalinity ? 'haline' : 'thermal',
         min_val: rangeMode === 'fixed' ? (isSalinity ? 32.0 : 2.0) : fieldState.sliceData.min_val,
@@ -295,22 +328,106 @@ export default function OceanCanvas({
       const material = createScalarFieldMaterial();
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = `scalar_field_${fieldState.sliceData.variable}_${depth}`;
-      // Subsurface renders inside/under the globe, surface renders on top
-      mesh.renderOrder = depth > 0 ? 1 : 3;
+      mesh.renderOrder = 3;
+      if (viewModeRef.current === 'block') {
+        mesh.visible = false;
+      }
 
       scene.add(mesh);
       scalarMeshRef.current = mesh;
     }
   }, [fieldState.sliceData, rangeMode]);
 
-  // 3. Main Three.js Scene Setup & Lifecycle Effect
+  // 4. Regional 3D Ocean Volume Block Update Effect
+  useEffect(() => {
+    const group = oceanBlockGroupRef.current;
+    if (!group) return;
+    disposeOceanVolumeBlock(group);
+    if (fieldState.sliceData) {
+      const blockMesh = createOceanVolumeBlock(fieldState.sliceData, {
+        variable: selectedVariable,
+        rangeMode
+      });
+      if (blockMesh) {
+        group.add(blockMesh);
+      }
+    }
+  }, [fieldState.sliceData, selectedVariable, rangeMode]);
+
+  // 5. 3D Probe Pin Beacon Update Effect
+  useEffect(() => {
+    const group = probeGroupRef.current;
+    if (!group) return;
+    while (group.children.length > 0) {
+      const c = group.children[0];
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) {
+        if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+        else c.material.dispose();
+      }
+      group.remove(c);
+    }
+    if (probedPoint && probedPoint.lat != null && probedPoint.lon != null) {
+      const isBlock = viewMode === 'block';
+      const pin = createProbePinMesh(probedPoint.lat, probedPoint.lon, isBlock);
+      if (pin) group.add(pin);
+    }
+  }, [probedPoint, viewMode]);
+
+  // 6. ODV Vertical Transect Curtain Update Effect
+  useEffect(() => {
+    const group = transectGroupRef.current;
+    if (!group) return;
+    while (group.children.length > 0) {
+      const c = group.children[0];
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) {
+        if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+        else c.material.dispose();
+      }
+      group.remove(c);
+    }
+    if (activeTransect && viewMode === 'block') {
+      const curtain = createTransectCurtainMesh(activeTransect, {
+        palette: selectedVariable === 'salinity' ? 'haline' : 'thermal'
+      });
+      if (curtain) group.add(curtain);
+    }
+  }, [activeTransect, viewMode, selectedVariable]);
+
+  // 7. View Mode Switching Effect (Globe vs Block)
+  useEffect(() => {
+    const isBlock = viewMode === 'block';
+    if (earthMeshRef.current) earthMeshRef.current.visible = !isBlock;
+    if (cloudsMeshRef.current) cloudsMeshRef.current.visible = !isBlock;
+    if (atmosphereMeshRef.current) atmosphereMeshRef.current.visible = !isBlock;
+    if (scalarMeshRef.current) scalarMeshRef.current.visible = !isBlock;
+    if (oceanBlockGroupRef.current) oceanBlockGroupRef.current.visible = isBlock;
+    if (transectGroupRef.current) transectGroupRef.current.visible = isBlock;
+
+    if (cameraRef.current && controlsRef.current) {
+      if (isBlock) {
+        cameraRef.current.position.set(65, 55, 75);
+        controlsRef.current.target.set(0, -15, 0);
+        controlsRef.current.minDistance = 20;
+        controlsRef.current.maxDistance = 350;
+      } else {
+        cameraRef.current.position.set(INITIAL_CAM_POS.x, INITIAL_CAM_POS.y, INITIAL_CAM_POS.z);
+        controlsRef.current.target.set(0, 0, 0);
+        controlsRef.current.minDistance = 108;
+        controlsRef.current.maxDistance = 420;
+      }
+      controlsRef.current.update();
+    }
+  }, [viewMode]);
+
+  // 8. Main Three.js Scene Setup & Lifecycle Effect
   useEffect(() => {
     if (!webglAvailable) return;
 
     const container = containerRef.current;
     if (!container) return;
 
-    // Clean up any existing children (React 18 StrictMode safety)
     while (container.firstChild) {
       container.removeChild(container.firstChild);
     }
@@ -358,7 +475,7 @@ export default function OceanCanvas({
     controls.target.set(0, 0, 0);
     controlsRef.current = controls;
 
-    // Balanced 360-Degree Photorealistic Illumination (Google Earth / Blue Marble System)
+    // Balanced Photorealistic Illumination
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e293b, 1.15);
     scene.add(hemiLight);
 
@@ -391,15 +508,15 @@ export default function OceanCanvas({
       if (tint > 0.65) {
         starColors[i * 3] = 0.0;
         starColors[i * 3 + 1] = 0.96;
-        starColors[i * 3 + 2] = 0.83; // Cyan
+        starColors[i * 3 + 2] = 0.83;
       } else if (tint > 0.35) {
         starColors[i * 3] = 0.22;
         starColors[i * 3 + 1] = 0.74;
-        starColors[i * 3 + 2] = 0.97; // Sky blue
+        starColors[i * 3 + 2] = 0.97;
       } else {
         starColors[i * 3] = 0.85;
         starColors[i * 3 + 1] = 0.92;
-        starColors[i * 3 + 2] = 1.0; // White
+        starColors[i * 3 + 2] = 1.0;
       }
     }
     starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
@@ -415,10 +532,9 @@ export default function OceanCanvas({
     starField.renderOrder = 0;
     scene.add(starField);
 
-    // Photorealistic Earth Globe (NASA Blue Marble Satellite & Google Earth System)
+    // Photorealistic Solid Earth Globe
     const earthTextures = loadEarthTextures();
     const globeGeometry = new THREE.SphereGeometry(DEFAULT_GLOBE_RADIUS, 64, 64);
-    const isSubsurface = requestedDepthRef.current > 0;
     const globeMaterial = new THREE.MeshStandardMaterial({
       map: earthTextures.dayTexture,
       normalMap: earthTextures.normalTexture,
@@ -426,9 +542,9 @@ export default function OceanCanvas({
       roughnessMap: earthTextures.specularTexture,
       roughness: 0.65,
       metalness: 0.05,
-      transparent: isSubsurface,
-      opacity: isSubsurface ? 0.68 : 1.0,
-      depthWrite: !isSubsurface
+      transparent: false,
+      opacity: 1.0,
+      depthWrite: true
     });
     const earthMesh = new THREE.Mesh(globeGeometry, globeMaterial);
     earthMesh.renderOrder = 2;
@@ -436,7 +552,7 @@ export default function OceanCanvas({
     globeMaterialRef.current = globeMaterial;
     earthMeshRef.current = earthMesh;
 
-    // Subtle Natural Cloud Layer (like Google Earth Satellite mode)
+    // Natural Cloud Layer
     const cloudsGeometry = new THREE.SphereGeometry(DEFAULT_GLOBE_RADIUS * 1.006, 48, 48);
     const cloudsMaterial = new THREE.MeshStandardMaterial({
       map: earthTextures.cloudsTexture,
@@ -448,13 +564,15 @@ export default function OceanCanvas({
     const cloudsMesh = new THREE.Mesh(cloudsGeometry, cloudsMaterial);
     cloudsMesh.renderOrder = 3;
     scene.add(cloudsMesh);
+    cloudsMeshRef.current = cloudsMesh;
 
-    // Soft Atmospheric Limb Glow (Natural Google Earth Rayleigh Scattering)
+    // Soft Atmospheric Limb Glow
     const atmosphereGeometry = new THREE.SphereGeometry(DEFAULT_GLOBE_RADIUS * 1.020, 48, 48);
     const atmosphereMaterial = createAtmosphereMaterial();
     const atmosphereMesh = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
     atmosphereMesh.renderOrder = 4;
     scene.add(atmosphereMesh);
+    atmosphereMeshRef.current = atmosphereMesh;
 
     // In-situ Argo float markers group
     const argoGroup = new THREE.Group();
@@ -467,13 +585,33 @@ export default function OceanCanvas({
     scene.add(gliderGroup);
     gliderGroupRef.current = gliderGroup;
 
-    // Phase 14: Anomaly Residual Spheres Group
+    // Anomaly Residual Spheres Group
     const anomalyGroup = new THREE.Group();
     anomalyGroup.name = 'anomaly-spheres-group';
     scene.add(anomalyGroup);
     anomalyGroupRef.current = anomalyGroup;
 
-    // Pointer events for drag vs click discrimination (threshold <= 4px)
+    // 3D Regional Ocean Volume Block Group
+    const oceanBlockGroup = new THREE.Group();
+    oceanBlockGroup.name = 'ocean-volume-block-container';
+    oceanBlockGroup.visible = viewModeRef.current === 'block';
+    scene.add(oceanBlockGroup);
+    oceanBlockGroupRef.current = oceanBlockGroup;
+
+    // 3D Probe Pin Beacon Group
+    const probeGroup = new THREE.Group();
+    probeGroup.name = 'probe-pin-group';
+    scene.add(probeGroup);
+    probeGroupRef.current = probeGroup;
+
+    // ODV Vertical Transect Group
+    const transectGroup = new THREE.Group();
+    transectGroup.name = 'odv-transect-curtain-group';
+    transectGroup.visible = viewModeRef.current === 'block';
+    scene.add(transectGroup);
+    transectGroupRef.current = transectGroup;
+
+    // Pointer events for drag vs click discrimination
     const handlePointerDown = (e) => {
       pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
     };
@@ -481,7 +619,7 @@ export default function OceanCanvas({
     const handlePointerUp = (e) => {
       const dx = e.clientX - pointerDownPosRef.current.x;
       const dy = e.clientY - pointerDownPosRef.current.y;
-      if (dx * dx + dy * dy > 16) return; // Drag occurred, ignore click
+      if (dx * dx + dy * dy > 16) return;
 
       const rect = renderer.domElement.getBoundingClientRect();
       const mouse = new THREE.Vector2(
@@ -492,7 +630,8 @@ export default function OceanCanvas({
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouse, camera);
 
-      if (showArgoRef.current && argoMarkersGroupRef.current) {
+      // 1. Raycast against Argo markers
+      if (showArgoRef.current && argoMarkersGroupRef.current && viewModeRef.current === 'globe') {
         const hitFloat = raycastArgoMarkers(
           raycaster,
           argoMarkersGroupRef.current,
@@ -505,7 +644,8 @@ export default function OceanCanvas({
         }
       }
 
-      if (showGlidersRef.current && gliderGroupRef.current) {
+      // 2. Raycast against Gliders
+      if (showGlidersRef.current && gliderGroupRef.current && viewModeRef.current === 'globe') {
         const hitGlider = raycastGliderTransects(
           raycaster,
           gliderGroupRef.current,
@@ -518,10 +658,34 @@ export default function OceanCanvas({
         }
       }
 
-      if (showAnomalyFieldRef.current && anomalyGroupRef.current) {
+      // 3. Raycast against Anomaly Residuals
+      if (showAnomalyFieldRef.current && anomalyGroupRef.current && viewModeRef.current === 'globe') {
         const hitAnomaly = raycastAnomalyField(raycaster, anomalyGroupRef.current);
         if (hitAnomaly) {
           onSelectAnomalyPointRef.current?.(hitAnomaly);
+          return;
+        }
+      }
+
+      // 4. Raycast for Click-to-Probe (Block mode vs Globe mode)
+      if (viewModeRef.current === 'block' && oceanBlockGroupRef.current) {
+        const hits = raycaster.intersectObjects(oceanBlockGroupRef.current.children, true);
+        if (hits.length > 0) {
+          const hit = hits[0];
+          const geo = blockToGeo(hit.point.x, hit.point.z);
+          const lat = Math.round(geo.lat * 100) / 100;
+          const lon = Math.round(geo.lon * 100) / 100;
+          onProbePointRef.current?.({ lat, lon });
+          return;
+        }
+      } else if (viewModeRef.current === 'globe' && earthMeshRef.current) {
+        const hits = raycaster.intersectObject(earthMeshRef.current);
+        if (hits.length > 0) {
+          const hit = hits[0];
+          const geo = cartesianToGeo(hit.point.x, hit.point.y, hit.point.z);
+          const lat = Math.round(geo.lat * 100) / 100;
+          const lon = Math.round(geo.lon * 100) / 100;
+          onProbePointRef.current?.({ lat, lon });
           return;
         }
       }
@@ -546,7 +710,7 @@ export default function OceanCanvas({
       lastFrameTime = now;
 
       // Update particle streamlines advection
-      if (particleSystemRef.current && currentsDataRef.current) {
+      if (particleSystemRef.current && currentsDataRef.current && viewModeRef.current === 'globe') {
         const cData = currentsDataRef.current;
         particleSystemRef.current.update(
           dt,
@@ -558,24 +722,20 @@ export default function OceanCanvas({
         );
       }
 
-      // Update far-side Earth occlusion for Argo markers
-      if (argoMarkersGroupRef.current && showArgoRef.current) {
-        updateOccludedMarkersVisibility(argoMarkersGroupRef.current, camera.position, DEFAULT_GLOBE_RADIUS);
-      }
-
-      // Update far-side Earth occlusion for Glider transects
-      if (gliderGroupRef.current && showGlidersRef.current) {
-        updateGliderOcclusion(gliderGroupRef.current, camera.position, DEFAULT_GLOBE_RADIUS);
-      }
-
-      // Update far-side Earth occlusion for Anomaly spheres
-      if (anomalyGroupRef.current && showAnomalyFieldRef.current) {
-        updateAnomalyOcclusion(anomalyGroupRef.current, camera, DEFAULT_GLOBE_RADIUS);
-      }
-
-      // Animate subtle natural cloud drift (Google Earth atmospheric motion)
-      if (cloudsMesh) {
-        cloudsMesh.rotation.y += 0.00015;
+      // Update Earth occlusion in Globe mode
+      if (viewModeRef.current === 'globe') {
+        if (argoMarkersGroupRef.current && showArgoRef.current) {
+          updateOccludedMarkersVisibility(argoMarkersGroupRef.current, camera.position, DEFAULT_GLOBE_RADIUS);
+        }
+        if (gliderGroupRef.current && showGlidersRef.current) {
+          updateGliderOcclusion(gliderGroupRef.current, camera.position, DEFAULT_GLOBE_RADIUS);
+        }
+        if (anomalyGroupRef.current && showAnomalyFieldRef.current) {
+          updateAnomalyOcclusion(anomalyGroupRef.current, camera, DEFAULT_GLOBE_RADIUS);
+        }
+        if (cloudsMesh) {
+          cloudsMesh.rotation.y += 0.00015;
+        }
       }
 
       controls.update();
@@ -595,7 +755,7 @@ export default function OceanCanvas({
 
     animate();
 
-    // Resize Handling via ResizeObserver
+    // Resize Handling
     const handleResize = () => {
       if (!container || isDisposed) return;
       const newWidth = container.clientWidth;
@@ -638,15 +798,35 @@ export default function OceanCanvas({
         gliderGroupRef.current = null;
       }
 
+      if (anomalyGroupRef.current) {
+        disposeAnomalyField(anomalyGroupRef.current);
+        scene.remove(anomalyGroupRef.current);
+        anomalyGroupRef.current = null;
+      }
+
+      if (oceanBlockGroupRef.current) {
+        disposeOceanVolumeBlock(oceanBlockGroupRef.current);
+        scene.remove(oceanBlockGroupRef.current);
+        oceanBlockGroupRef.current = null;
+      }
+
+      if (probeGroupRef.current) {
+        scene.remove(probeGroupRef.current);
+        probeGroupRef.current = null;
+      }
+
+      if (transectGroupRef.current) {
+        scene.remove(transectGroupRef.current);
+        transectGroupRef.current = null;
+      }
+
       controls.dispose();
 
-      // Dispose particle streamlines
       if (particleSystemRef.current) {
         particleSystemRef.current.dispose();
         particleSystemRef.current = null;
       }
 
-      // Dispose scalar field mesh
       if (scalarMeshRef.current) {
         scene.remove(scalarMeshRef.current);
         scalarMeshRef.current.geometry?.dispose();
@@ -692,7 +872,7 @@ export default function OceanCanvas({
     };
   }, [webglAvailable]);
 
-  // Synchronize Argo float markers when showArgo or argoFloats change
+  // Synchronize Argo float markers
   useEffect(() => {
     const group = argoMarkersGroupRef.current;
     if (!group) return;
@@ -719,7 +899,7 @@ export default function OceanCanvas({
     }
   }, [selectedFloat]);
 
-  // Synchronize Glider transect meshes when showGliders or gliderTransects change
+  // Synchronize Glider transects
   useEffect(() => {
     const group = gliderGroupRef.current;
     if (!group) return;
@@ -747,7 +927,7 @@ export default function OceanCanvas({
     }
   }, [selectedGlider, selectedFloat]);
 
-  // Synchronize 3D Anomaly Residual Spheres when showAnomalyField or anomalyPoints change
+  // Synchronize 3D Anomaly Residual Spheres
   useEffect(() => {
     const group = anomalyGroupRef.current;
     if (!group) return;
@@ -774,7 +954,9 @@ export default function OceanCanvas({
       <div className="viewport-top flex flex-wrap justify-between items-center gap-3">
         <div>
           <span className="eyebrow text-ocean">SPATIAL OBSERVATORY</span>
-          <h2 id="viewport-heading" className="m-0">3D Indian Ocean Globe</h2>
+          <h2 id="viewport-heading" className="m-0">
+            {viewMode === 'block' ? 'Regional 3D Ocean Volume Block (0-25°N, 65-95°E)' : '3D Indian Ocean Globe'}
+          </h2>
         </div>
         <div className="flex items-center gap-2">
           <span className="subtle-tag border border-emerald-500/30 bg-emerald-950/20 text-emerald-400">
@@ -826,6 +1008,21 @@ export default function OceanCanvas({
           {/* Viewport Floating HUD */}
           <div className="viewport-hud pointer-events-none absolute top-2 left-2 right-2 flex flex-wrap justify-between items-start gap-1.5 text-xs">
             <div className="flex flex-col gap-1 pointer-events-auto max-w-full">
+              {viewMode === 'block' && (
+                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-cyan-300 shadow bg-slate-900/90 border border-cyan-700 max-w-full">
+                  <span className="text-cyan-400 font-semibold">VIEW:</span> Regional 3D Ocean Volume Block (0-25°N, 65-95°E)
+                </div>
+              )}
+              {probedPoint && (
+                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-emerald-300 shadow bg-slate-900/90 border border-emerald-600 max-w-full">
+                  <span className="text-emerald-400 font-semibold">PROBED CTD:</span> {probedPoint.lat}°N, {probedPoint.lon}°E
+                </div>
+              )}
+              {activeTransect && (
+                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-amber-300 shadow bg-slate-900/90 border border-amber-600 max-w-full">
+                  <span className="text-amber-400 font-semibold">ODV TRANSECT:</span> {activeTransect.total_distance_km} km ({activeTransect.lat1}°N, {activeTransect.lon1}°E → {activeTransect.lat2}°N, {activeTransect.lon2}°E)
+                </div>
+              )}
               {fieldState.sliceData && (
                 <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-slate-300 shadow bg-slate-900/90 border border-slate-700 max-w-full">
                   <span className="text-emerald-400 font-semibold">LAYER:</span>{' '}
@@ -895,7 +1092,7 @@ export default function OceanCanvas({
                 type="button"
                 onClick={handleResetCamera}
                 className="hud-button rounded px-2.5 py-1 text-[11px] font-sans flex items-center gap-1 transition"
-                title="Reset Camera to Indian Ocean"
+                title="Reset Camera"
               >
                 ⟲ Reset View
               </button>

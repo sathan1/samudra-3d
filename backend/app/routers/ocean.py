@@ -4,7 +4,9 @@ from fastapi import APIRouter, HTTPException, Query, status
 from backend.app.schemas.ocean import (
     HealthResponse,
     OceanMetadataResponse,
-    OceanDataSliceResponse
+    OceanDataSliceResponse,
+    OceanProbeResponse,
+    OceanTransectResponse
 )
 from backend.app.services.ocean_service import ocean_service
 
@@ -85,5 +87,75 @@ def get_ocean_data(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error slicing ocean data: {str(e)}"
+        )
+
+@router.get("/ocean/probe", response_model=OceanProbeResponse, summary="Evaluate vertical water column and nearest observation")
+@router.get("/probe", response_model=OceanProbeResponse, include_in_schema=False)
+def probe_ocean(
+    lat: float = Query(..., ge=-90.0, le=90.0, description="Latitude in degrees"),
+    lon: float = Query(..., ge=-180.0, le=180.0, description="Longitude in degrees"),
+    time_idx: int = Query(0, ge=0, description="Forecast time index")
+):
+    """
+    Evaluates vertical water column across all 9 depths using scipy.interpolate.RegularGridInterpolator.
+    Returns SST, SSS, Mixed Layer Depth (MLD), Thermocline depth D20, D26, TCHP,
+    and nearest observation collocation if within 200km.
+    """
+    try:
+        return ocean_service.probe_water_column(lat=lat, lon=lon, time_idx=time_idx)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Dataset file missing: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error probing water column: {str(e)}"
+        )
+
+@router.get("/ocean/transect", response_model=OceanTransectResponse, summary="Interpolate vertical cross-section transect")
+@router.get("/transect", response_model=OceanTransectResponse, include_in_schema=False)
+def get_ocean_transect(
+    lat1: float = Query(..., description="Start latitude"),
+    lon1: float = Query(..., description="Start longitude"),
+    lat2: float = Query(..., description="End latitude"),
+    lon2: float = Query(..., description="End longitude"),
+    variable: str = Query("temperature", description="Variable to slice: temperature, salinity, currents, u_current, v_current"),
+    time_idx: int = Query(0, ge=0, description="Forecast time index")
+):
+    """
+    Interpolates 100 points along the transect across 9 depth levels,
+    returning a 2D distance-depth matrix for ODV-style vertical cross-section plotting,
+    along with MLD, D20, and TCHP along-transect profiles.
+    """
+    try:
+        return ocean_service.extract_transect(
+            lat1=lat1,
+            lon1=lon1,
+            lat2=lat2,
+            lon2=lon2,
+            variable=variable,
+            time_idx=time_idx
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Dataset file missing: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error extracting ocean transect: {str(e)}"
         )
 

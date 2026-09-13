@@ -246,9 +246,61 @@ def init_db():
             now_iso
         ))
 
-    # Remove mock/demo personas
-    demo_usernames = ["chief.oceanographer", "cmdr.varma", "priya.nair", "test.commander"]
-    cursor.execute(f"DELETE FROM users WHERE username IN ({','.join(['?']*len(demo_usernames))})", demo_usernames)
+    # Seed MoES/INCOIS operational personas
+    operational_personas = [
+        (
+            "USR-CHIEF-01",
+            "chief.oceanographer",
+            "Samudra#Command2026!",
+            "Dr. M. Ravichandran",
+            "chief@samudra.incois.gov.in",
+            "CHIEF_OCEANOGRAPHER",
+            "LEVEL-3 COMMAND",
+            "MoES / INCOIS Directorate",
+            "MR",
+            "#00f5d4",
+            json.dumps(["all_permissions", "model_validation", "sensor_registration", "ai_assistant_full", "audit_inspection"])
+        ),
+        (
+            "USR-NAVAL-01",
+            "cmdr.varma",
+            "Naval#OpsTactical2026!",
+            "Commander K. Varma",
+            "cmdr.varma@navy.mil.in",
+            "NAVAL_OPERATIONS",
+            "LEVEL-2 TACTICAL",
+            "Indian Navy Directorate of Oceanology",
+            "KV",
+            "#f59e0b",
+            json.dumps(["sar_currents", "diver_safety", "subsurface_tactics", "fleet_telemetry"])
+        ),
+        (
+            "USR-RES-01",
+            "priya.nair",
+            "Research#Argo2026!",
+            "Dr. Priya Nair",
+            "priya.nair@incois.gov.in",
+            "RESEARCH_OBSERVER",
+            "LEVEL-1 RESEARCH",
+            "INCOIS Ocean Observation Division",
+            "PN",
+            "#10b981",
+            json.dumps(["ctd_profiling", "ts_diagrams", "anomaly_inspection", "transect_analysis"])
+        )
+    ]
+
+    for uid, u_name, u_pass, full_name, email, role, clearance, org, avatar, color, caps in operational_personas:
+        cursor.execute("SELECT id FROM users WHERE username = ?", (u_name,))
+        if not cursor.fetchone():
+            u_salt = secrets.token_hex(16)
+            u_hash = hash_password(u_pass, u_salt)
+            cursor.execute("""
+            INSERT INTO users (
+                id, username, password_hash, salt, full_name, email,
+                role, clearance_level, organization, avatar_initials,
+                badge_color, capabilities, status, created_at, is_active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 1)
+            """, (uid, u_name, u_hash, u_salt, full_name, email, role, clearance, org, avatar, color, caps, now_iso))
 
     conn.commit()
     conn.close()

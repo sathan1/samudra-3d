@@ -44,8 +44,16 @@ export default function AdminUsersModal({
 
   useEffect(() => {
     if (isOpen) {
-      loadUsers();
-      setActionStatus({ message: '', isError: false });
+      let ignore = false;
+      void Promise.resolve().then(() => {
+        if (!ignore) {
+          loadUsers();
+          setActionStatus({ message: '', isError: false });
+        }
+      });
+      return () => {
+        ignore = true;
+      };
     }
   }, [isOpen, loadUsers]);
 

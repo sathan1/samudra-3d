@@ -47,11 +47,89 @@ export default function AdminPortal({ currentUser, authToken, onNavigate, onLogo
   const [resettingUserId, setResettingUserId] = useState(null);
   const [newPasswordVal, setNewPasswordVal] = useState('');
 
+  const loadOverview = useCallback(async () => {
+    if (!authToken) return;
+    try {
+      const data = await fetchAdminOverview(authToken);
+      setOverviewData(data);
+    } catch (err) {
+      console.warn('Overview fetch note:', err.message);
+    }
+  }, [authToken]);
+
+  const loadUsers = useCallback(async () => {
+    if (!authToken) return;
+    setLoading(true);
+    try {
+      const data = await fetchAdminUsers(authToken);
+      setUsers(data?.users || []);
+    } catch (err) {
+      setStatusMsg({ text: err.message || 'Failed to fetch users', isError: true });
+    } finally {
+      setLoading(false);
+    }
+  }, [authToken]);
+
+  const loadSensors = useCallback(async () => {
+    if (!authToken) return;
+    setLoading(true);
+    try {
+      const data = await fetchAdminSensors(authToken);
+      setSensors(data?.sensors || []);
+    } catch (err) {
+      setStatusMsg({ text: err.message || 'Failed to fetch sensors', isError: true });
+    } finally {
+      setLoading(false);
+    }
+  }, [authToken]);
+
+  const loadDataSources = useCallback(async () => {
+    if (!authToken) return;
+    setLoading(true);
+    try {
+      const data = await fetchDataSources(authToken);
+      setDataSources(data?.data_sources || []);
+    } catch (err) {
+      setStatusMsg({ text: err.message || 'Failed to fetch data sources', isError: true });
+    } finally {
+      setLoading(false);
+    }
+  }, [authToken]);
+
+  const loadAuditLogs = useCallback(async () => {
+    if (!authToken) return;
+    setLoading(true);
+    try {
+      const data = await fetchAdminAuditLogs(authToken, 100);
+      setAuditLogs(data?.logs || []);
+    } catch (err) {
+      setStatusMsg({ text: err.message || 'Failed to fetch audit logs', isError: true });
+    } finally {
+      setLoading(false);
+    }
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!authToken || currentUser?.role !== 'ADMIN') return;
+    let ignore = false;
+    void Promise.resolve().then(() => {
+      if (ignore) return;
+      loadOverview();
+      if (activeTab === 'users') loadUsers();
+      if (activeTab === 'sensors') loadSensors();
+      if (activeTab === 'data_sources') loadDataSources();
+      if (activeTab === 'audit_logs') loadAuditLogs();
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [activeTab, authToken, currentUser, loadOverview, loadUsers, loadSensors, loadDataSources, loadAuditLogs]);
+
   if (!authToken || !currentUser) {
     return (
       <div className="admin-denied-container" style={{ minHeight: '100vh', backgroundColor: '#080e18', color: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
         <div style={{ maxWidth: '440px', width: '100%', backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '28px', textAlign: 'center' }}>
-          <span style={{ fontSize: '36px', display: 'block', marginBottom: '12px' }}>??</span>
+          <span style={{ fontSize: '36px', display: 'block', marginBottom: '12px' }}>🔒</span>
           <h2 style={{ fontSize: '18px', margin: '0 0 8px 0', color: '#f8fafc' }}>Authentication Required</h2>
           <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '20px' }}>
             The SAMUDRA-3D Administration Portal is restricted to authorized MoES / INCOIS administrators.
@@ -73,7 +151,7 @@ export default function AdminPortal({ currentUser, authToken, onNavigate, onLogo
     return (
       <div className="admin-forbidden-container" style={{ minHeight: '100vh', backgroundColor: '#080e18', color: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
         <div style={{ maxWidth: '460px', width: '100%', backgroundColor: '#0f172a', border: '1px solid #ef4444', borderRadius: '8px', padding: '28px', textAlign: 'center' }}>
-          <span style={{ fontSize: '36px', display: 'block', marginBottom: '12px' }}>?</span>
+          <span style={{ fontSize: '36px', display: 'block', marginBottom: '12px' }}>🚫</span>
           <h2 style={{ fontSize: '18px', margin: '0 0 8px 0', color: '#f87171' }}>Access Forbidden</h2>
           <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.5, marginBottom: '16px' }}>
             Your account ({currentUser.display_name}) has role <strong>{currentUser.role}</strong>. Administrative privileges are required.
@@ -85,70 +163,6 @@ export default function AdminPortal({ currentUser, authToken, onNavigate, onLogo
       </div>
     );
   }
-  const loadOverview = useCallback(async () => {
-    try {
-      const data = await fetchAdminOverview(authToken);
-      setOverviewData(data);
-    } catch (err) {
-      console.warn('Overview fetch note:', err.message);
-    }
-  }, [authToken]);
-
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchAdminUsers(authToken);
-      setUsers(data?.users || []);
-    } catch (err) {
-      setStatusMsg({ text: err.message || 'Failed to fetch users', isError: true });
-    } finally {
-      setLoading(false);
-    }
-  }, [authToken]);
-
-  const loadSensors = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchAdminSensors(authToken);
-      setSensors(data?.sensors || []);
-    } catch (err) {
-      setStatusMsg({ text: err.message || 'Failed to fetch sensors', isError: true });
-    } finally {
-      setLoading(false);
-    }
-  }, [authToken]);
-
-  const loadDataSources = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchDataSources(authToken);
-      setDataSources(data?.data_sources || []);
-    } catch (err) {
-      setStatusMsg({ text: err.message || 'Failed to fetch data sources', isError: true });
-    } finally {
-      setLoading(false);
-    }
-  }, [authToken]);
-
-  const loadAuditLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchAdminAuditLogs(authToken, 100);
-      setAuditLogs(data?.logs || []);
-    } catch (err) {
-      setStatusMsg({ text: err.message || 'Failed to fetch audit logs', isError: true });
-    } finally {
-      setLoading(false);
-    }
-  }, [authToken]);
-
-  useEffect(() => {
-    loadOverview();
-    if (activeTab === 'users') loadUsers();
-    if (activeTab === 'sensors') loadSensors();
-    if (activeTab === 'data_sources') loadDataSources();
-    if (activeTab === 'audit_logs') loadAuditLogs();
-  }, [activeTab, loadOverview, loadUsers, loadSensors, loadDataSources, loadAuditLogs]);
 
   const handleToggleUserStatus = async (user) => {
     try {

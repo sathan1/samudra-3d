@@ -10,17 +10,82 @@ export default function Header({
   onOpenAdminUsers = null,
   currentUser = null,
   onLogout = null,
-  onNavigate = null
+  onNavigate = null,
+  viewMode = 'globe',
+  onViewModeChange = null,
+  onApplyPreset = null
 }) {
   const isAdmin = currentUser?.role === 'ADMIN';
 
   return (
-    <header className="header flex flex-wrap items-center justify-between gap-4">
+    <header className="header flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
       <div className="brand flex items-center gap-3">
         <span className="brand-mark" aria-hidden="true">≈</span>
         <div>
-          <span className="brand-name">SAMUDRA<span className="text-ocean">-3D</span></span>
-          <p className="brand-subtitle">MoES / INCOIS Operational Ocean Digital Twin</p>
+          <span className="brand-name font-bold tracking-wide">SAMUDRA<span className="text-ocean">-3D</span></span>
+          <p className="brand-subtitle text-[11px] text-slate-400 m-0">MoES / INCOIS Operational Ocean Digital Twin</p>
+        </div>
+      </div>
+
+      {/* Middle Center: View Mode Toggle & Operational Presets */}
+      <div className="header-center flex flex-wrap items-center gap-3">
+        {/* View Mode Toggle */}
+        <div className="view-mode-toggle flex items-center bg-slate-900/90 border border-slate-700/80 rounded-lg p-0.5 shadow-sm">
+          <button
+            type="button"
+            className={`px-3 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 ${viewMode === 'globe' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+            onClick={() => onViewModeChange?.('globe')}
+            title="Switch to Global 3D Earth Globe View"
+            data-testid="viewmode-globe-btn"
+          >
+            <span aria-hidden="true">🌍</span>
+            <span>Global Globe</span>
+          </button>
+          <button
+            type="button"
+            className={`px-3 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 ${viewMode === 'block' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+            onClick={() => onViewModeChange?.('block')}
+            title="Switch to Regional 3D Ocean Volume Block (Northern Indian Ocean 0-25°N, 65-95°E)"
+            data-testid="viewmode-block-btn"
+          >
+            <span aria-hidden="true">📦</span>
+            <span>3D Ocean Volume Block</span>
+          </button>
+        </div>
+
+        {/* Operational Presets */}
+        <div className="operational-presets flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded-lg px-2 py-1">
+          <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 mr-1 hidden sm:inline">Scenarios:</span>
+          <button
+            type="button"
+            className="preset-btn px-2 py-0.5 text-xs font-medium rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-200 flex items-center gap-1 transition"
+            onClick={() => onApplyPreset?.('cyclone')}
+            title="Tropical Cyclone & Heat Potential (TCHP) Scenario"
+            data-testid="preset-cyclone-btn"
+          >
+            <span aria-hidden="true">🌀</span>
+            <span>Cyclone / TCHP</span>
+          </button>
+          <button
+            type="button"
+            className="preset-btn px-2 py-0.5 text-xs font-medium rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-200 flex items-center gap-1 transition"
+            onClick={() => onApplyPreset?.('sar')}
+            title="Search & Rescue Maritime Currents Drift Scenario"
+            data-testid="preset-sar-btn"
+          >
+            <span aria-hidden="true">🚢</span>
+            <span>Search & Rescue</span>
+          </button>
+          <button
+            type="button"
+            className="preset-btn px-2 py-0.5 text-xs font-medium rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-200 flex items-center gap-1 transition"
+            onClick={() => onApplyPreset?.('fishery')}
+            title="Fishery & Mixed Layer Depth (MLD) Upwelling Scenario"
+            data-testid="preset-fishery-btn"
+          >
+            <span aria-hidden="true">🐟</span>
+            <span>Fishery / MLD</span>
+          </button>
         </div>
       </div>
       <div className="header-actions flex flex-wrap items-center gap-2.5">
@@ -110,7 +175,7 @@ export default function Header({
             type="button"
             data-testid="open-login-btn"
             className="officer-login-btn"
-            onClick={() => onNavigate ? onNavigate('/login') : onOpenLogin?.()}
+            onClick={onOpenLogin}
             title="Sign in with MoES/INCOIS Officer Credentials"
           >
             <span aria-hidden="true">🔒</span>
