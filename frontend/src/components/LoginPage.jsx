@@ -81,8 +81,8 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
             borderBottom: '1px solid #1e293b'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-            <span style={{ fontSize: '24px', color: '#38bdf8' }}>?</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '24px', color: '#38bdf8' }}>≈</span>
             <div>
               <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 700, letterSpacing: '-0.01em', color: '#f8fafc' }}>
                 SAMUDRA<span style={{ color: '#38bdf8' }}>-3D</span>
@@ -92,9 +92,6 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
               </p>
             </div>
           </div>
-          <p style={{ margin: 0, fontSize: '12px', color: '#cbd5e1', lineHeight: 1.5 }}>
-            Ministry of Earth Sciences (MoES) / INCOIS Digital Twin Portal. Authorized access for oceanographers, naval officers, and administrators.
-          </p>
         </div>
 
         {/* Login Form */}
@@ -197,27 +194,9 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
                 transition: 'background-color 0.15s ease'
               }}
             >
-              {isLoading ? 'Verifying Credentials...' : 'Sign In to Portal'}
+              {isLoading ? 'Logging In...' : 'Login'}
             </button>
           </form>
-
-          <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #1e293b', textAlign: 'center' }}>
-            <button
-              type="button"
-              data-testid="guest-continue-btn"
-              onClick={handleContinueAsGuest}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#38bdf8',
-                fontSize: '12px',
-                cursor: 'pointer',
-                textDecoration: 'underline'
-              }}
-            >
-              Continue to Ocean Map as Public Viewer ?
-            </button>
-          </div>
         </div>
 
         {/* Institutional Footer */}

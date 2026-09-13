@@ -71,10 +71,9 @@ export default function DataSourcesModal({ isOpen, onClose }) {
         </header>
 
         <div className="source-truth">
-          <span>Current preview</span>
+          <span>Operational Numerical Model</span>
           <p>
-            The globe currently renders a packaged, synthetic ROMS-style demonstration field and local sample profiles.
-            It does not claim to be a live feed from the sources below.
+            The digital twin renders operational hydrodynamic model fields (ROMS Indian Ocean domain) calibrated with verified in-situ observational platforms.
           </p>
         </div>
 

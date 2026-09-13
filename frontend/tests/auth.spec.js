@@ -108,8 +108,7 @@ test.describe('MoES/INCOIS Operational Authentication & RBAC Administration Suit
     // 1. Verify AuthGate is displayed
     const authGate = page.locator('[data-testid="auth-gate"]');
     await expect(authGate).toBeVisible();
-    await expect(authGate).toContainText('SAMUDRA-3D Portal');
-    await expect(authGate).toContainText('Authentication Required for Data Access');
+    await expect(authGate).toContainText('SAMUDRA-3D');
 
     // 2. Verify 3D ocean canvas and workspace are completely blocked/unmounted
     const canvas = page.locator('canvas');
@@ -117,12 +116,18 @@ test.describe('MoES/INCOIS Operational Authentication & RBAC Administration Suit
     const workspaceHeading = page.locator('#workspace');
     await expect(workspaceHeading).toHaveCount(0);
 
-    // 3. Quick Officer Login unlocks the workspace
-    const quickOfficerBtn = page.locator('[data-testid="auth-quick-officer-btn"]');
-    await expect(quickOfficerBtn).toBeVisible();
-    await quickOfficerBtn.click();
+    // 3. Verify inputs start completely blank (not auto-loaded)
+    const usernameInput = page.locator('[data-testid="auth-username-input"]');
+    const passwordInput = page.locator('[data-testid="auth-password-input"]');
+    await expect(usernameInput).toHaveValue('');
+    await expect(passwordInput).toHaveValue('');
 
-    // 4. Workspace and 3D globe are now unlocked and visible
+    // 4. Enter credentials and click Login
+    await usernameInput.fill('admin');
+    await passwordInput.fill('Samudra#Admin2026!');
+    await page.click('[data-testid="auth-submit-btn"]');
+
+    // 5. Workspace and 3D globe are now unlocked and visible
     await expect(page.locator('#workspace')).toBeVisible({ timeout: 8000 });
     await expect(page.locator('canvas')).toBeVisible({ timeout: 8000 });
     await expect(page.locator('[data-testid="open-login-btn"]')).toContainText('ADMIN');

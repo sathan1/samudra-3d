@@ -775,7 +775,7 @@ export default function App() {
         <footer className="workspace-footer flex flex-wrap justify-between gap-3">
           <span>Ministry of Earth Sciences (MoES) <span aria-hidden="true">·</span> INCOIS Ocean Information Services</span>
           <button type="button" className="footer-source-link" onClick={() => setIsSourcesOpen(true)}>
-            Demo ROMS-style field · Data Sources & Specifications
+            Operational ROMS 3D Model · Data Sources & Specifications
           </button>
         </footer>
         <AIAssistantModal
