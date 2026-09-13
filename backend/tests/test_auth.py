@@ -209,5 +209,13 @@ class TestAuthenticationAndAdminRBAC(unittest.TestCase):
             self.assertEqual(len(sensor["temperature"]), 0)
             self.assertEqual(len(sensor["salinity"]), 0)
 
+    @classmethod
+    def tearDownClass(cls):
+        from backend.app.db import get_db_connection
+        with get_db_connection() as conn:
+            conn.execute("DELETE FROM users WHERE username IN ('test_admin', 'standard_viewer_01') OR username LIKE 'operator_temp_%'")
+            conn.execute("DELETE FROM sensors WHERE id = 'BUOY-IO-881'")
+            conn.commit()
+
 if __name__ == "__main__":
     unittest.main()

@@ -312,10 +312,10 @@ button:not(:disabled), summary {
 }
 
 button:not(:disabled):hover, select:not(:disabled):hover {
-  border-color: var(--border-glow);
-  background: rgba(0, 245, 212, 0.08);
-  box-shadow: 0 0 16px -3px rgba(0, 245, 212, 0.25);
-  transform: translateY(-1px);
+  border-color: #475569;
+  background: #1e293b;
+  box-shadow: none;
+  transform: none;
 }
 
 button:disabled, select:disabled {
@@ -676,10 +676,10 @@ fieldset {
 }
 
 .hud-button:hover {
-  border-color: var(--accent);
-  background: rgba(0, 245, 212, 0.12);
-  box-shadow: 0 0 18px -2px rgba(0, 245, 212, 0.35);
-  transform: translateY(-1px);
+  border-color: #0284c7;
+  background: #1e293b;
+  box-shadow: none;
+  transform: none;
 }
 
 .viewport-controls-hint {
@@ -1281,11 +1281,11 @@ button:not(:disabled):hover, select:not(:disabled):hover {
   background: rgba(2, 8, 19, 0.85);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 245, 212, 0.25);
+  background: #334155;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 245, 212, 0.55);
+  background: #475569;
 }
 
 @media (prefers-reduced-motion: reduce) {

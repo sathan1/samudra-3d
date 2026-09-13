@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchAllUsers, createUserAdmin, deleteUser, loginUser } from '../services/api';
+import { fetchAllUsers, createUserAdmin, deleteUser } from '../services/api';
 
 const ROLE_OPTIONS = [
-  { value: 'CHIEF_OCEANOGRAPHER', label: 'Chief Oceanographer', clearance: 'LEVEL-3 COMMAND', color: '#00f5d4' },
-  { value: 'NAVAL_OPERATIONS', label: 'Naval Operations Commander', clearance: 'LEVEL-2 TACTICAL', color: '#f59e0b' },
-  { value: 'RESEARCH_OBSERVER', label: 'Marine Research Scientist', clearance: 'LEVEL-1 RESEARCH', color: '#10b981' },
-  { value: 'ADMIN', label: 'System Administrator', clearance: 'LEVEL-3 COMMAND', color: '#38bdf8' },
-  { value: 'GUEST', label: 'Public Observer', clearance: 'PUBLIC', color: '#94a3b8' }
+  { value: 'ADMIN', label: 'System Administrator', clearance: 'ADMINISTRATOR', color: '#0284c7' },
+  { value: 'OPERATOR', label: 'Duty Forecaster / Operator', clearance: 'OPERATIONAL', color: '#059669' },
+  { value: 'RESEARCHER', label: 'Marine Research Scientist', clearance: 'SCIENTIFIC', color: '#7c3aed' },
+  { value: 'VIEWER', label: 'Public / Academic Observer', clearance: 'VIEW-ONLY', color: '#64748b' }
 ];
 
 export default function AdminUsersModal({
@@ -24,8 +23,8 @@ export default function AdminUsersModal({
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('RESEARCH_OBSERVER');
-  const [clearance, setClearance] = useState('LEVEL-1 RESEARCH');
+  const [role, setRole] = useState('RESEARCHER');
+  const [clearance, setClearance] = useState('SCIENTIFIC');
   const [organization, setOrganization] = useState('MoES / INCOIS Ocean Observations');
 
   const loadUsers = useCallback(async () => {
@@ -75,7 +74,7 @@ export default function AdminUsersModal({
     }
 
     setLoading(true);
-    setActionStatus({ message: 'Registering new officer in database...', isError: false });
+    setActionStatus({ message: 'Registering authorized user in database...', isError: false });
 
     try {
       const res = await createUserAdmin({
@@ -116,43 +115,6 @@ export default function AdminUsersModal({
       await loadUsers();
     } catch (err) {
       setActionStatus({ message: err.message || 'Deletion failed.', isError: true });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickLogin = async (targetUsername) => {
-    setLoading(true);
-    setActionStatus({ message: `Switching session to "${targetUsername}"...`, isError: false });
-
-    const defaultPasswords = {
-      'admin': 'Samudra#Admin2026!',
-      'chief.oceanographer': 'Samudra#Command2026!',
-      'cmdr.varma': 'Naval#OpsTactical2026!',
-      'priya.nair': 'Research#Argo2026!'
-    };
-    const pw = defaultPasswords[targetUsername];
-
-    if (!pw) {
-      setActionStatus({
-        message: `For custom user "${targetUsername}", please log in via Officer Portal using the password set during creation.`,
-        isError: false
-      });
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const res = await loginUser({ username: targetUsername, password: pw });
-      if (onLoginSuccess) {
-        onLoginSuccess(res.user, res.access_token);
-      }
-      setActionStatus({ message: `Logged in as ${res.user.display_name}!`, isError: false });
-      setTimeout(() => {
-        onClose?.();
-      }, 600);
-    } catch (err) {
-      setActionStatus({ message: err.message || 'Login switch failed.', isError: true });
     } finally {
       setLoading(false);
     }
@@ -389,25 +351,6 @@ export default function AdminUsersModal({
                           </td>
                           <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                             <div style={{ display: 'inline-flex', gap: '6px' }}>
-                              {!isCurrent && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuickLogin(u.username)}
-                                  disabled={loading}
-                                  title={`Switch session to ${u.display_name}`}
-                                  style={{
-                                    padding: '4px 8px',
-                                    fontSize: '11px',
-                                    backgroundColor: '#1e293b',
-                                    border: '1px solid #38bdf8',
-                                    borderRadius: '4px',
-                                    color: '#38bdf8',
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  Switch
-                                </button>
-                              )}
                               {!isRoot && (
                                 <button
                                   type="button"

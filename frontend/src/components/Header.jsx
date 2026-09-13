@@ -30,65 +30,62 @@ export default function Header({
       {/* Middle Center: View Mode Toggle & Operational Presets */}
       <div className="header-center flex flex-wrap items-center gap-3">
         {/* View Mode Toggle */}
-        <div className="view-mode-toggle flex items-center bg-slate-900/90 border border-slate-700/80 rounded-lg p-0.5 shadow-sm">
+        <div className="view-mode-toggle flex items-center bg-slate-900 border border-slate-700 rounded p-0.5">
           <button
             type="button"
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 ${viewMode === 'globe' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+            className={`px-3 py-1 text-xs font-semibold rounded transition flex items-center gap-1.5 ${viewMode === 'globe' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
             onClick={() => onViewModeChange?.('globe')}
             title="Switch to Global 3D Earth Globe View"
             data-testid="viewmode-globe-btn"
           >
-            <span aria-hidden="true">🌍</span>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="2"/><path strokeWidth="2" d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
             <span>Global Globe</span>
           </button>
           <button
             type="button"
-            className={`px-3 py-1 text-xs font-semibold rounded-md transition flex items-center gap-1.5 ${viewMode === 'block' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}`}
+            className={`px-3 py-1 text-xs font-semibold rounded transition flex items-center gap-1.5 ${viewMode === 'block' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
             onClick={() => onViewModeChange?.('block')}
             title="Switch to Regional 3D Ocean Volume Block (Northern Indian Ocean 0-25°N, 65-95°E)"
             data-testid="viewmode-block-btn"
           >
-            <span aria-hidden="true">📦</span>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
             <span>3D Ocean Volume Block</span>
           </button>
         </div>
 
         {/* Operational Presets */}
-        <div className="operational-presets flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded-lg px-2 py-1">
+        <div className="operational-presets flex items-center gap-1 bg-slate-900 border border-slate-800 rounded px-2 py-1">
           <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 mr-1 hidden sm:inline">Scenarios:</span>
           <button
             type="button"
-            className="preset-btn px-2 py-0.5 text-xs font-medium rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-200 flex items-center gap-1 transition"
+            className="preset-btn px-2 py-0.5 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition"
             onClick={() => onApplyPreset?.('cyclone')}
             title="Tropical Cyclone & Heat Potential (TCHP) Scenario"
             data-testid="preset-cyclone-btn"
           >
-            <span aria-hidden="true">🌀</span>
-            <span>Cyclone / TCHP</span>
+            Cyclone / TCHP
           </button>
           <button
             type="button"
-            className="preset-btn px-2 py-0.5 text-xs font-medium rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-200 flex items-center gap-1 transition"
+            className="preset-btn px-2 py-0.5 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition"
             onClick={() => onApplyPreset?.('sar')}
             title="Search & Rescue Maritime Currents Drift Scenario"
             data-testid="preset-sar-btn"
           >
-            <span aria-hidden="true">🚢</span>
-            <span>Search & Rescue</span>
+            Search & Rescue
           </button>
           <button
             type="button"
-            className="preset-btn px-2 py-0.5 text-xs font-medium rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-slate-200 flex items-center gap-1 transition"
+            className="preset-btn px-2 py-0.5 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition"
             onClick={() => onApplyPreset?.('fishery')}
             title="Fishery & Mixed Layer Depth (MLD) Upwelling Scenario"
             data-testid="preset-fishery-btn"
           >
-            <span aria-hidden="true">🐟</span>
-            <span>Fishery / MLD</span>
+            Fishery / MLD
           </button>
         </div>
       </div>
-      <div className="header-actions flex flex-wrap items-center gap-2.5">
+      <div className="header-actions flex flex-wrap items-center gap-2">
         {isAdmin && (
           <button
             type="button"
@@ -98,7 +95,6 @@ export default function Header({
             title="Open SAMUDRA-3D Administration & User Directory"
             style={{ backgroundColor: '#0284c7', color: '#ffffff', fontWeight: 600 }}
           >
-            <span aria-hidden="true">⚙️</span>
             <span>Admin Portal</span>
           </button>
         )}
@@ -110,7 +106,6 @@ export default function Header({
           onClick={onOpenRegisterSensor}
           title="Register a new ocean sensor platform (Argo float, Glider, Moored buoy)"
         >
-          <span aria-hidden="true">🛰️</span>
           <span>Register Sensor</span>
         </button>
 
@@ -121,7 +116,6 @@ export default function Header({
           onClick={onOpenAssistant}
           title="Open Grounded AI Ocean Assistant (Alt+A)"
         >
-          <span aria-hidden="true">✧</span>
           <span>AI Ocean Assistant</span>
         </button>
 
@@ -178,7 +172,6 @@ export default function Header({
             onClick={onOpenLogin}
             title="Sign in with MoES/INCOIS Officer Credentials"
           >
-            <span aria-hidden="true">🔒</span>
             <span>Sign In</span>
           </button>
         )}

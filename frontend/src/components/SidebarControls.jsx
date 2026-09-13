@@ -63,128 +63,127 @@ export default function SidebarControls({
       className={`panel controls floating-hud controls-hud ${isCollapsed ? 'collapsed-hud' : ''}`}
       aria-labelledby="controls-heading"
     >
-      <div className="panel-heading flex justify-between items-center py-2.5 px-3.5 border-b border-slate-700/60 bg-slate-900/60">
+      <div className="panel-heading flex justify-between items-center py-2.5 px-3.5 border-b border-slate-700/60 bg-slate-900/80">
         <div>
-          <span className="eyebrow text-[10px] text-cyan-400">FLOATING HUD</span>
-          <h2 id="controls-heading" className="text-sm font-bold text-slate-100 m-0">Ocean Controls</h2>
+          <span className="eyebrow text-[10px] text-slate-400 font-mono tracking-wider">OCEANOGRAPHIC CONTROLS</span>
+          <h2 id="controls-heading" className="text-sm font-bold text-slate-100 m-0">Indian Ocean Basin</h2>
         </div>
         <span
           role="button"
           tabIndex={-1}
-          className="collapse-btn text-xs px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer"
+          className="collapse-btn text-xs px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          title={isCollapsed ? 'Expand Ocean Controls HUD' : 'Collapse Ocean Controls HUD'}
+          title={isCollapsed ? 'Expand Ocean Controls' : 'Collapse Ocean Controls'}
           aria-expanded={!isCollapsed}
         >
-          {isCollapsed ? '▶ Show' : '◀ Hide'}
+          {isCollapsed ? 'Show ▸' : 'Hide ◂'}
         </span>
       </div>
 
       {!isCollapsed && (
-        <div className="hud-content p-3 space-y-3.5 text-xs">
-          {/* Quick Tool Modes (Rendered as interactive spans to avoid disrupting aside button count) */}
-          <div className="tool-modes flex gap-2">
-            <span
-              role="button"
-              tabIndex={-1}
-              className={`flex-1 py-1.5 px-2 rounded-lg font-medium border text-xs flex items-center justify-center gap-1.5 transition cursor-pointer select-none ${
-                isClickToProbeActive
-                  ? 'bg-cyan-600/90 border-cyan-400 text-white shadow-lg shadow-cyan-500/20'
-                  : 'bg-slate-800/60 border-slate-700 hover:border-slate-600 text-slate-200'
-              }`}
-              onClick={() => onToggleClickToProbe?.(!isClickToProbeActive)}
-              title="Click anywhere on ocean canvas to drop a 3D CTD probe"
-              data-testid="toggle-click-to-probe-btn"
-            >
-              <span aria-hidden="true">📍</span>
-              <span>{isClickToProbeActive ? 'Probing Active' : 'Click-to-Probe'}</span>
-            </span>
-            <span
-              role="button"
-              tabIndex={-1}
-              className="flex-1 py-1.5 px-2 rounded-lg font-medium border text-xs flex items-center justify-center gap-1.5 bg-slate-800/60 border-slate-700 hover:border-slate-600 text-slate-200 transition cursor-pointer select-none"
-              onClick={() => onTriggerSampleTransect?.()}
-              title="Draw / Load ODV vertical transect slice"
-              data-testid="load-transect-btn"
-            >
-              <span aria-hidden="true">📏</span>
-              <span>ODV Transect</span>
-            </span>
-          </div>
-
-          {/* 1. Variable Selector */}
-          <div className="control-group-clean">
-            <label htmlFor="variable" className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-1.5">
-              Ocean Variable
-            </label>
-            <div className="variable-pills grid grid-cols-3 gap-1 mb-1.5">
+        <div className="hud-content p-3 space-y-3 text-xs">
+          {/* Section 1: Ocean Variable & Inspection Tools */}
+          <div className="control-card bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 space-y-2">
+            <div className="tool-modes flex gap-2">
               <span
                 role="button"
                 tabIndex={-1}
-                className={`py-1 px-1.5 rounded text-[11px] font-medium border text-center transition cursor-pointer select-none ${
-                  selectedVariable === 'temperature'
-                    ? 'bg-cyan-600 border-cyan-400 text-white font-semibold'
-                    : 'bg-slate-800/60 border-slate-700/80 text-slate-300 hover:bg-slate-700/60'
+                className={`flex-1 py-1 px-2 rounded font-medium border text-xs flex items-center justify-center gap-1.5 transition cursor-pointer select-none ${
+                  isClickToProbeActive
+                    ? 'bg-sky-600 border-sky-500 text-white font-semibold'
+                    : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-300'
                 }`}
-                onClick={() => onSelectVariable?.('temperature')}
+                onClick={() => onToggleClickToProbe?.(!isClickToProbeActive)}
+                title="Click anywhere on ocean canvas to drop a 3D CTD probe"
+                data-testid="toggle-click-to-probe-btn"
               >
-                🌡️ Temp
+                <span>{isClickToProbeActive ? 'Probing Active' : 'Point Probe'}</span>
               </span>
               <span
                 role="button"
                 tabIndex={-1}
-                className={`py-1 px-1.5 rounded text-[11px] font-medium border text-center transition cursor-pointer select-none ${
-                  selectedVariable === 'salinity'
-                    ? 'bg-cyan-600 border-cyan-400 text-white font-semibold'
-                    : 'bg-slate-800/60 border-slate-700/80 text-slate-300 hover:bg-slate-700/60'
-                }`}
-                onClick={() => onSelectVariable?.('salinity')}
+                className="flex-1 py-1 px-2 rounded font-medium border text-xs flex items-center justify-center gap-1.5 bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-300 transition cursor-pointer select-none"
+                onClick={() => onTriggerSampleTransect?.()}
+                title="Draw / Load ODV vertical transect slice"
+                data-testid="load-transect-btn"
               >
-                🧂 Salinity
-              </span>
-              <span
-                role="button"
-                tabIndex={-1}
-                className={`py-1 px-1.5 rounded text-[11px] font-medium border text-center transition cursor-pointer select-none ${
-                  selectedVariable === 'currents'
-                    ? 'bg-cyan-600 border-cyan-400 text-white font-semibold'
-                    : 'bg-slate-800/60 border-slate-700/80 text-slate-300 hover:bg-slate-700/60'
-                }`}
-                onClick={() => onSelectVariable?.('currents')}
-              >
-                🌊 Currents
+                <span>ODV Transect</span>
               </span>
             </div>
-            {/* Native select control for full accessibility and automated test harness */}
-            <select
-              id="variable"
-              value={selectedVariable}
-              onChange={(e) => onSelectVariable?.(e.target.value)}
-              aria-describedby="variable-help"
-              className="w-full text-xs p-2 rounded bg-slate-900 border border-slate-700 text-slate-100"
-            >
-              <option value="temperature">Potential Temperature (°C)</option>
-              <option value="salinity">Practical Salinity (PSU)</option>
-              <option value="currents">Ocean Currents (m/s)</option>
-            </select>
-            <p id="variable-help" className="helper text-[11px] text-slate-400 mt-1">
-              Select temperature or salinity for scalar color contours, or currents for vector streamlines.
-            </p>
+
+            <div>
+              <label htmlFor="variable" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Ocean Parameter
+              </label>
+              <div className="variable-pills grid grid-cols-3 gap-1 mb-1.5">
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  className={`py-1 px-1 rounded text-[11px] font-medium border text-center transition cursor-pointer select-none ${
+                    selectedVariable === 'temperature'
+                      ? 'bg-sky-600 border-sky-500 text-white font-semibold'
+                      : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                  }`}
+                  onClick={() => onSelectVariable?.('temperature')}
+                >
+                  Temp (°C)
+                </span>
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  className={`py-1 px-1 rounded text-[11px] font-medium border text-center transition cursor-pointer select-none ${
+                    selectedVariable === 'salinity'
+                      ? 'bg-sky-600 border-sky-500 text-white font-semibold'
+                      : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                  }`}
+                  onClick={() => onSelectVariable?.('salinity')}
+                >
+                  Salinity (PSU)
+                </span>
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  className={`py-1 px-1 rounded text-[11px] font-medium border text-center transition cursor-pointer select-none ${
+                    selectedVariable === 'currents'
+                      ? 'bg-sky-600 border-sky-500 text-white font-semibold'
+                      : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                  }`}
+                  onClick={() => onSelectVariable?.('currents')}
+                >
+                  Currents (m/s)
+                </span>
+              </div>
+              {/* Native select control for full accessibility and automated test harness */}
+              <select
+                id="variable"
+                value={selectedVariable}
+                onChange={(e) => onSelectVariable?.(e.target.value)}
+                aria-describedby="variable-help"
+                className="w-full text-xs p-1.5 rounded bg-slate-950 border border-slate-700 text-slate-100"
+              >
+                <option value="temperature">Potential Temperature (°C)</option>
+                <option value="salinity">Practical Salinity (PSU)</option>
+                <option value="currents">Ocean Currents (m/s)</option>
+              </select>
+              <p id="variable-help" className="helper text-[11px] text-slate-400 mt-1 mb-0">
+                Select temperature or salinity for scalar contours, or currents for vector streamlines.
+              </p>
+            </div>
           </div>
 
-          {/* 2. Discrete Depth Chips & Slicer */}
-          <div className="control-group-clean">
+          {/* Section 2: Discrete Depth Chips & Slicer */}
+          <div className="control-card bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 space-y-2">
             <div className="flex justify-between items-baseline mb-1">
-              <label htmlFor="depth" className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                Depth Layer
+              <label htmlFor="depth" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Vertical Depth
               </label>
-              <span className="font-mono text-xs text-cyan-400 font-semibold" data-testid="depth-value-display">
+              <span className="font-mono text-xs text-sky-400 font-semibold" data-testid="depth-value-display">
                 {requestedDepth === 0 ? 'Surface (0 m)' : `${requestedDepth} m`}
               </span>
             </div>
 
             {/* Discrete Depth Chips Requirement */}
-            <div className="depth-chips-grid grid grid-cols-2 gap-1.5 mb-2">
+            <div className="depth-chips-grid grid grid-cols-2 gap-1.5 mb-1.5">
               {DISCRETE_DEPTH_CHIPS.map((chip) => {
                 const isSelected = Math.abs(requestedDepth - chip.depth) < 25;
                 return (
@@ -194,8 +193,8 @@ export default function SidebarControls({
                     tabIndex={-1}
                     className={`depth-chip px-2 py-1 rounded text-[10.5px] font-mono border text-center transition cursor-pointer select-none ${
                       isSelected
-                        ? 'bg-cyan-600 border-cyan-400 text-white font-bold shadow-sm shadow-cyan-500/30'
-                        : 'bg-slate-800/60 border-slate-700/80 text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                        ? 'bg-sky-600 border-sky-500 text-white font-bold'
+                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
                     }`}
                     onClick={() => onSelectDepth?.(chip.depth)}
                     title={`Snap to ${chip.label}`}
@@ -217,7 +216,7 @@ export default function SidebarControls({
               onChange={(e) => onSelectDepth?.(parseFloat(e.target.value))}
               aria-describedby="depth-help"
               list="depth-levels"
-              className="w-full accent-cyan-400 h-1.5 bg-slate-700 rounded-lg cursor-pointer"
+              className="w-full accent-sky-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
             />
             <datalist id="depth-levels">
               <option value="0" label="Surface"></option>
@@ -234,7 +233,7 @@ export default function SidebarControls({
               <span>100m (Thermocline)</span>
               <span>4000m (Abyss)</span>
             </div>
-            <p id="depth-help" className="helper text-[11px] text-slate-400 mt-1">
+            <p id="depth-help" className="helper text-[11px] text-slate-400 mt-1 mb-0">
               {resolvedDepth !== null && resolvedDepth !== requestedDepth
                 ? `Requested ${requestedDepth} m (snapped to ${resolvedDepth} m model level).`
                 : requestedDepth === 0
@@ -243,13 +242,13 @@ export default function SidebarControls({
             </p>
           </div>
 
-          {/* 3. Forecast Playback Scrub Bar */}
-          <div className="control-group-clean">
+          {/* Section 3: Forecast Simulation */}
+          <div className="control-card bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 space-y-2">
             <div className="flex justify-between items-baseline mb-1">
-              <label htmlFor="time" className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+              <label htmlFor="time" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 Forecast Simulation
               </label>
-              <span className="font-mono text-xs text-amber-400 font-semibold" data-testid="time-value-display">
+              <span className="font-mono text-xs text-sky-400 font-semibold" data-testid="time-value-display">
                 {formatTimeLabel(currentTimeTimestamp, timeIndex)}
               </span>
             </div>
@@ -263,7 +262,7 @@ export default function SidebarControls({
               onChange={(e) => onSelectTime?.(parseInt(e.target.value, 10))}
               aria-describedby="time-help"
               list="time-ticks"
-              className="w-full accent-amber-400 h-1.5 bg-slate-700 rounded-lg cursor-pointer mb-2"
+              className="w-full accent-sky-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer mb-2"
             />
             <datalist id="time-ticks">
               <option value="0" label="T+00h"></option>
@@ -291,9 +290,9 @@ export default function SidebarControls({
                   aria-label="Step backward"
                   title="Step backward 6 hours"
                   disabled={totalTimeSteps <= 1}
-                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200"
+                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs"
                 >
-                  ⏮
+                  ◂ 6h
                 </button>
                 <button
                   id="time-play-pause"
@@ -303,13 +302,13 @@ export default function SidebarControls({
                   data-testid="play-pause-btn"
                   disabled={totalTimeSteps <= 1}
                   style={{ fontWeight: 600, minWidth: '65px' }}
-                  className={`px-3 py-1 rounded border font-semibold flex items-center gap-1 ${
+                  className={`px-3 py-1 rounded border text-xs font-semibold flex items-center justify-center gap-1 ${
                     isPlaying
-                      ? 'bg-amber-600 border-amber-400 text-white'
-                      : 'bg-cyan-600 border-cyan-400 text-white'
+                      ? 'bg-amber-600 border-amber-500 text-white'
+                      : 'bg-sky-600 border-sky-500 text-white'
                   }`}
                 >
-                  {isPlaying ? '⏸ Pause' : '▶ Play'}
+                  {isPlaying ? 'Pause' : 'Play'}
                 </button>
                 <button
                   id="time-step-forward"
@@ -318,9 +317,9 @@ export default function SidebarControls({
                   aria-label="Step forward"
                   title="Step forward 6 hours"
                   disabled={totalTimeSteps <= 1}
-                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200"
+                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs"
                 >
-                  ⏭
+                  6h ▸
                 </button>
               </div>
 
@@ -333,7 +332,7 @@ export default function SidebarControls({
                   value={playbackSpeed}
                   onChange={(e) => onChangeSpeed?.(parseFloat(e.target.value))}
                   aria-label="Playback speed"
-                  className="bg-slate-900 border border-slate-700 rounded p-1 text-[11px] text-slate-200"
+                  className="bg-slate-950 border border-slate-700 rounded p-1 text-[11px] text-slate-200"
                 >
                   {SPEED_PRESETS.map((p) => (
                     <option key={p.value} value={p.value}>
@@ -352,13 +351,13 @@ export default function SidebarControls({
                   type="checkbox"
                   checked={isLooping}
                   onChange={(e) => onToggleLoop?.(e.target.checked)}
-                  className="accent-cyan-400"
+                  className="accent-sky-500"
                 />
                 <span>Loop</span>
               </label>
             </div>
 
-            <p id="time-help" className="helper text-[11px] text-slate-400 mt-2">
+            <p id="time-help" className="helper text-[11px] text-slate-400 mt-2 mb-0">
               {isBuffering
                 ? 'Buffering time slice from model server...'
                 : isPlaying
@@ -367,10 +366,10 @@ export default function SidebarControls({
             </p>
           </div>
 
-          {/* 4. In-situ Observation Layers */}
-          <fieldset className="control-group-clean border-t border-slate-700/60 pt-2.5" aria-describedby="layers-help">
-            <legend className="text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-2">
-              Overlay Layers
+          {/* Section 4: In-situ Observation Fleet & Layers */}
+          <fieldset className="control-card bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 space-y-2" aria-describedby="layers-help">
+            <legend className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 px-1">
+              Observation Fleet & Layers
             </legend>
             <div className="space-y-1.5">
               <label className="flex items-center justify-between p-1 rounded text-slate-400">
@@ -389,7 +388,7 @@ export default function SidebarControls({
                     checked={showArgo}
                     onChange={(e) => onToggleArgo?.(e.target.checked)}
                     data-testid="argo-floats-toggle"
-                    className="accent-cyan-400"
+                    className="accent-sky-500"
                   />
                   <span className="text-slate-200 font-medium">Argo Profile Floats</span>
                 </div>
@@ -408,7 +407,7 @@ export default function SidebarControls({
                     id="argo-float-select"
                     value={selectedFloatId || ''}
                     onChange={(e) => onSelectFloatId?.(e.target.value || null)}
-                    className="w-full text-[11px] p-1 bg-slate-900 border border-slate-700 rounded text-slate-200"
+                    className="w-full text-[11px] p-1 bg-slate-950 border border-slate-700 rounded text-slate-200"
                     data-testid="argo-float-select"
                   >
                     <option value="">-- Choose Argo Float --</option>
@@ -429,7 +428,7 @@ export default function SidebarControls({
                     checked={showGliders}
                     onChange={(e) => onToggleGliders?.(e.target.checked)}
                     data-testid="glider-layer-toggle"
-                    className="accent-cyan-400"
+                    className="accent-sky-500"
                   />
                   <span className="text-slate-200 font-medium">Underwater Gliders</span>
                 </div>
@@ -445,7 +444,7 @@ export default function SidebarControls({
                     data-testid="glider-transect-select"
                     value={selectedGliderId || ''}
                     onChange={(e) => onSelectGliderId?.(e.target.value || null)}
-                    className="w-full text-[11px] p-1 bg-slate-900 border border-slate-700 rounded text-slate-200"
+                    className="w-full text-[11px] p-1 bg-slate-950 border border-slate-700 rounded text-slate-200"
                   >
                     <option value="">-- Choose Glider Mission --</option>
                     {gliderTransects.map((g) => (
@@ -465,21 +464,21 @@ export default function SidebarControls({
                     checked={showCurrents}
                     onChange={(e) => onToggleCurrents?.(e.target.checked)}
                     data-testid="current-streamlines-toggle"
-                    className="accent-cyan-400"
+                    className="accent-sky-500"
                   />
                   <span className="text-slate-200 font-medium">Current Streamlines</span>
                 </div>
                 <span
                   className="layer-state text-[10px] font-mono"
-                  style={{ color: showCurrents ? '#2dd4bf' : '#94a3b8', fontWeight: showCurrents ? 600 : 'normal' }}
+                  style={{ color: showCurrents ? '#38bdf8' : '#94a3b8', fontWeight: showCurrents ? 600 : 'normal' }}
                   data-testid="currents-layer-state"
                 >
                   {showCurrents ? 'Active (1,500 particles)' : 'Off'}
                 </span>
               </label>
             </div>
-            <p id="layers-help" className="helper text-[11px] text-slate-400 mt-2">
-              Model current streamlines and packaged sample observation markers for this interactive demo.
+            <p id="layers-help" className="helper text-[11px] text-slate-400 mt-2 mb-0">
+              Continuous numerical streamlines and calibrated in-situ observation telemetry.
             </p>
           </fieldset>
         </div>

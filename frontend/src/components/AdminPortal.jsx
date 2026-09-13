@@ -30,7 +30,7 @@ export default function AdminPortal({ currentUser, authToken, onNavigate, onLogo
     display_name: '',
     email: '',
     role: 'RESEARCHER',
-    clearance: 'LEVEL-1 RESEARCH',
+    clearance: 'SCIENTIFIC',
     organization: 'MoES / INCOIS'
   });
 
@@ -216,7 +216,7 @@ export default function AdminPortal({ currentUser, authToken, onNavigate, onLogo
         display_name: '',
         email: '',
         role: 'RESEARCHER',
-        clearance: 'LEVEL-1 RESEARCH',
+        clearance: 'SCIENTIFIC',
         organization: 'MoES / INCOIS'
       });
       loadUsers();
@@ -456,15 +456,15 @@ export default function AdminPortal({ currentUser, authToken, onNavigate, onLogo
                     value={newUser.role}
                     onChange={(e) => {
                       const r = e.target.value;
-                      const c = r === 'ADMIN' ? 'LEVEL-3 COMMAND' : r === 'OPERATOR' ? 'LEVEL-2 TACTICAL' : r === 'RESEARCHER' ? 'LEVEL-1 RESEARCH' : 'PUBLIC';
+                      const c = r === 'ADMIN' ? 'ADMINISTRATOR' : r === 'OPERATOR' ? 'OPERATIONAL' : r === 'RESEARCHER' ? 'SCIENTIFIC' : 'VIEW-ONLY';
                       setNewUser({ ...newUser, role: r, clearance: c });
                     }}
                     style={{ width: '100%', padding: '7px 10px', backgroundColor: '#080e18', border: '1px solid #334155', borderRadius: '4px', color: '#fff', fontSize: '12px', boxSizing: 'border-box' }}
                   >
                     <option value="ADMIN">ADMIN (System Administrator)</option>
-                    <option value="OPERATOR">OPERATOR (Tactical Operations)</option>
-                    <option value="RESEARCHER">RESEARCHER (Ocean Scientist)</option>
-                    <option value="VIEWER">VIEWER (Read-Only Observer)</option>
+                    <option value="OPERATOR">OPERATOR (Duty Forecaster / Operator)</option>
+                    <option value="RESEARCHER">RESEARCHER (Marine Research Scientist)</option>
+                    <option value="VIEWER">VIEWER (Public / Academic Observer)</option>
                   </select>
                 </div>
                 <div>
