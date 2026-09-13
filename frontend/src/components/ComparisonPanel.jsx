@@ -185,7 +185,7 @@ export default function ComparisonPanel({
                 </div>
               </div>
             ) : isProbeLoading ? (
-              <div className="py-8 text-center text-slate-400 animate-pulse text-xs">
+              <div className="py-8 text-center text-slate-400 text-xs">
                 ⟳ Slicing 3D water column across all 9 depth levels...
               </div>
             ) : probeData ? (

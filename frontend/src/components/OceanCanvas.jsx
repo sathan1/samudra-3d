@@ -1136,7 +1136,7 @@ export default function OceanCanvas({
             WebGL2 Active
           </span>
           {fieldState.loading ? (
-            <span className="subtle-tag border border-cyan-500/30 bg-cyan-950/20 text-cyan-400 animate-pulse">
+            <span className="subtle-tag border border-cyan-500/30 bg-cyan-950/20 text-cyan-400">
               Loading 3D Field...
             </span>
           ) : fieldState.error ? (
@@ -1148,9 +1148,6 @@ export default function OceanCanvas({
               {requestedDepth > 0 ? `3D Subsurface Layer Active (${fieldState.sliceData?.selected_depth ?? requestedDepth}m)` : '3D Thermal Layer Active'}
             </span>
           )}
-          <span className="subtle-tag font-mono text-[10px] text-slate-400 border border-slate-700/40 bg-slate-900/30" title="Render Performance">
-            {rendererStats.fps > 0 ? `${rendererStats.fps} FPS` : 'Rendering'}
-          </span>
         </div>
       </div>
 
@@ -1196,7 +1193,7 @@ export default function OceanCanvas({
               )}
               {probedPoint && (
                 <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10px] text-emerald-300 shadow bg-slate-900/95 border border-emerald-500/80 max-w-full flex items-center gap-1.5 flex-wrap" data-testid="hud-probed-badge">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
                   <span className="text-emerald-400 font-semibold">PROBED CTD:</span>
                   <span>{probedPoint.lat}°N, {probedPoint.lon}°E</span>
                   {probeData && probeData.sst !== null && probeData.sst !== undefined && (
@@ -1210,7 +1207,7 @@ export default function OceanCanvas({
                     </span>
                   )}
                   {isProbeLoading && (
-                    <span className="text-amber-400 animate-pulse text-[9.5px]">⟳ Profiling...</span>
+                    <span className="text-amber-400 text-[9.5px]">⟳ Profiling...</span>
                   )}
                 </div>
               )}
@@ -1234,7 +1231,7 @@ export default function OceanCanvas({
                   {fieldState.sliceData.selected_depth !== (fieldState.sliceData.requested_depth ?? requestedDepth)
                     ? `(snapped to ${fieldState.sliceData.selected_depth}m model level)`
                     : `(${(fieldState.sliceData.selected_depth ?? 0) === 0 ? 'Surface level' : `${fieldState.sliceData.selected_depth}m model layer`})`}
-                  {fieldState.loading && <span className="ml-1.5 text-amber-300 animate-pulse">⟳ Slicing...</span>}
+                  {fieldState.loading && <span className="ml-1.5 text-amber-300">⟳ Slicing...</span>}
                 </div>
               )}
               {fieldState.sliceData && (
@@ -1242,7 +1239,7 @@ export default function OceanCanvas({
                   <span className="text-amber-400 font-semibold">TIME:</span>{' '}
                   {formatTimeLabel(fieldState.sliceData.timestamp, fieldState.sliceData.time_idx ?? timeIndex)}{' '}
                   <span className="text-slate-400">[STEP {(fieldState.sliceData.time_idx ?? timeIndex) + 1}/8]</span>
-                  {isBuffering && <span className="ml-1.5 text-amber-300 animate-pulse">⟳ Buffering...</span>}
+                  {isBuffering && <span className="ml-1.5 text-amber-300">⟳ Buffering...</span>}
                 </div>
               )}
               {showCurrents && (
@@ -1370,7 +1367,7 @@ export default function OceanCanvas({
           {/* Floating Probed Station Chip on Canvas */}
           {probedPoint && (
             <div className="probed-floating-chip pointer-events-auto absolute bottom-12 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 backdrop-blur border border-sky-500/70 rounded-full px-4 py-1.5 shadow-2xl flex items-center gap-2.5 text-xs text-white max-w-[95%]">
-              <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping inline-block flex-shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-sky-400 inline-block flex-shrink-0" />
               <span className="font-mono text-xs font-bold text-sky-300 flex-shrink-0">
                 📍 {probedPoint.lat}°N, {probedPoint.lon}°E
               </span>
@@ -1385,7 +1382,7 @@ export default function OceanCanvas({
                   )}
                 </span>
               ) : (
-                <span className="text-amber-300 text-[11px] animate-pulse font-mono">
+                <span className="text-amber-300 text-[11px] font-mono">
                   {isProbeLoading ? 'Slicing 9-depth water column...' : 'Probed Station'}
                 </span>
               )}

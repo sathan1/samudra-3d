@@ -84,5 +84,55 @@ test.describe('MoES/INCOIS Operational Authentication & RBAC Administration Suit
     await page.goto('/admin');
     await expect(page.locator('.admin-denied-container')).toBeVisible();
     await expect(page.locator('.admin-denied-container')).toContainText('Authentication Required');
+
+    // Clean up so other specs start with clean session
+    await page.evaluate(() => {
+      try {
+        window.sessionStorage.removeItem('samudra_signed_out');
+        window.localStorage.removeItem('samudra_signed_out');
+      } catch {}
+    });
+  });
+
+  test('enforces strict authentication gate on /app: unauthenticated users cannot access 3D workspace or data until logged in', async ({ page }) => {
+    await page.goto('/app');
+
+    // Simulate unauthenticated visitor by setting signed out flag and clearing token
+    await page.evaluate(() => {
+      window.sessionStorage.setItem('samudra_signed_out', 'true');
+      window.localStorage.setItem('samudra_signed_out', 'true');
+      window.localStorage.removeItem('samudra_auth_token');
+    });
+    await page.reload();
+
+    // 1. Verify AuthGate is displayed
+    const authGate = page.locator('[data-testid="auth-gate"]');
+    await expect(authGate).toBeVisible();
+    await expect(authGate).toContainText('SAMUDRA-3D Portal');
+    await expect(authGate).toContainText('Authentication Required for Data Access');
+
+    // 2. Verify 3D ocean canvas and workspace are completely blocked/unmounted
+    const canvas = page.locator('canvas');
+    await expect(canvas).toHaveCount(0);
+    const workspaceHeading = page.locator('#workspace');
+    await expect(workspaceHeading).toHaveCount(0);
+
+    // 3. Quick Officer Login unlocks the workspace
+    const quickOfficerBtn = page.locator('[data-testid="auth-quick-officer-btn"]');
+    await expect(quickOfficerBtn).toBeVisible();
+    await quickOfficerBtn.click();
+
+    // 4. Workspace and 3D globe are now unlocked and visible
+    await expect(page.locator('#workspace')).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('canvas')).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('[data-testid="open-login-btn"]')).toContainText('ADMIN');
+
+    // Clean up flags so subsequent tests start with clean state
+    await page.evaluate(() => {
+      try {
+        window.sessionStorage.removeItem('samudra_signed_out');
+        window.localStorage.removeItem('samudra_signed_out');
+      } catch {}
+    });
   });
 });
