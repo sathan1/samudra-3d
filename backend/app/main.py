@@ -8,12 +8,20 @@ from backend.app.routers.collocation import router as collocation_router
 from backend.app.routers.anomaly import router as anomaly_router
 from backend.app.routers.assistant import router as assistant_router
 from backend.app.routers.auth import router as auth_router
+from backend.app.routers.admin import router as admin_router
 from backend.app.services.ocean_service import ocean_service
+from backend.app.db import init_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifecycle manager: Pre-loads dataset on startup and ensures clean disposal on shutdown."""
+    """Lifecycle manager: Pre-loads dataset and initializes database on startup."""
     print(f"Starting {settings.PROJECT_NAME} v{settings.VERSION}...")
+    try:
+        init_db()
+        print("[OK] Database schema verified.")
+    except Exception as e:
+        print(f"[WARNING] Could not initialize database at startup: {e}")
+
     try:
         ocean_service.load_dataset()
         print(f"[OK] Ocean dataset loaded successfully from {ocean_service.nc_path}")
@@ -47,12 +55,13 @@ app.include_router(collocation_router)
 app.include_router(anomaly_router)
 app.include_router(assistant_router)
 app.include_router(auth_router)
+app.include_router(admin_router)
 
 @app.get("/", tags=["System"])
 def root():
     return {
         "project": "SAMUDRA-3D",
-        "problem_statement": "SIH26067",
+        "title": "Indian Ocean Digital Twin Platform",
         "organization": "Ministry of Earth Sciences (MoES) / INCOIS",
         "status": "online",
         "documentation": "/docs",

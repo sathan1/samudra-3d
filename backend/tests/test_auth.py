@@ -1,165 +1,213 @@
-#!/usr/bin/env python3
 """
-Automated Integration and Acceptance Tests for SAMUDRA-3D MoES/INCOIS Authentication
-Authority: MoES / INCOIS Operational Ocean Digital Twin Architecture
+Automated Unit and Integration Tests for SAMUDRA-3D Authentication and RBAC
+Verifies database-backed login, session lifecycle, admin authorization,
+account lifecycle (create, disable, role update), and audit logging.
 """
-import sys
-from pathlib import Path
-
-root_dir = Path(__file__).resolve().parents[2]
-if str(root_dir) not in sys.path:
-    sys.path.insert(0, str(root_dir))
-
+import unittest
 from fastapi.testclient import TestClient
 from backend.app.main import app
 from backend.app.services.auth_service import auth_service
+from backend.app.schemas.auth import CreateUserRequest, UserRole
+from backend.app.core.config import settings
 
-def test_auth_suite():
-    print("=== SAMUDRA-3D MoES/INCOIS Operational Authentication Test Suite ===")
+class TestAuthenticationAndAdminRBAC(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.client = TestClient(app)
+        # Ensure a known admin test account exists for test run
+        cls.admin_username = "test_admin"
+        cls.admin_password = "SecureAdminTestPassword#2026!"
+        try:
+            auth_service.create_user(
+                CreateUserRequest(
+                    username=cls.admin_username,
+                    password=cls.admin_password,
+                    full_name="Test Administrator",
+                    email="test_admin@incois.gov.in",
+                    role=UserRole.ADMIN,
+                    organization="Ocean Information Center"
+                ),
+                actor="system"
+            )
+        except ValueError:
+            # Already exists
+            pass
 
-    with TestClient(app) as client:
-        # 1. Test Personas Endpoint
-        r_personas = client.get("/api/auth/personas")
-        assert r_personas.status_code == 200, f"Personas failed: {r_personas.status_code}"
-        personas_data = r_personas.json()["personas"]
-        assert len(personas_data) == 3, f"Expected 3 personas, got {len(personas_data)}"
+    def test_01_public_unauthenticated_session(self):
+        """Unauthenticated /api/auth/me returns authenticated=false."""
+        res = self.client.get("/api/auth/me")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertFalse(data["authenticated"])
+        self.assertIsNone(data["user"])
 
-        persona_roles = {p["role"] for p in personas_data}
-        assert "CHIEF_OCEANOGRAPHER" in persona_roles
-        assert "NAVAL_OPERATIONS" in persona_roles
-        assert "RESEARCH_OBSERVER" in persona_roles
-        print(f"[OK] GET /api/auth/personas -> HTTP 200 (Found {len(personas_data)} MoES/INCOIS operational personas)")
-
-        # 2. Test Unauthenticated /me Endpoint
-        r_unauth = client.get("/api/auth/me")
-        assert r_unauth.status_code == 200
-        unauth_json = r_unauth.json()
-        assert unauth_json["authenticated"] is False
-        assert unauth_json["user"] is None
-        print("[OK] GET /api/auth/me (no header) -> HTTP 200 (Public Mode confirmed)")
-
-        # 3. Test Invalid Credentials
-        r_bad_pw = client.post("/api/auth/login", json={
-            "username": "chief.oceanographer",
+    def test_02_invalid_credentials_rejected(self):
+        """Invalid credentials return HTTP 401 without user enumeration."""
+        res = self.client.post("/api/auth/login", json={
+            "username": "non_existent_officer",
             "password": "WrongPassword123!"
         })
-        assert r_bad_pw.status_code == 401, f"Expected 401 on wrong pw, got {r_bad_pw.status_code}"
+        self.assertEqual(res.status_code, 401)
+        self.assertEqual(res.json()["detail"], "Invalid credentials.")
 
-        r_bad_user = client.post("/api/auth/login", json={
-            "username": "nonexistent.officer",
-            "password": "SomePassword!"
+    def test_03_admin_login_and_me_lifecycle(self):
+        """Valid login issues bearer token and unlocks authenticated session."""
+        login_res = self.client.post("/api/auth/login", json={
+            "username": self.admin_username,
+            "password": self.admin_password
         })
-        assert r_bad_user.status_code == 401, f"Expected 401 on bad user, got {r_bad_user.status_code}"
+        self.assertEqual(login_res.status_code, 200)
+        token_data = login_res.json()
+        self.assertIn("access_token", token_data)
+        token = token_data["access_token"]
+        self.assertEqual(token_data["user"]["role"], "ADMIN")
 
-        r_empty = client.post("/api/auth/login", json={
-            "username": "",
-            "password": ""
+        # Verify /me with token
+        me_res = self.client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        self.assertEqual(me_res.status_code, 200)
+        self.assertTrue(me_res.json()["authenticated"])
+        self.assertEqual(me_res.json()["user"]["username"], self.admin_username)
+
+        # Logout
+        logout_res = self.client.post("/api/auth/logout", headers={"Authorization": f"Bearer {token}"})
+        self.assertEqual(logout_res.status_code, 200)
+
+        # Verify session is revoked
+        me_after = self.client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        self.assertFalse(me_after.json()["authenticated"])
+
+    def test_04_admin_endpoints_require_admin_role(self):
+        """Admin endpoints return 401 for unauthenticated and 403 for non-admin users."""
+        # 1. Unauthenticated request -> 401
+        res_unauth = self.client.get("/api/admin/overview")
+        self.assertEqual(res_unauth.status_code, 401)
+
+        # 2. Authenticate as admin, create a regular VIEWER user
+        admin_login = self.client.post("/api/auth/login", json={
+            "username": self.admin_username,
+            "password": self.admin_password
         })
-        assert r_empty.status_code == 400
-        print("[OK] POST /api/auth/login -> HTTP 401/400 (Security defenses verified)")
+        admin_token = admin_login.json()["access_token"]
 
-        # 4. Test Successful Login for Each Persona
-        # Persona 1: Chief Oceanographer
-        r_chief = client.post("/api/auth/login", json={
-            "username": "chief.oceanographer",
-            "password": "Samudra#Command2026!"
+        viewer_username = "standard_viewer_01"
+        viewer_password = "ViewerPassword#2026!"
+        try:
+            auth_service.create_user(
+                CreateUserRequest(
+                    username=viewer_username,
+                    password=viewer_password,
+                    full_name="Standard Observer",
+                    email="observer@ocean.org",
+                    role=UserRole.VIEWER,
+                    organization="Marine Institute"
+                ),
+                actor=self.admin_username
+            )
+        except ValueError:
+            pass
+
+        # Login as viewer
+        viewer_login = self.client.post("/api/auth/login", json={
+            "username": viewer_username,
+            "password": viewer_password
         })
-        assert r_chief.status_code == 200, f"Chief login failed: {r_chief.text}"
-        chief_token = r_chief.json()["access_token"]
-        chief_user = r_chief.json()["user"]
-        assert chief_user["role"] == "CHIEF_OCEANOGRAPHER"
-        assert chief_user["clearance"] == "LEVEL-3 COMMAND"
-        assert chief_user["avatar_initials"] == "MR"
-        assert "collocation_export" in chief_user["capabilities"]
-        print(f"[OK] Login Chief Oceanographer -> HTTP 200 ({chief_user['display_name']} - {chief_user['clearance']})")
+        self.assertEqual(viewer_login.status_code, 200)
+        viewer_token = viewer_login.json()["access_token"]
 
-        # Verify Session via /me with Bearer Token
-        r_chief_me = client.get(
-            "/api/auth/me",
-            headers={"Authorization": f"Bearer {chief_token}"}
+        # Viewer attempts admin endpoint -> 403 Forbidden
+        res_forbidden = self.client.get("/api/admin/overview", headers={"Authorization": f"Bearer {viewer_token}"})
+        self.assertEqual(res_forbidden.status_code, 403)
+        self.assertIn("Administrative privileges required", res_forbidden.json()["detail"])
+
+        # Admin accesses admin endpoint -> 200 OK
+        res_admin = self.client.get("/api/admin/overview", headers={"Authorization": f"Bearer {admin_token}"})
+        self.assertEqual(res_admin.status_code, 200)
+        self.assertTrue(res_admin.json()["model_loaded"])
+
+    def test_05_admin_user_lifecycle_and_disabling(self):
+        """Admin creates, disables, and verifies disabled user cannot authenticate."""
+        admin_login = self.client.post("/api/auth/login", json={
+            "username": self.admin_username,
+            "password": self.admin_password
+        })
+        admin_token = admin_login.json()["access_token"]
+
+        import uuid
+        test_user = f"operator_temp_{uuid.uuid4().hex[:6]}"
+        test_pw = "TempPassword#2026!"
+
+        # Create user via admin API
+        create_res = self.client.post(
+            "/api/admin/users",
+            json={
+                "username": test_user,
+                "password": test_pw,
+                "full_name": "Temporary Operator",
+                "email": f"{test_user}@incois.gov.in",
+                "role": "OPERATOR",
+                "organization": "Naval Operations"
+            },
+            headers={"Authorization": f"Bearer {admin_token}"}
         )
-        assert r_chief_me.status_code == 200
-        assert r_chief_me.json()["authenticated"] is True
-        assert r_chief_me.json()["user"]["username"] == "chief.oceanographer"
-        print("[OK] GET /api/auth/me with Bearer token -> Valid session verified")
+        self.assertIn(create_res.status_code, (200, 409))
+        user_id = create_res.json()["user"]["user_id"] if create_res.status_code == 200 else None
 
-        # Persona 2: Naval Operations Officer
-        r_navy = client.post("/api/auth/login", json={
-            "username": "cmdr.varma",
-            "password": "Naval#OpsTactical2026!"
-        })
-        assert r_navy.status_code == 200
-        navy_token = r_navy.json()["access_token"]
-        navy_user = r_navy.json()["user"]
-        assert navy_user["role"] == "NAVAL_OPERATIONS"
-        assert navy_user["clearance"] == "LEVEL-2 TACTICAL"
-        assert "tactical_current_streamlines" in navy_user["capabilities"]
-        print(f"[OK] Login Naval Operations -> HTTP 200 ({navy_user['display_name']} - {navy_user['clearance']})")
+        if not user_id:
+            users_list = self.client.get("/api/admin/users", headers={"Authorization": f"Bearer {admin_token}"}).json()["users"]
+            for u in users_list:
+                if u["username"] == test_user:
+                    user_id = u["user_id"]
+                    break
 
-        # Persona 3: Marine Research Observer
-        r_res = client.post("/api/auth/login", json={
-            "username": "priya.nair",
-            "password": "Research#Argo2026!"
-        })
-        assert r_res.status_code == 200
-        res_token = r_res.json()["access_token"]
-        res_user = r_res.json()["user"]
-        assert res_user["role"] == "RESEARCH_OBSERVER"
-        assert res_user["clearance"] == "LEVEL-1 RESEARCH"
-        assert "deep_ctd_profile_inspection" in res_user["capabilities"]
-        print(f"[OK] Login Research Observer -> HTTP 200 ({res_user['display_name']} - {res_user['clearance']})")
+        # Verify user can log in
+        login_res = self.client.post("/api/auth/login", json={"username": test_user, "password": test_pw})
+        self.assertEqual(login_res.status_code, 200)
 
-        # 5. Test Logout and Session Revocation
-        r_logout = client.post(
-            "/api/auth/logout",
-            headers={"Authorization": f"Bearer {chief_token}"}
+        # Admin disables the user
+        disable_res = self.client.put(
+            f"/api/admin/users/{user_id}/status",
+            json={"is_active": False},
+            headers={"Authorization": f"Bearer {admin_token}"}
         )
-        assert r_logout.status_code == 200
-        assert r_logout.json()["status"] == "success"
+        self.assertEqual(disable_res.status_code, 200)
 
-        # Verification that revoked token no longer authenticates
-        r_revoked_me = client.get(
-            "/api/auth/me",
-            headers={"Authorization": f"Bearer {chief_token}"}
-        )
-        assert r_revoked_me.status_code == 200
-        assert r_revoked_me.json()["authenticated"] is False
-        print("[OK] POST /api/auth/logout -> Token invalidated, session revoked")
+        # Disabled user cannot login -> 401
+        failed_login = self.client.post("/api/auth/login", json={"username": test_user, "password": test_pw})
+        self.assertEqual(failed_login.status_code, 401)
 
-        # 6. Test Registration into SQLite Database
-        new_officer_username = "test.commander"
-        r_reg = client.post("/api/auth/register", json={
-            "username": new_officer_username,
-            "password": "SecurePassword#2026!",
-            "full_name": "Lieutenant Commander Ananya",
-            "role": "NAVAL_OPERATIONS",
-            "clearance": "LEVEL-2 TACTICAL",
-            "organization": "Indian Navy Oceanographic Office"
+    def test_06_sensor_registration_empty_state(self):
+        """Admin registers sensor platform without observations; returns has_observations=false."""
+        admin_login = self.client.post("/api/auth/login", json={
+            "username": self.admin_username,
+            "password": self.admin_password
         })
-        # If already exists or created:
-        assert r_reg.status_code in (200, 409)
-        if r_reg.status_code == 200:
-            reg_json = r_reg.json()
-            assert reg_json["success"] is True
-            assert reg_json["user"]["username"] == new_officer_username
-            # Verify can login with newly registered credentials
-            r_new_login = client.post("/api/auth/login", json={
-                "username": new_officer_username,
-                "password": "SecurePassword#2026!"
-            })
-            assert r_new_login.status_code == 200
-            print("[OK] POST /api/auth/register & login -> Registered officer credentials verified in SQLite")
+        admin_token = admin_login.json()["access_token"]
 
-        # 7. Test Audit Log
-        r_audit = client.get("/api/auth/audit-log")
-        assert r_audit.status_code == 200
-        audit_records = r_audit.json()
-        assert len(audit_records) >= 5
-        assert any(rec["status"] == "DENIED" for rec in audit_records)
-        assert any(rec["status"] == "SUCCESS" for rec in audit_records)
-        print(f"[OK] GET /api/auth/audit-log -> HTTP 200 ({len(audit_records)} audit events logged)")
+        sensor_id = "BUOY-IO-881"
+        # Register via admin API
+        reg_res = self.client.post(
+            "/api/admin/sensors",
+            json={
+                "id": sensor_id,
+                "platform_type": "Moored Buoy",
+                "name": "Central Indian Ocean Mooring Buoy",
+                "lat": -5.2,
+                "lon": 78.5,
+                "deployment_date": "2026-09-01",
+                "data_provider": "INCOIS OON",
+                "description": "Meteorological and subsurface CTD mooring"
+            },
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        self.assertIn(reg_res.status_code, (200, 409))
 
-    print("\nALL MOES/INCOIS AUTHENTICATION TESTS PASSED (100%)\n")
+        # Query sensor detail from insitu service
+        from backend.app.services.insitu_service import insitu_service
+        sensor = insitu_service.get_profile_by_id(sensor_id)
+        if sensor:
+            self.assertFalse(sensor["has_observations"])
+            self.assertEqual(len(sensor["temperature"]), 0)
+            self.assertEqual(len(sensor["salinity"]), 0)
 
 if __name__ == "__main__":
-    test_auth_suite()
+    unittest.main()

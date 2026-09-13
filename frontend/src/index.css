@@ -33,20 +33,20 @@ body {
    Deep-Sea Glassmorphic Design Tokens
    -------------------------------------------------------------------------- */
 .app {
-  --bg: #020813;
-  --panel: rgba(6, 20, 38, 0.72);
-  --raised: rgba(11, 31, 56, 0.7);
-  --field: rgba(7, 24, 46, 0.65);
-  --border: rgba(255, 255, 255, 0.06);
-  --border-glow: rgba(0, 245, 212, 0.22);
-  --text: #f1f7fa;
-  --muted: #8da6b8;
-  --accent: #00f5d4;
+  --bg: #080e18;
+  --panel: #0f172a;
+  --raised: #1e293b;
+  --field: #0b1329;
+  --border: #1e293b;
+  --border-glow: rgba(56, 189, 248, 0.2);
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --accent: #0284c7;
   --accent-cyan: #38bdf8;
-  --accent-amber: #fbbf24;
-  --glass-shadow: 0 20px 50px -10px rgba(0, 3, 10, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.08);
-  --liquid-ease: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
-  background: radial-gradient(circle at 50% 0%, #081d36 0%, #020813 65%);
+  --accent-amber: #f59e0b;
+  --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --liquid-ease: all 0.2s ease-in-out;
+  background: #080e18;
   color: var(--text);
   min-height: 100vh;
 }

@@ -1,91 +1,100 @@
 """
-SAMUDRA-3D Database-Backed Authentication & Session Service
-Authority: MoES / INCOIS Operational Ocean Digital Twin Architecture
-Directly backed by SQLite database (backend/data/samudra.db)
+SAMUDRA-3D Database-Backed Authentication, RBAC & Security Service
+Implements PBKDF2-HMAC-SHA256 password hashing, bearer session lifecycle,
+role-based authorization, and persistent security audit trails.
 """
 import json
 import secrets
 import hmac
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from backend.app.schemas.auth import (
     UserRole,
-    ClearanceLevel,
     UserProfile,
-    PersonaPreset,
     TokenResponse,
     AuditLogEntry,
-    RegisterRequest,
-    AdminUserSummary
+    AdminUserSummary,
+    CreateUserRequest,
+    DataSourceSummary
 )
 from backend.app.db import get_db_connection, hash_password
 
 def _row_to_profile(row) -> UserProfile:
-    """Helper to convert a database row into a validated UserProfile Pydantic object."""
+    """Converts a database row into a UserProfile."""
     capabilities = []
-    if row["capabilities"]:
+    if "capabilities" in row.keys() and row["capabilities"]:
         try:
             capabilities = json.loads(row["capabilities"])
         except (json.JSONDecodeError, TypeError):
             capabilities = []
 
+    badge_color = row["badge_color"] if "badge_color" in row.keys() and row["badge_color"] else "#38bdf8"
+    clearance = row["clearance_level"] if "clearance_level" in row.keys() and row["clearance_level"] else "LEVEL-1 RESEARCH"
+    avatar = row["avatar_initials"] if "avatar_initials" in row.keys() and row["avatar_initials"] else "US"
+
     return UserProfile(
         user_id=row["id"],
         username=row["username"],
         display_name=row["full_name"],
-        role=UserRole(row["role"]),
-        clearance=ClearanceLevel(row["clearance_level"]),
-        organization=row["organization"],
-        avatar_initials=row["avatar_initials"],
-        badge_color=row["badge_color"],
+        role=row["role"],
+        clearance=clearance,
+        organization=row["organization"] if "organization" in row.keys() else "Ocean Information Services",
+        avatar_initials=avatar,
+        badge_color=badge_color,
         capabilities=capabilities
     )
 
 class AuthService:
-    """Manages authentication, user registration, and sessions directly against SQLite database."""
+    """Centralized service managing credentials, active sessions, RBAC, and audit logs."""
 
     def authenticate(self, username: str, password: str, client_ip: Optional[str] = None) -> Optional[TokenResponse]:
-        """Authenticates user credentials strictly against the SQLite database."""
+        """Authenticates credentials against SQLite. Generic failure response prevents user enumeration."""
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT * FROM users WHERE username = ? AND is_active = 1", (username,))
+        cursor.execute(
+            "SELECT * FROM users WHERE (username = ? OR email = ?) AND is_active = 1",
+            (username.strip(), username.strip())
+        )
         row = cursor.fetchone()
 
         if not row:
-            self._log_audit(cursor, username, "LOGIN", "DENIED", "User not found or inactive", client_ip)
+            self._log_audit(cursor, username, "LOGIN", username, "DENIED", "Invalid credentials", client_ip)
             conn.commit()
             conn.close()
             return None
 
-        # Verify cryptographic password hash with PBKDF2
+        # Check account status
+        if "status" in row.keys() and row["status"] == "disabled":
+            self._log_audit(cursor, username, "LOGIN", username, "DENIED", "Account is disabled", client_ip)
+            conn.commit()
+            conn.close()
+            return None
+
+        # Constant-time comparison of PBKDF2 hash
         candidate_hash = hash_password(password, row["salt"])
         if not hmac.compare_digest(candidate_hash, row["password_hash"]):
-            self._log_audit(cursor, username, "LOGIN", "DENIED", "Invalid passphrase", client_ip)
+            self._log_audit(cursor, username, "LOGIN", username, "DENIED", "Invalid credentials", client_ip)
             conn.commit()
             conn.close()
             return None
 
         user_profile = _row_to_profile(row)
-
-        # Generate cryptographically secure bearer token
-        token = secrets.token_urlsafe(32)
         now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
         expires_at = (now + timedelta(seconds=86400)).isoformat()
 
+        # Update last login
+        cursor.execute("UPDATE users SET last_login = ? WHERE id = ?", (now_iso, user_profile.user_id))
+
+        # Generate bearer token
+        token = secrets.token_urlsafe(32)
         cursor.execute(
             "INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
-            (token, user_profile.user_id, now.isoformat(), expires_at)
+            (token, user_profile.user_id, now_iso, expires_at)
         )
 
-        self._log_audit(
-            cursor,
-            user_profile.user_id,
-            "LOGIN",
-            "SUCCESS",
-            f"Officer {user_profile.display_name} authenticated with {user_profile.clearance.value}",
-            client_ip
-        )
+        self._log_audit(cursor, user_profile.username, "LOGIN", user_profile.user_id, "SUCCESS", f"Authenticated with role {user_profile.role}", client_ip)
 
         conn.commit()
         conn.close()
@@ -98,33 +107,39 @@ class AuthService:
         )
 
     def validate_token(self, token: str) -> Optional[UserProfile]:
-        """Validates a bearer token against active SQLite database sessions."""
+        """Validates bearer session token against active non-expired database sessions."""
         if not token:
             return None
 
+        now_iso = datetime.now(timezone.utc).isoformat()
         conn = get_db_connection()
         cursor = conn.cursor()
 
         cursor.execute("""
             SELECT users.* FROM sessions
             JOIN users ON sessions.user_id = users.id
-            WHERE sessions.token = ? AND users.is_active = 1
-        """, (token,))
+            WHERE sessions.token = ? AND sessions.expires_at > ? AND users.is_active = 1
+        """, (token, now_iso))
         row = cursor.fetchone()
-
         conn.close()
 
         if not row:
             return None
 
+        if "status" in row.keys() and row["status"] == "disabled":
+            return None
+
         return _row_to_profile(row)
 
     def verify_token(self, token: str) -> Optional[UserProfile]:
-        """Alias for validate_token for backwards and interface compatibility."""
+        """Alias for validate_token."""
         return self.validate_token(token)
 
     def revoke_token(self, token: str, client_ip: Optional[str] = None) -> bool:
-        """Revokes a session by deleting it from the database."""
+        """Revokes bearer session token on logout."""
+        if not token:
+            return False
+
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -134,7 +149,7 @@ class AuthService:
         if session_row:
             user_id = session_row["user_id"]
             cursor.execute("DELETE FROM sessions WHERE token = ?", (token,))
-            self._log_audit(cursor, user_id, "LOGOUT", "SUCCESS", "Session terminated", client_ip)
+            self._log_audit(cursor, user_id, "LOGOUT", token[:8] + "...", "SUCCESS", "Session revoked", client_ip)
             conn.commit()
             conn.close()
             return True
@@ -142,204 +157,238 @@ class AuthService:
         conn.close()
         return False
 
-    def register_user(self, req: RegisterRequest, client_ip: Optional[str] = None) -> UserProfile:
-        """Registers a new officer directly into the SQLite database."""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT id FROM users WHERE username = ?", (req.username,))
-        if cursor.fetchone():
-            conn.close()
-            raise ValueError(f"Officer username '{req.username}' is already registered in the database.")
-
-        user_id = f"OFFICER-{secrets.token_hex(4).upper()}"
-        salt = secrets.token_hex(16)
-        pw_hash = hash_password(req.password, salt)
-        initials = "".join([part[0].upper() for part in req.full_name.split()[:2]]) or "OF"
-
-        badge_color = "#00f5d4"
-        if req.role == UserRole.ADMIN:
-            badge_color = "#38bdf8"
-        elif req.role == UserRole.NAVAL_OPERATIONS:
-            badge_color = "#f59e0b"
-        elif req.role == UserRole.RESEARCH_OBSERVER:
-            badge_color = "#10b981"
-
-        capabilities = [
-            "deep_ctd_profile_inspection",
-            "observation_logging",
-            "scientific_assistant_queries"
-        ]
-        if req.role == UserRole.ADMIN:
-            capabilities.extend(["user_management", "sensor_registration", "model_forecast_validation", "collocation_export", "anomaly_threshold_override"])
-        elif req.role == UserRole.CHIEF_OCEANOGRAPHER:
-            capabilities.extend(["model_forecast_validation", "collocation_export", "anomaly_threshold_override"])
-        elif req.role == UserRole.NAVAL_OPERATIONS:
-            capabilities.extend(["tactical_current_streamlines", "platform_fleet_tracking", "hazard_discrepancy_alerts"])
-
-        now_iso = datetime.now(timezone.utc).isoformat()
-
-        cursor.execute("""
-            INSERT INTO users (
-                id, username, password_hash, salt, full_name, email,
-                role, clearance_level, organization, avatar_initials,
-                badge_color, capabilities, created_at, is_active
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-        """, (
-            user_id,
-            req.username,
-            pw_hash,
-            salt,
-            req.full_name,
-            req.email,
-            req.role.value,
-            req.clearance.value,
-            req.organization,
-            initials,
-            badge_color,
-            json.dumps(capabilities),
-            now_iso
-        ))
-
-        self._log_audit(cursor, user_id, "REGISTER", "SUCCESS", f"New account created for {req.full_name}", client_ip)
-
-        conn.commit()
-
-        cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-        created_row = cursor.fetchone()
-        profile = _row_to_profile(created_row)
-
-        conn.close()
-        return profile
-
     def get_all_users(self) -> List[AdminUserSummary]:
-        """Retrieves all registered officer accounts from SQLite."""
+        """Retrieves user accounts for administrator inspection."""
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, username, full_name, email, role, clearance_level, organization,
-                   avatar_initials, badge_color, created_at, is_active
+                   avatar_initials, badge_color, created_at, last_login, is_active, status
             FROM users
-            ORDER BY created_at ASC
+            ORDER BY created_at DESC
         """)
         rows = cursor.fetchall()
         conn.close()
 
-        return [
-            AdminUserSummary(
+        users = []
+        for r in rows:
+            is_active = bool(r["is_active"])
+            if "status" in r.keys() and r["status"] == "disabled":
+                is_active = False
+
+            users.append(AdminUserSummary(
                 user_id=r["id"],
                 username=r["username"],
                 display_name=r["full_name"],
                 email=r["email"],
                 role=r["role"],
-                clearance=r["clearance_level"],
-                organization=r["organization"],
-                avatar_initials=r["avatar_initials"],
-                badge_color=r["badge_color"],
+                clearance=r["clearance_level"] if "clearance_level" in r.keys() else "LEVEL-1 RESEARCH",
+                organization=r["organization"] if "organization" in r.keys() else "Ocean Information Services",
+                avatar_initials=r["avatar_initials"] if "avatar_initials" in r.keys() else "US",
+                badge_color=r["badge_color"] if "badge_color" in r.keys() else "#38bdf8",
                 created_at=r["created_at"],
-                is_active=bool(r["is_active"])
-            )
-            for r in rows
-        ]
+                last_login=r["last_login"] if "last_login" in r.keys() else None,
+                is_active=is_active
+            ))
+        return users
 
-    def delete_user(self, user_id: str, client_ip: Optional[str] = None) -> bool:
-        """Deactivates or deletes an officer record from SQLite (protects root admin)."""
-        if user_id in ("MOES-ADM-000", "MOES-DIR-001"):
-            raise ValueError("Root executive officers cannot be deleted.")
-
+    def create_user(self, req: CreateUserRequest, actor: str, client_ip: Optional[str] = None) -> UserProfile:
+        """Admin creates a new user account with role assignment."""
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT username FROM users WHERE id = ?", (user_id,))
-        user_row = cursor.fetchone()
-        if not user_row:
+        cursor.execute("SELECT id FROM users WHERE username = ?", (req.username.strip(),))
+        if cursor.fetchone():
+            conn.close()
+            raise ValueError(f"Username '{req.username}' is already registered.")
+
+        if req.email:
+            cursor.execute("SELECT id FROM users WHERE email = ?", (req.email.strip(),))
+            if cursor.fetchone():
+                conn.close()
+                raise ValueError(f"Email '{req.email}' is already registered.")
+
+        user_id = f"USR-{secrets.token_hex(4).upper()}"
+        salt = secrets.token_hex(16)
+        pw_hash = hash_password(req.password, salt)
+        initials = "".join([p[0].upper() for p in req.full_name.split()[:2]]) or "US"
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        clearance = "LEVEL-3 COMMAND" if req.role == UserRole.ADMIN else "LEVEL-2 TACTICAL" if req.role == UserRole.OPERATOR else "LEVEL-1 RESEARCH"
+        badge_color = "#38bdf8" if req.role == UserRole.ADMIN else "#10b981" if req.role == UserRole.OPERATOR else "#94a3b8"
+
+        cursor.execute("""
+            INSERT INTO users (
+                id, username, password_hash, salt, full_name, email,
+                role, clearance_level, organization, avatar_initials,
+                badge_color, capabilities, status, created_at, is_active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 1)
+        """, (
+            user_id,
+            req.username.strip(),
+            pw_hash,
+            salt,
+            req.full_name.strip(),
+            req.email.strip() if req.email else None,
+            req.role.value,
+            clearance,
+            req.organization.strip() if req.organization else "Ocean Information Services",
+            initials,
+            badge_color,
+            json.dumps(["map_view", "observation_view", "analysis_view"]),
+            now_iso
+        ))
+
+        self._log_audit(cursor, actor, "USER_CREATE", req.username, "SUCCESS", f"Created account {user_id} with role {req.role.value}", client_ip)
+        conn.commit()
+
+        cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        created_row = cursor.fetchone()
+        profile = _row_to_profile(created_row)
+        conn.close()
+        return profile
+
+    def update_user_status(self, user_id: str, is_active: bool, actor: str, client_ip: Optional[str] = None) -> bool:
+        """Enables or disables an account. If disabled, terminates all active sessions."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT username, role FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
             conn.close()
             return False
 
-        username = user_row["username"]
-        cursor.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
-        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
-        self._log_audit(cursor, user_id, "DELETE_USER", "SUCCESS", f"User {username} deleted by admin", client_ip)
+        if row["role"] == UserRole.ADMIN.value and not is_active:
+            # Prevent disabling the last admin
+            cursor.execute("SELECT COUNT(*) as cnt FROM users WHERE role = 'ADMIN' AND is_active = 1")
+            admin_count = cursor.fetchone()["cnt"]
+            if admin_count <= 1:
+                conn.close()
+                raise ValueError("Cannot disable the sole active system administrator.")
 
+        status_str = "active" if is_active else "disabled"
+        int_active = 1 if is_active else 0
+        cursor.execute("UPDATE users SET is_active = ?, status = ? WHERE id = ?", (int_active, status_str, user_id))
+
+        if not is_active:
+            # Revoke all active sessions immediately
+            cursor.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+
+        self._log_audit(cursor, actor, "USER_STATUS_CHANGE", user_id, "SUCCESS", f"Set status to {status_str}", client_ip)
         conn.commit()
         conn.close()
         return True
 
-    def get_personas(self) -> List[PersonaPreset]:
-        """Provides operational persona presets for single-click switching."""
-        return [
-            PersonaPreset(
-                id="admin_system",
-                label="System Admin",
-                username="admin",
-                default_password="Samudra#Admin2026!",
-                role=UserRole.ADMIN,
-                clearance=ClearanceLevel.LEVEL_3_COMMAND,
-                description="Administrative authority. Manage users, register sensors, and configure system policies.",
-                badge_color="#38bdf8"
-            ),
-            PersonaPreset(
-                id="chief_oceanographer",
-                label="Chief Oceanographer",
-                username="chief.oceanographer",
-                default_password="Samudra#Command2026!",
-                role=UserRole.CHIEF_OCEANOGRAPHER,
-                clearance=ClearanceLevel.LEVEL_3_COMMAND,
-                description="Executive oceanographer authority. Authorized for forecast certification and anomaly overrides.",
-                badge_color="#00f5d4"
-            ),
-            PersonaPreset(
-                id="naval_operations",
-                label="Naval Operations",
-                username="cmdr.varma",
-                default_password="Naval#OpsTactical2026!",
-                role=UserRole.NAVAL_OPERATIONS,
-                clearance=ClearanceLevel.LEVEL_2_TACTICAL,
-                description="Maritime tactical command. Responsible for SAR drift trajectories, currents, and fleet routing.",
-                badge_color="#f59e0b"
-            ),
-            PersonaPreset(
-                id="research_observer",
-                label="Marine Researcher",
-                username="priya.nair",
-                default_password="Research#Argo2026!",
-                role=UserRole.RESEARCH_OBSERVER,
-                clearance=ClearanceLevel.LEVEL_1_RESEARCH,
-                description="In-situ observation specialist. Inspects Argo CTD sensor profiles, glider transects, and T-S curves.",
-                badge_color="#10b981"
-            )
-        ]
-
-    def get_audit_logs(self, limit: int = 50) -> List[AuditLogEntry]:
-        """Retrieves recent authentication audit events from the database."""
+    def update_user_role(self, user_id: str, new_role: UserRole, actor: str, client_ip: Optional[str] = None) -> bool:
+        """Updates user role."""
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT timestamp, user_id, action, status, details FROM audit_logs ORDER BY id DESC LIMIT ?", (limit,))
+
+        cursor.execute("SELECT username, role FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return False
+
+        if row["role"] == UserRole.ADMIN.value and new_role != UserRole.ADMIN:
+            cursor.execute("SELECT COUNT(*) as cnt FROM users WHERE role = 'ADMIN' AND is_active = 1")
+            admin_count = cursor.fetchone()["cnt"]
+            if admin_count <= 1:
+                conn.close()
+                raise ValueError("Cannot demote the sole active system administrator.")
+
+        cursor.execute("UPDATE users SET role = ? WHERE id = ?", (new_role.value, user_id))
+        self._log_audit(cursor, actor, "ROLE_CHANGE", user_id, "SUCCESS", f"Changed role to {new_role.value}", client_ip)
+        conn.commit()
+        conn.close()
+        return True
+
+    def reset_password(self, user_id: str, new_password: str, actor: str, client_ip: Optional[str] = None) -> bool:
+        """Resets user password and terminates all existing sessions."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT username FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return False
+
+        salt = secrets.token_hex(16)
+        pw_hash = hash_password(new_password, salt)
+
+        cursor.execute("UPDATE users SET password_hash = ?, salt = ? WHERE id = ?", (pw_hash, salt, user_id))
+        # Revoke existing sessions so user must log in with new password
+        cursor.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+
+        self._log_audit(cursor, actor, "PASSWORD_RESET", user_id, "SUCCESS", "Password reset by administrator", client_ip)
+        conn.commit()
+        conn.close()
+        return True
+
+    def get_audit_logs(self, limit: int = 100) -> List[AuditLogEntry]:
+        """Retrieves chronological audit events for admin inspection."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, timestamp, actor, action, target, result, details FROM audit_logs ORDER BY id DESC LIMIT ?", (limit,))
         rows = cursor.fetchall()
         conn.close()
 
         return [
             AuditLogEntry(
-                timestamp=row["timestamp"],
-                user_id=row["user_id"],
-                action=row["action"],
-                status=row["status"],
-                details=row["details"]
+                id=r["id"],
+                timestamp=r["timestamp"],
+                actor=r["actor"],
+                action=r["action"],
+                target=r["target"],
+                result=r["result"],
+                details=r["details"]
             )
-            for row in rows
+            for r in rows
         ]
 
-    def get_audit_log(self, limit: int = 50) -> List[AuditLogEntry]:
-        """Alias for get_audit_logs."""
-        return self.get_audit_logs(limit=limit)
+    def get_data_sources(self) -> List[DataSourceSummary]:
+        """Returns official connected oceanographic datasets."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, provider, dataset_type, variables, spatial_coverage, temporal_coverage, update_frequency, status, last_updated, description FROM data_sources ORDER BY id ASC")
+        rows = cursor.fetchall()
+        conn.close()
 
-    def _log_audit(self, cursor, user_id: str, action: str, status: str, details: Optional[str] = None, ip: Optional[str] = None):
-        """Internal helper to insert audit trail records."""
-        now = datetime.now(timezone.utc).isoformat()
+        sources = []
+        for r in rows:
+            vars_list = []
+            try:
+                vars_list = json.loads(r["variables"])
+            except Exception:
+                vars_list = [r["variables"]]
+
+            sources.append(DataSourceSummary(
+                id=r["id"],
+                name=r["name"],
+                provider=r["provider"],
+                dataset_type=r["dataset_type"],
+                variables=vars_list,
+                spatial_coverage=r["spatial_coverage"],
+                temporal_coverage=r["temporal_coverage"],
+                update_frequency=r["update_frequency"],
+                status=r["status"],
+                last_updated=r["last_updated"],
+                description=r["description"]
+            ))
+        return sources
+
+    def _log_audit(self, cursor, actor: str, action: str, target: Optional[str], result: str, details: Optional[str] = None, ip: Optional[str] = None):
+        """Internal helper for audit logging."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        detail_msg = details
+        if ip:
+            detail_msg = f"[{ip}] {details}" if details else f"[{ip}]"
+
         cursor.execute(
-            "INSERT INTO audit_logs (timestamp, user_id, action, status, details) VALUES (?, ?, ?, ?, ?)",
-            (now, user_id, action, status, details)
+            "INSERT INTO audit_logs (timestamp, actor, user_id, action, target, status, result, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (now_iso, str(actor), str(actor), str(action), str(target) if target else None, str(result), str(result), detail_msg)
         )
 
-# Module-level singleton
 auth_service = AuthService()

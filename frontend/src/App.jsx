@@ -8,6 +8,8 @@ import LoginModal from './components/LoginModal.jsx';
 import DataSourcesModal from './components/DataSourcesModal.jsx';
 import AdminUsersModal from './components/AdminUsersModal.jsx';
 import SensorRegistrationModal from './components/SensorRegistrationModal.jsx';
+import LoginPage from './components/LoginPage.jsx';
+import AdminPortal from './components/AdminPortal.jsx';
 import {
   fetchAnomalyField,
   fetchArgoFloats,
@@ -70,6 +72,34 @@ export default function App() {
     }
   });
 
+  // Path-based routing: /login, /admin, /app (default: /app)
+  const [currentPath, setCurrentPath] = useState(() => {
+    try {
+      return typeof window !== 'undefined' ? (window.location.pathname || '/app') : '/app';
+    } catch {
+      return '/app';
+    }
+  });
+
+  const handleNavigate = useCallback((path) => {
+    setCurrentPath(path);
+    try {
+      if (typeof window !== 'undefined' && window.location.pathname !== path) {
+        window.history.pushState({}, '', path);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname || '/app');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   // Hydrate officer session on mount if token is saved
   useEffect(() => {
     if (!authToken) return;
@@ -100,7 +130,8 @@ export default function App() {
     } catch {
       // ignore
     }
-  }, []);
+    handleNavigate('/app');
+  }, [handleNavigate]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -119,8 +150,11 @@ export default function App() {
       } catch {
         // ignore
       }
+      if (currentPath === '/admin') {
+        handleNavigate('/app');
+      }
     }
-  }, [authToken]);
+  }, [authToken, currentPath, handleNavigate]);
 
   // Global Alt+A shortcut to open AI Assistant
   useEffect(() => {
@@ -381,6 +415,26 @@ export default function App() {
     setTimeIndex(newIdx);
   }, []);
 
+  if (currentPath === '/login') {
+    return (
+      <LoginPage
+        onLoginSuccess={handleLoginSuccess}
+        onNavigate={handleNavigate}
+      />
+    );
+  }
+
+  if (currentPath === '/admin') {
+    return (
+      <AdminPortal
+        currentUser={currentUser}
+        authToken={authToken}
+        onNavigate={handleNavigate}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
   return (
     <div className="app min-h-screen" data-theme={theme}>
       <a className="skip-link" href="#workspace">Skip to ocean workspace</a>
@@ -389,11 +443,12 @@ export default function App() {
         onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         onOpenAssistant={() => setIsAssistantOpen(true)}
         onOpenSources={() => setIsSourcesOpen(true)}
-        onOpenLogin={() => setIsLoginOpen(true)}
+        onOpenLogin={() => handleNavigate('/login')}
         onOpenRegisterSensor={() => setIsSensorRegisterOpen(true)}
-        onOpenAdminUsers={() => setIsAdminUsersOpen(true)}
+        onOpenAdminUsers={() => handleNavigate('/admin')}
         currentUser={currentUser}
         onLogout={handleLogout}
+        onNavigate={handleNavigate}
       />
       <main id="workspace" tabIndex={-1} className="workspace">
         <div className="workspace-heading flex flex-wrap items-end justify-between gap-4">

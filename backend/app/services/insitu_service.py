@@ -283,11 +283,12 @@ class InsituDataService:
 
             import json
             for r in rows:
-                depths = json.loads(r["depths"]) if r["depths"] else [0.0, 10.0, 50.0, 100.0, 200.0, 500.0, 1000.0]
-                temps = json.loads(r["temperature"]) if r["temperature"] else [28.0] * len(depths)
-                sals = json.loads(r["salinity"]) if r["salinity"] else [34.5] * len(depths)
-                qc_flags = [1] * len(depths)
-                qc_sum = self.compute_qc_summary(qc_flags)
+                depths = json.loads(r["depths"]) if r["depths"] else []
+                temps = json.loads(r["temperature"]) if r["temperature"] else []
+                sals = json.loads(r["salinity"]) if r["salinity"] else []
+                has_obs = len(depths) > 0 and len(temps) > 0
+                qc_flags = [1] * len(depths) if has_obs else []
+                qc_sum = self.compute_qc_summary(qc_flags) if has_obs else None
 
                 prof = {
                     "id": r["id"],
@@ -300,18 +301,20 @@ class InsituDataService:
                     "depths": depths,
                     "temperature": temps,
                     "salinity": sals,
+                    "has_observations": has_obs,
                     "qc_flags": qc_flags,
-                    "qc_summary": qc_sum.model_dump(),
-                    "max_depth": float(r["max_depth"] or (max(depths) if depths else 2000.0)),
+                    "qc_summary": qc_sum.model_dump() if qc_sum else None,
+                    "max_depth": float(r["max_depth"] or (max(depths) if depths else 0.0)),
                     "num_levels": len(depths),
-                    "surface_temp": float(r["surface_temp"]) if r["surface_temp"] is not None else temps[0],
-                    "surface_salinity": float(r["surface_salinity"]) if r["surface_salinity"] is not None else sals[0],
+                    "surface_temp": float(r["surface_temp"]) if r["surface_temp"] is not None else (temps[0] if temps else None),
+                    "surface_salinity": float(r["surface_salinity"]) if r["surface_salinity"] is not None else (sals[0] if sals else None),
                     "metadata": {
-                        "agency": r["agency"],
+                        "agency": r["agency"] or "Ocean Observation Network",
                         "created_by": r["created_by"],
-                        "source_mode": "CUSTOM_IN_SITU"
+                        "source_mode": "USER_REGISTERED_SENSOR",
+                        "status": "Awaiting Telemetry Feed" if not has_obs else "Observations Active"
                     },
-                    "source_mode": "CUSTOM_IN_SITU"
+                    "source_mode": "USER_REGISTERED_SENSOR"
                 }
                 self.custom_profiles.append(prof)
                 self._profiles_by_id[prof["id"]] = prof
@@ -319,7 +322,7 @@ class InsituDataService:
             pass
 
     def register_sensor(self, req: SensorRegistrationRequest) -> Dict[str, Any]:
-        """Registers a new in-situ ocean sensor into SQLite and makes it immediately available in 3D."""
+        """Registers a new in-situ ocean sensor into SQLite without fabricating data."""
         if not self.is_in_domain(req.lat, req.lon):
             raise ValueError(f"Sensor coordinates ({req.lat}, {req.lon}) are outside Indian Ocean domain.")
 
@@ -327,22 +330,13 @@ class InsituDataService:
         sensor_id = f"SENSOR-{uuid.uuid4().hex[:8].upper()}"
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        depths = req.depths or [0.0, 10.0, 25.0, 50.0, 75.0, 100.0, 150.0, 200.0, 300.0, 500.0, 750.0, 1000.0, 1500.0, 2000.0]
-        t_surf = float(req.surface_temp) if req.surface_temp is not None else 28.4
-        s_surf = float(req.surface_salinity) if req.surface_salinity is not None else 34.8
+        depths = req.depths or []
+        temps = req.temperature or []
+        sals = req.salinity or []
+        has_obs = len(depths) > 0 and len(temps) > 0
 
-        if req.temperature:
-            temps = req.temperature
-        else:
-            temps = [round(2.5 + (t_surf - 2.5) * math.exp(-d / 280.0), 2) for d in depths]
-
-        if req.salinity:
-            sals = req.salinity
-        else:
-            sals = [round(s_surf + 0.5 * math.sin(min(d, 300.0) / 300.0 * math.pi) - 0.15 * (d / 2000.0), 2) for d in depths]
-
-        qc_flags = [1] * len(depths)
-        qc_sum = self.compute_qc_summary(qc_flags)
+        qc_flags = [1] * len(depths) if has_obs else []
+        qc_sum = self.compute_qc_summary(qc_flags) if has_obs else None
 
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -362,11 +356,11 @@ class InsituDataService:
             json.dumps(depths),
             json.dumps(temps),
             json.dumps(sals),
-            t_surf,
-            s_surf,
-            req.max_depth or max(depths),
-            req.agency or "MoES / INCOIS",
-            req.created_by or "Officer",
+            float(req.surface_temp) if req.surface_temp is not None else (temps[0] if temps else None),
+            float(req.surface_salinity) if req.surface_salinity is not None else (sals[0] if sals else None),
+            float(req.max_depth or (max(depths) if depths else 0.0)),
+            req.agency or "Ocean Observation Network",
+            req.created_by or "Administrator",
             now_iso
         ))
         conn.commit()
@@ -383,18 +377,20 @@ class InsituDataService:
             "depths": depths,
             "temperature": temps,
             "salinity": sals,
+            "has_observations": has_obs,
             "qc_flags": qc_flags,
-            "qc_summary": qc_sum.model_dump(),
-            "max_depth": float(req.max_depth or max(depths)),
+            "qc_summary": qc_sum.model_dump() if qc_sum else None,
+            "max_depth": float(req.max_depth or (max(depths) if depths else 0.0)),
             "num_levels": len(depths),
-            "surface_temp": t_surf,
-            "surface_salinity": s_surf,
+            "surface_temp": float(req.surface_temp) if req.surface_temp is not None else (temps[0] if temps else None),
+            "surface_salinity": float(req.surface_salinity) if req.surface_salinity is not None else (sals[0] if sals else None),
             "metadata": {
-                "agency": req.agency,
-                "created_by": req.created_by,
-                "source_mode": "CUSTOM_IN_SITU"
+                "agency": req.agency or "Ocean Observation Network",
+                "created_by": req.created_by or "Administrator",
+                "source_mode": "USER_REGISTERED_SENSOR",
+                "status": "Awaiting Telemetry Feed" if not has_obs else "Observations Active"
             },
-            "source_mode": "CUSTOM_IN_SITU"
+            "source_mode": "USER_REGISTERED_SENSOR"
         }
 
         self.custom_profiles.append(prof)

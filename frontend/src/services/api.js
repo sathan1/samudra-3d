@@ -396,3 +396,147 @@ export async function deleteCustomSensor(sensorId, signal = null) {
   return res.json();
 }
 
+/**
+ * Administrative API Services
+ */
+export async function fetchAdminOverview(token, signal = null) {
+  const res = await fetch(`${API_BASE}/admin/overview`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal
+  });
+  if (!res.ok) throw new Error(`Admin overview request failed: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAdminUsers(token, signal = null) {
+  const res = await fetch(`${API_BASE}/admin/users`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal
+  });
+  if (!res.ok) throw new Error(`Failed to load users: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function createAdminUser(userData, token, signal = null) {
+  const res = await fetch(`${API_BASE}/admin/users`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(userData),
+    signal
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to create user: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateUserStatus(userId, isActive, token, signal = null) {
+  const res = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(userId)}/status`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ is_active: isActive }),
+    signal
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to update status: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateUserRole(userId, role, token, signal = null) {
+  const res = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(userId)}/role`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ role }),
+    signal
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to update role: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function resetUserPassword(userId, newPassword, token, signal = null) {
+  const res = await fetch(`${API_BASE}/admin/users/${encodeURIComponent(userId)}/reset-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ new_password: newPassword }),
+    signal
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to reset password: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchAdminAuditLogs(token, limit = 50, signal = null) {
+  const res = await fetch(`${API_BASE}/admin/audit-logs?limit=${limit}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal
+  });
+  if (!res.ok) throw new Error(`Failed to load audit logs: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAdminSensors(token, signal = null) {
+  const res = await fetch(`${API_BASE}/admin/sensors`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal
+  });
+  if (!res.ok) throw new Error(`Failed to load sensors: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function registerAdminSensor(sensorData, token, signal = null) {
+  const res = await fetch(`${API_BASE}/admin/sensors`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify(sensorData),
+    signal
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to register sensor: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteAdminSensor(sensorId, token, signal = null) {
+  const res = await fetch(`${API_BASE}/admin/sensors/${encodeURIComponent(sensorId)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+    signal
+  });
+  if (!res.ok) throw new Error(`Failed to delete sensor: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function fetchDataSources(token = null, signal = null) {
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await fetch(`${API_BASE}/admin/data-sources`, {
+    headers,
+    signal
+  });
+  if (!res.ok) throw new Error(`Failed to load data sources: HTTP ${res.status}`);
+  return res.json();
+}
+

@@ -57,7 +57,24 @@ export default function ComparisonPanel({
       {/* Model vs Observation (Phase 13 Collocation) */}
       <section className="comparison" aria-labelledby="comparison-heading" data-testid="model-comparison-summary">
         <h3 id="comparison-heading">Model vs observation</h3>
-        {selectedFloat && activeCollocation ? (
+        {selectedFloat && selectedFloat.has_observations === false ? (
+          <>
+            <span className="subtle-tag" style={{ background: 'var(--field)', color: '#fbbf24', fontWeight: 600 }}>
+              Pending Ingestion
+            </span>
+            <p className="helper" style={{ margin: '4px 0 6px 0' }}>
+              No observational telemetry ingested for this platform. Collocation with forecast model cannot be calculated.
+            </p>
+            <div className="metric-placeholder">
+              <span>Difference</span>
+              <span>No in-situ telemetry</span>
+            </div>
+            <div className="metric-placeholder">
+              <span>Model health</span>
+              <span>Awaiting sensor feed</span>
+            </div>
+          </>
+        ) : selectedFloat && activeCollocation ? (
           <>
             <span className="subtle-tag" style={{ background: 'var(--field)', color: 'var(--accent)', fontWeight: 600 }}>
               4D Collocation Active

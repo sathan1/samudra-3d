@@ -1,6 +1,6 @@
 """
 SAMUDRA-3D In-situ Observation Router
-Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap p. 10 (SIH26067)
+National Ocean Information Services / Marine Observation Network
 """
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Query, status
@@ -24,7 +24,6 @@ def get_profiles(
 ):
     """
     Returns normalized in-situ observation profiles.
-    Maintains full backwards compatibility with Phase 4's /api/insitu/profiles.
     """
     return insitu_service.get_all_profiles(
         platform_type=platform_type,

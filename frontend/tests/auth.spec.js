@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('MoES/INCOIS Operational Authentication & Brand Scrubbing Suite', () => {
-  test('verifies official branding and scrubbed taglines', async ({ page }) => {
-    await page.goto('/');
+test.describe('MoES/INCOIS Operational Authentication & RBAC Administration Suite', () => {
+  test('verifies official institutional branding and header controls', async ({ page }) => {
+    await page.goto('/app');
 
     // 1. Verify Platform Label uses official operational title
     const phaseLabel = page.locator('.phase-label');
@@ -18,51 +18,71 @@ test.describe('MoES/INCOIS Operational Authentication & Brand Scrubbing Suite', 
     await expect(footer).not.toContainText('Nexus Nova');
   });
 
-  test('executes complete MoES/INCOIS officer login, persona switch, and sign-out lifecycle', async ({ page }) => {
-    await page.goto('/');
+  test('executes complete institutional login, RBAC admin access, and sign-out lifecycle', async ({ page }) => {
+    // 1. Navigate to /login
+    await page.goto('/login');
 
-    // 1. Verify initial unauthenticated state
-    const openLoginBtn = page.locator('[data-testid="open-login-btn"]');
-    await expect(openLoginBtn).toBeVisible();
-    await expect(openLoginBtn).toContainText('Officer Portal');
+    const loginCard = page.locator('[data-testid="login-page"]');
+    await expect(loginCard).toBeVisible();
+    await expect(loginCard).toContainText('Operational Ocean Information System');
 
-    // 2. Open Login Portal Modal
-    await openLoginBtn.click();
-    const modal = page.locator('[data-testid="login-modal-card"]');
-    await expect(modal).toBeVisible();
-    await expect(modal).toContainText('OPERATIONAL COMMAND PORTAL // MOES-INCOIS');
+    // 2. Attempt invalid password
+    await page.fill('[data-testid="login-username-input"]', 'admin');
+    await page.fill('[data-testid="login-password-input"]', 'WrongPassword123!');
+    await page.click('[data-testid="login-submit-btn"]');
 
-    // 3. Verify Quick Persona Switcher Chips are present
-    const chiefChip = page.locator('[data-testid="persona-chip-chief_oceanographer"]');
-    const navyChip = page.locator('[data-testid="persona-chip-naval_operations"]');
-    const resChip = page.locator('[data-testid="persona-chip-research_observer"]');
+    const errorMsg = page.locator('[data-testid="login-error-msg"]');
+    await expect(errorMsg).toBeVisible({ timeout: 5000 });
+    await expect(errorMsg).toContainText('Authentication Error');
 
-    await expect(chiefChip).toBeVisible();
-    await expect(navyChip).toBeVisible();
-    await expect(resChip).toBeVisible();
+    // 3. Login with valid administrator credentials
+    await page.fill('[data-testid="login-username-input"]', 'admin');
+    await page.fill('[data-testid="login-password-input"]', 'Samudra#Admin2026!');
+    await page.click('[data-testid="login-submit-btn"]');
 
-    // 4. Authenticate as Chief Oceanographer using quick persona chip
-    await chiefChip.click();
+    // 4. Should redirect to /app with authenticated officer badge
+    await expect(page).toHaveURL(/.*\/app/, { timeout: 8000 });
+    const officerBadge = page.locator('[data-testid="open-login-btn"]');
+    await expect(officerBadge).toBeVisible();
+    await expect(officerBadge).toContainText('ADMIN');
 
-    // Verify status message confirms authentication handshake
-    const statusMsg = page.locator('[data-testid="login-status-msg"]');
-    await expect(statusMsg).toBeVisible({ timeout: 5000 });
-    await expect(statusMsg).toContainText('Dr. M. Ravichandran');
+    // 5. Admin Portal button should be visible in header for ADMIN role
+    const adminBtn = page.locator('[data-testid="header-admin-portal-btn"]');
+    await expect(adminBtn).toBeVisible();
 
-    // Wait for modal transition or close if still open
-    await page.waitForTimeout(1000);
-    if (await modal.isVisible()) {
-      await page.locator('[data-testid="login-close-btn"]').click();
-    }
+    // 6. Navigate to Admin Portal
+    await adminBtn.click();
+    await expect(page).toHaveURL(/.*\/admin/, { timeout: 5000 });
 
-    // 5. Verify Header displays Authenticated Officer Badge with Level-3 Command
-    await expect(page.locator('[data-testid="open-login-btn"]')).toContainText('Dr. M. Ravichandran');
-    const signoutBtn = page.locator('[data-testid="header-signout-btn"]');
-    await expect(signoutBtn).toBeVisible();
+    const adminPortal = page.locator('[data-testid="admin-portal"]');
+    await expect(adminPortal).toBeVisible();
+    await expect(adminPortal).toContainText('SAMUDRA-3D');
+    await expect(adminPortal).toContainText('ADMINISTRATION');
 
-    // 6. Sign Out and verify clean reversion to public viewer mode
+    // 7. Verify Admin Portal tabs
+    const overviewTab = page.locator('[data-testid="admin-tab-overview"]');
+    const usersTab = page.locator('[data-testid="admin-tab-users"]');
+    const sensorsTab = page.locator('[data-testid="admin-tab-sensors"]');
+    const auditTab = page.locator('[data-testid="admin-tab-audit_logs"]');
+
+    await expect(overviewTab).toBeVisible();
+    await expect(usersTab).toBeVisible();
+    await expect(sensorsTab).toBeVisible();
+    await expect(auditTab).toBeVisible();
+
+    // Switch to users tab and verify user table
+    await usersTab.click();
+    const usersPanel = page.locator('[data-testid="tab-panel-users"]');
+    await expect(usersPanel).toBeVisible();
+    await expect(usersPanel).toContainText('Authorized Personnel Registry');
+
+    // 8. Sign out from admin portal and verify access denial
+    const signoutBtn = page.locator('[data-testid="admin-signout-btn"]');
     await signoutBtn.click();
-    await expect(page.locator('[data-testid="open-login-btn"]')).toContainText('Officer Portal');
-    await expect(signoutBtn).not.toBeVisible();
+
+    // After signout, visiting /admin should display Authentication Required
+    await page.goto('/admin');
+    await expect(page.locator('.admin-denied-container')).toBeVisible();
+    await expect(page.locator('.admin-denied-container')).toContainText('Authentication Required');
   });
 });

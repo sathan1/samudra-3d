@@ -109,6 +109,87 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
   const sourceMode = selectedFloat.source_mode || 'SYNTHETIC';
   const qc = selectedFloat.qc_summary || { pass_rate_pct: 100, good: 0, total: 0 };
 
+  const hasData = selectedFloat.has_observations !== false && Array.isArray(selectedFloat.depths) && selectedFloat.depths.length > 0;
+
+  if (!hasData) {
+    return (
+      <section
+        className="profile-modal-container"
+        aria-labelledby="profile-heading"
+        data-testid="profile-modal-empty-state"
+        style={{
+          background: 'var(--panel)',
+          borderRadius: '8px',
+          border: '1px solid var(--border)',
+          padding: '14px',
+          marginTop: '8px'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="subtle-tag" style={{ background: 'var(--field)', color: 'var(--accent)', fontWeight: 600, fontSize: '10px' }}>
+                {(selectedFloat.platform_type || 'sensor').toUpperCase()}
+              </span>
+              <span style={{ fontSize: '10px', color: '#fbbf24', background: 'rgba(245, 158, 11, 0.15)', padding: '1px 6px', borderRadius: '3px', fontWeight: 600 }}>
+                PENDING INGESTION
+              </span>
+            </div>
+            <h3 id="profile-heading" style={{ fontSize: '14px', fontWeight: 600, marginTop: '4px', color: 'var(--text)' }}>
+              {selectedFloat.name || `Platform ${wmoId}`}
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSelectFloat?.(null)}
+            aria-label="Close profile inspector"
+            style={{
+              padding: '3px 7px',
+              fontSize: '11px',
+              cursor: 'pointer',
+              background: 'var(--field)',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              color: 'var(--text)'
+            }}
+            data-testid="deselect-float-btn"
+          >
+            ✕ Close
+          </button>
+        </div>
+
+        <div style={{ padding: '16px', backgroundColor: 'var(--field)', borderRadius: '6px', textAlign: 'center', marginBottom: '12px' }}>
+          <span style={{ fontSize: '24px', display: 'block', marginBottom: '6px' }}>📡</span>
+          <p style={{ margin: '0 0 6px 0', fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+            No observation available for this platform.
+          </p>
+          <p style={{ margin: 0, fontSize: '11px', color: 'var(--muted)', lineHeight: 1.4 }}>
+            This platform is registered in the institutional fleet catalog. Telemetric oceanographic profiles have not yet been ingested.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', fontSize: '11px' }}>
+          <div style={{ background: 'var(--field)', padding: '6px 8px', borderRadius: '4px' }}>
+            <span style={{ color: 'var(--muted)', display: 'block' }}>Platform ID:</span>
+            <strong>{wmoId}</strong>
+          </div>
+          <div style={{ background: 'var(--field)', padding: '6px 8px', borderRadius: '4px' }}>
+            <span style={{ color: 'var(--muted)', display: 'block' }}>Coordinates:</span>
+            <strong>{formatFloatCoordinates(selectedFloat.lat || selectedFloat.latitude, selectedFloat.lon || selectedFloat.longitude)}</strong>
+          </div>
+          <div style={{ background: 'var(--field)', padding: '6px 8px', borderRadius: '4px' }}>
+            <span style={{ color: 'var(--muted)', display: 'block' }}>Deployment Status:</span>
+            <span style={{ color: '#fbbf24', fontWeight: 600 }}>Registered / Standby</span>
+          </div>
+          <div style={{ background: 'var(--field)', padding: '6px 8px', borderRadius: '4px' }}>
+            <span style={{ color: 'var(--muted)', display: 'block' }}>Operating Agency:</span>
+            <span>{selectedFloat.organization || 'MoES / INCOIS'}</span>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   // Chart configuration
   const chartWidth = 440;
   const chartHeight = 280;

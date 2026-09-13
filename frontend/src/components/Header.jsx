@@ -9,18 +9,35 @@ export default function Header({
   onOpenRegisterSensor = null,
   onOpenAdminUsers = null,
   currentUser = null,
-  onLogout = null
+  onLogout = null,
+  onNavigate = null
 }) {
+  const isAdmin = currentUser?.role === 'ADMIN';
+
   return (
     <header className="header flex flex-wrap items-center justify-between gap-4">
       <div className="brand flex items-center gap-3">
         <span className="brand-mark" aria-hidden="true">≈</span>
         <div>
           <span className="brand-name">SAMUDRA<span className="text-ocean">-3D</span></span>
-          <p className="brand-subtitle">MoES / INCOIS Ocean Digital Twin Portal</p>
+          <p className="brand-subtitle">MoES / INCOIS Operational Ocean Digital Twin</p>
         </div>
       </div>
       <div className="header-actions flex flex-wrap items-center gap-2.5">
+        {isAdmin && (
+          <button
+            type="button"
+            data-testid="header-admin-portal-btn"
+            className="header-action-btn admin-portal-btn"
+            onClick={() => onNavigate ? onNavigate('/admin') : onOpenAdminUsers?.()}
+            title="Open SAMUDRA-3D Administration & User Directory"
+            style={{ backgroundColor: '#0284c7', color: '#ffffff', fontWeight: 600 }}
+          >
+            <span aria-hidden="true">⚙️</span>
+            <span>Admin Portal</span>
+          </button>
+        )}
+
         <button
           type="button"
           data-testid="header-register-sensor-btn"
@@ -30,17 +47,6 @@ export default function Header({
         >
           <span aria-hidden="true">🛰️</span>
           <span>Register Sensor</span>
-        </button>
-
-        <button
-          type="button"
-          data-testid="header-admin-users-btn"
-          className="header-action-btn admin-users-btn"
-          onClick={onOpenAdminUsers}
-          title="View user directory and manage officer accounts"
-        >
-          <span aria-hidden="true">👥</span>
-          <span>Users & Admin</span>
         </button>
 
         <button
@@ -70,23 +76,23 @@ export default function Header({
               data-testid="open-login-btn"
               className="officer-badge-btn"
               onClick={onOpenLogin}
-              title="View Officer Credentials and Operational Clearance"
+              title="View Officer Profile & Active Clearance"
             >
               <span
                 className="avatar-chip"
-                style={{ backgroundColor: currentUser.badge_color || '#00f5d4' }}
+                style={{ backgroundColor: currentUser.badge_color || '#0284c7' }}
               >
-                {currentUser.avatar_initials || 'IN'}
+                {currentUser.avatar_initials || (currentUser.display_name ? currentUser.display_name.charAt(0) : 'IN')}
               </span>
               <span className="officer-name">{currentUser.display_name}</span>
               <span
                 className="clearance-pill"
                 style={{
-                  color: currentUser.badge_color || '#00f5d4',
-                  borderColor: `${currentUser.badge_color || '#00f5d4'}44`
+                  color: '#38bdf8',
+                  borderColor: 'rgba(56, 189, 248, 0.4)'
                 }}
               >
-                {currentUser.clearance?.replace('LEVEL-', 'L-') || 'L-3'}
+                {currentUser.role}
               </span>
             </button>
             <button
@@ -104,17 +110,17 @@ export default function Header({
             type="button"
             data-testid="open-login-btn"
             className="officer-login-btn"
-            onClick={onOpenLogin}
-            title="Open MoES/INCOIS Operational Authentication Portal"
+            onClick={() => onNavigate ? onNavigate('/login') : onOpenLogin?.()}
+            title="Sign in with MoES/INCOIS Officer Credentials"
           >
-            <span aria-hidden="true">⏣</span>
-            <span>Officer Portal</span>
+            <span aria-hidden="true">🔒</span>
+            <span>Sign In</span>
           </button>
         )}
 
         <span className="connection">
           <span className="status-dot" aria-hidden="true" />
-          Live Data
+          Connected
         </span>
         <button className="theme-button" type="button" aria-pressed={theme === 'light'} onClick={onToggleTheme}>
           Light theme
