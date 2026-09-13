@@ -6,7 +6,10 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 import json
+import uuid
+import math
 from backend.app.core.config import settings
+from backend.app.db import get_db_connection
 from backend.app.schemas.insitu import (
     QCFlagSummary,
     ArgoProfileMetadata,
@@ -15,7 +18,8 @@ from backend.app.schemas.insitu import (
     GliderWaypoint,
     GliderTransectSummary,
     GliderTransectDetail,
-    InsituStatusResponse
+    InsituStatusResponse,
+    SensorRegistrationRequest
 )
 
 # Standard Indian Ocean domain bounds
@@ -43,6 +47,7 @@ class InsituDataService:
 
         self.synthetic_profiles: List[Dict[str, Any]] = []
         self.real_profiles: List[Dict[str, Any]] = []
+        self.custom_profiles: List[Dict[str, Any]] = []
         self._profiles_by_id: Dict[str, Dict[str, Any]] = {}
 
         self.synthetic_gliders: List[Dict[str, Any]] = []
@@ -50,6 +55,7 @@ class InsituDataService:
         self._gliders_by_id: Dict[str, Dict[str, Any]] = {}
 
         self.load_observations()
+        self.load_custom_sensors()
 
     def is_in_domain(self, lat: float, lon: float) -> bool:
         """Verifies if coordinates fall within Indian Ocean domain bounds."""
@@ -265,6 +271,155 @@ class InsituDataService:
                     self._gliders_by_id[norm["id"]] = norm
                     self._profiles_by_id[norm["id"]] = norm
 
+    def load_custom_sensors(self):
+        """Loads user-registered in-situ sensors from SQLite database."""
+        self.custom_profiles = []
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM custom_sensors WHERE is_active = 1")
+            rows = cursor.fetchall()
+            conn.close()
+
+            import json
+            for r in rows:
+                depths = json.loads(r["depths"]) if r["depths"] else [0.0, 10.0, 50.0, 100.0, 200.0, 500.0, 1000.0]
+                temps = json.loads(r["temperature"]) if r["temperature"] else [28.0] * len(depths)
+                sals = json.loads(r["salinity"]) if r["salinity"] else [34.5] * len(depths)
+                qc_flags = [1] * len(depths)
+                qc_sum = self.compute_qc_summary(qc_flags)
+
+                prof = {
+                    "id": r["id"],
+                    "platform_type": r["platform_type"],
+                    "name": r["name"],
+                    "wmo_id": r["wmo_id"],
+                    "lat": float(r["lat"]),
+                    "lon": float(r["lon"]),
+                    "timestamp": r["created_at"],
+                    "depths": depths,
+                    "temperature": temps,
+                    "salinity": sals,
+                    "qc_flags": qc_flags,
+                    "qc_summary": qc_sum.model_dump(),
+                    "max_depth": float(r["max_depth"] or (max(depths) if depths else 2000.0)),
+                    "num_levels": len(depths),
+                    "surface_temp": float(r["surface_temp"]) if r["surface_temp"] is not None else temps[0],
+                    "surface_salinity": float(r["surface_salinity"]) if r["surface_salinity"] is not None else sals[0],
+                    "metadata": {
+                        "agency": r["agency"],
+                        "created_by": r["created_by"],
+                        "source_mode": "CUSTOM_IN_SITU"
+                    },
+                    "source_mode": "CUSTOM_IN_SITU"
+                }
+                self.custom_profiles.append(prof)
+                self._profiles_by_id[prof["id"]] = prof
+        except Exception:
+            pass
+
+    def register_sensor(self, req: SensorRegistrationRequest) -> Dict[str, Any]:
+        """Registers a new in-situ ocean sensor into SQLite and makes it immediately available in 3D."""
+        if not self.is_in_domain(req.lat, req.lon):
+            raise ValueError(f"Sensor coordinates ({req.lat}, {req.lon}) are outside Indian Ocean domain.")
+
+        import json
+        sensor_id = f"SENSOR-{uuid.uuid4().hex[:8].upper()}"
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        depths = req.depths or [0.0, 10.0, 25.0, 50.0, 75.0, 100.0, 150.0, 200.0, 300.0, 500.0, 750.0, 1000.0, 1500.0, 2000.0]
+        t_surf = float(req.surface_temp) if req.surface_temp is not None else 28.4
+        s_surf = float(req.surface_salinity) if req.surface_salinity is not None else 34.8
+
+        if req.temperature:
+            temps = req.temperature
+        else:
+            temps = [round(2.5 + (t_surf - 2.5) * math.exp(-d / 280.0), 2) for d in depths]
+
+        if req.salinity:
+            sals = req.salinity
+        else:
+            sals = [round(s_surf + 0.5 * math.sin(min(d, 300.0) / 300.0 * math.pi) - 0.15 * (d / 2000.0), 2) for d in depths]
+
+        qc_flags = [1] * len(depths)
+        qc_sum = self.compute_qc_summary(qc_flags)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO custom_sensors (
+                id, platform_type, name, wmo_id, lat, lon, depths,
+                temperature, salinity, surface_temp, surface_salinity,
+                max_depth, agency, created_by, created_at, is_active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        """, (
+            sensor_id,
+            req.platform_type,
+            req.name,
+            req.wmo_id or sensor_id.replace("SENSOR-", ""),
+            req.lat,
+            req.lon,
+            json.dumps(depths),
+            json.dumps(temps),
+            json.dumps(sals),
+            t_surf,
+            s_surf,
+            req.max_depth or max(depths),
+            req.agency or "MoES / INCOIS",
+            req.created_by or "Officer",
+            now_iso
+        ))
+        conn.commit()
+        conn.close()
+
+        prof = {
+            "id": sensor_id,
+            "platform_type": req.platform_type,
+            "name": req.name,
+            "wmo_id": req.wmo_id or sensor_id.replace("SENSOR-", ""),
+            "lat": float(req.lat),
+            "lon": float(req.lon),
+            "timestamp": now_iso,
+            "depths": depths,
+            "temperature": temps,
+            "salinity": sals,
+            "qc_flags": qc_flags,
+            "qc_summary": qc_sum.model_dump(),
+            "max_depth": float(req.max_depth or max(depths)),
+            "num_levels": len(depths),
+            "surface_temp": t_surf,
+            "surface_salinity": s_surf,
+            "metadata": {
+                "agency": req.agency,
+                "created_by": req.created_by,
+                "source_mode": "CUSTOM_IN_SITU"
+            },
+            "source_mode": "CUSTOM_IN_SITU"
+        }
+
+        self.custom_profiles.append(prof)
+        self._profiles_by_id[sensor_id] = prof
+        return prof
+
+    def delete_sensor(self, sensor_id: str) -> bool:
+        """Deletes a custom registered sensor from SQLite and in-memory cache."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM custom_sensors WHERE id = ?", (sensor_id,))
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+
+        self.custom_profiles = [p for p in self.custom_profiles if p["id"] != sensor_id]
+        if sensor_id in self._profiles_by_id:
+            del self._profiles_by_id[sensor_id]
+        return deleted
+
+    def get_custom_sensors(self) -> List[Dict[str, Any]]:
+        """Returns all user-registered custom sensors."""
+        return list(self.custom_profiles)
+
+
     def get_all_profiles(
         self,
         platform_type: Optional[str] = None,
@@ -279,8 +434,10 @@ class InsituDataService:
         """
         if source_mode == "REAL_LOCAL":
             res = list(self.real_profiles)
+        elif source_mode == "CUSTOM":
+            res = list(self.custom_profiles)
         elif source_mode == "ALL":
-            res = list(self.synthetic_profiles) + list(self.real_profiles)
+            res = list(self.synthetic_profiles) + list(self.real_profiles) + list(self.custom_profiles)
         else:
             res = list(self.synthetic_profiles)
 

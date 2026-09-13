@@ -309,3 +309,90 @@ export async function fetchAuthPersonas(signal = null) {
   }
   return res.json();
 }
+
+/**
+ * Retrieves all registered users from the SQLite database.
+ */
+export async function fetchAllUsers(signal = null) {
+  const url = `${API_BASE}/auth/users`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch user directory: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
+ * Creates a new officer/analyst account in the database.
+ */
+export async function createUserAdmin(userData, signal = null) {
+  const url = `${API_BASE}/auth/users`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(userData),
+    signal
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Failed to create user: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
+ * Deletes an officer account from the database.
+ */
+export async function deleteUser(userId, signal = null) {
+  const url = `${API_BASE}/auth/users/${encodeURIComponent(userId)}`;
+  const res = await fetch(url, { method: 'DELETE', signal });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Failed to delete user: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
+ * Registers a new in-situ ocean sensor into the database and active 3D visualization.
+ */
+export async function registerNewSensor(sensorData, signal = null) {
+  const url = `${API_BASE}/insitu/sensors`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sensorData),
+    signal
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Failed to register sensor: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
+ * Retrieves all custom registered ocean sensors.
+ */
+export async function fetchCustomSensors(signal = null) {
+  const url = `${API_BASE}/insitu/sensors`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch custom sensors: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
+ * Decommissions a registered ocean sensor.
+ */
+export async function deleteCustomSensor(sensorId, signal = null) {
+  const url = `${API_BASE}/insitu/sensors/${encodeURIComponent(sensorId)}`;
+  const res = await fetch(url, { method: 'DELETE', signal });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Failed to decommission sensor: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+

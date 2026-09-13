@@ -7,6 +7,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 class UserRole(str, Enum):
+    ADMIN = "ADMIN"
     CHIEF_OCEANOGRAPHER = "CHIEF_OCEANOGRAPHER"
     NAVAL_OPERATIONS = "NAVAL_OPERATIONS"
     RESEARCH_OBSERVER = "RESEARCH_OBSERVER"
@@ -17,6 +18,24 @@ class ClearanceLevel(str, Enum):
     LEVEL_2_TACTICAL = "LEVEL-2 TACTICAL"
     LEVEL_1_RESEARCH = "LEVEL-1 RESEARCH"
     PUBLIC = "PUBLIC"
+
+class AdminUserSummary(BaseModel):
+    user_id: str = Field(..., description="Unique user/officer identifier")
+    username: str = Field(..., description="Login username")
+    display_name: str = Field(..., description="Full display name")
+    email: Optional[str] = Field(None, description="Email address")
+    role: str = Field(..., description="Assigned role")
+    clearance: str = Field(..., description="Clearance level")
+    organization: str = Field(..., description="Affiliated agency or division")
+    avatar_initials: str = Field(..., description="Initials")
+    badge_color: str = Field(..., description="Role badge color")
+    created_at: str = Field(..., description="ISO 8601 registration timestamp")
+    is_active: bool = Field(True, description="Account active flag")
+
+class UsersListResponse(BaseModel):
+    users: List[AdminUserSummary] = Field(..., description="List of registered accounts in database")
+    total: int = Field(..., description="Total user count")
+
 
 class UserProfile(BaseModel):
     user_id: str = Field(..., description="Unique operational officer identifier")

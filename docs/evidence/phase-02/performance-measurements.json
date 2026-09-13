@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-09-12T16:55:46.127Z",
+  "timestamp": "2026-09-13T07:28:30.524Z",
   "browser": "153.0.4234.32",
   "measurements": {
-    "framesMeasured": 166,
-    "durationMs": 1000.0999999996275,
+    "framesMeasured": 167,
+    "durationMs": 1006,
     "measuredFps": 166,
     "avgFrameTimeMs": 6.02,
     "hardwareConcurrency": 16,

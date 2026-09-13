@@ -9,7 +9,8 @@ from backend.app.schemas.insitu import (
     ArgoProfileDetail,
     GliderTransectSummary,
     GliderTransectDetail,
-    InsituStatusResponse
+    InsituStatusResponse,
+    SensorRegistrationRequest
 )
 from backend.app.services.insitu_service import insitu_service
 
@@ -73,3 +74,47 @@ def get_glider_by_id(glider_id: str):
 def get_insitu_status():
     """Returns platform counts, synthetic vs real data breakdown, and live ERDDAP connectivity status."""
     return insitu_service.get_status()
+
+@router.post("/sensors", summary="Register a New In-situ Ocean Sensor Platform")
+def register_sensor(request: SensorRegistrationRequest):
+    """
+    Registers a new ocean observation platform (Argo Float, Glider, Moored Ocean Buoy, Surface Drifter)
+    into the SAMUDRA-3D persistent SQLite database.
+    Immediately available on 3D globe and comparison tools.
+    """
+    try:
+        new_sensor = insitu_service.register_sensor(request)
+        return {
+            "status": "success",
+            "message": f"Sensor '{new_sensor['name']}' ({new_sensor['platform_type']}) registered successfully.",
+            "sensor": new_sensor
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@router.get("/sensors", summary="Retrieve all custom registered sensors")
+def get_custom_sensors():
+    """
+    Returns list of all newly registered or custom deployed ocean sensor platforms.
+    """
+    return insitu_service.get_custom_sensors()
+
+@router.delete("/sensors/{sensor_id}", summary="Delete or decommission custom sensor")
+def delete_custom_sensor(sensor_id: str):
+    """
+    Decommissions/removes a registered sensor from the database and 3D visualization.
+    """
+    success = insitu_service.delete_sensor(sensor_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Sensor '{sensor_id}' not found."
+        )
+    return {
+        "status": "success",
+        "message": f"Sensor '{sensor_id}' decommissioned successfully."
+    }
+

@@ -15,7 +15,8 @@ from backend.app.schemas.auth import (
     PersonaPreset,
     TokenResponse,
     AuditLogEntry,
-    RegisterRequest
+    RegisterRequest,
+    AdminUserSummary
 )
 from backend.app.db import get_db_connection, hash_password
 
@@ -157,7 +158,9 @@ class AuthService:
         initials = "".join([part[0].upper() for part in req.full_name.split()[:2]]) or "OF"
 
         badge_color = "#00f5d4"
-        if req.role == UserRole.NAVAL_OPERATIONS:
+        if req.role == UserRole.ADMIN:
+            badge_color = "#38bdf8"
+        elif req.role == UserRole.NAVAL_OPERATIONS:
             badge_color = "#f59e0b"
         elif req.role == UserRole.RESEARCH_OBSERVER:
             badge_color = "#10b981"
@@ -167,7 +170,9 @@ class AuthService:
             "observation_logging",
             "scientific_assistant_queries"
         ]
-        if req.role == UserRole.CHIEF_OCEANOGRAPHER:
+        if req.role == UserRole.ADMIN:
+            capabilities.extend(["user_management", "sensor_registration", "model_forecast_validation", "collocation_export", "anomaly_threshold_override"])
+        elif req.role == UserRole.CHIEF_OCEANOGRAPHER:
             capabilities.extend(["model_forecast_validation", "collocation_export", "anomaly_threshold_override"])
         elif req.role == UserRole.NAVAL_OPERATIONS:
             capabilities.extend(["tactical_current_streamlines", "platform_fleet_tracking", "hazard_discrepancy_alerts"])
@@ -207,9 +212,72 @@ class AuthService:
         conn.close()
         return profile
 
+    def get_all_users(self) -> List[AdminUserSummary]:
+        """Retrieves all registered officer accounts from SQLite."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, username, full_name, email, role, clearance_level, organization,
+                   avatar_initials, badge_color, created_at, is_active
+            FROM users
+            ORDER BY created_at ASC
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [
+            AdminUserSummary(
+                user_id=r["id"],
+                username=r["username"],
+                display_name=r["full_name"],
+                email=r["email"],
+                role=r["role"],
+                clearance=r["clearance_level"],
+                organization=r["organization"],
+                avatar_initials=r["avatar_initials"],
+                badge_color=r["badge_color"],
+                created_at=r["created_at"],
+                is_active=bool(r["is_active"])
+            )
+            for r in rows
+        ]
+
+    def delete_user(self, user_id: str, client_ip: Optional[str] = None) -> bool:
+        """Deactivates or deletes an officer record from SQLite (protects root admin)."""
+        if user_id in ("MOES-ADM-000", "MOES-DIR-001"):
+            raise ValueError("Root executive officers cannot be deleted.")
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT username FROM users WHERE id = ?", (user_id,))
+        user_row = cursor.fetchone()
+        if not user_row:
+            conn.close()
+            return False
+
+        username = user_row["username"]
+        cursor.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        self._log_audit(cursor, user_id, "DELETE_USER", "SUCCESS", f"User {username} deleted by admin", client_ip)
+
+        conn.commit()
+        conn.close()
+        return True
+
     def get_personas(self) -> List[PersonaPreset]:
         """Provides operational persona presets for single-click switching."""
         return [
+            PersonaPreset(
+                id="admin_system",
+                label="System Admin",
+                username="admin",
+                default_password="Samudra#Admin2026!",
+                role=UserRole.ADMIN,
+                clearance=ClearanceLevel.LEVEL_3_COMMAND,
+                description="Administrative authority. Manage users, register sensors, and configure system policies.",
+                badge_color="#38bdf8"
+            ),
             PersonaPreset(
                 id="chief_oceanographer",
                 label="Chief Oceanographer",

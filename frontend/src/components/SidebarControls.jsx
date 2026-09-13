@@ -51,14 +51,14 @@ export default function SidebarControls({
         <h2 id="controls-heading">Ocean controls</h2>
       </div>
 
-      <details className="quick-start" open>
-        <summary>New here? Follow these three steps</summary>
-        <ol>
+      <div className="quick-start">
+        <div className="text-xs font-semibold text-[var(--text)] mb-1">New here? Follow these three steps:</div>
+        <ol className="text-[11px] text-[var(--muted)] list-decimal pl-4 space-y-0.5">
           <li>Choose temperature or salinity.</li>
           <li>Set the depth and forecast time.</li>
           <li>Turn on an observation layer, then select a marker on the globe.</li>
         </ol>
-      </details>
+      </div>
 
       <div className="control-group">
         <label htmlFor="variable">Ocean variable</label>
@@ -73,8 +73,8 @@ export default function SidebarControls({
         </select>
         <p id="variable-help" className="helper">
           {selectedVariable === 'salinity'
-            ? 'cmocean haline palette active (Practical Salinity Scale, PSU).'
-            : 'cmocean thermal palette active (Potential Temperature, °C).'}
+            ? 'Ocean salt concentration (PSU). Blue indicates freshwater river inflow; red/yellow indicates high salinity from surface evaporation.'
+            : 'Water temperature (°C) from tropical surface warmth (~30°C) down to near-freezing deep abyss (~2°C).'}
         </p>
       </div>
 

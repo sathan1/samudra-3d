@@ -73,12 +73,65 @@ def init_db():
     );
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS custom_sensors (
+        id TEXT PRIMARY KEY,
+        platform_type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        wmo_id TEXT,
+        lat REAL NOT NULL,
+        lon REAL NOT NULL,
+        depths TEXT NOT NULL,
+        temperature TEXT NOT NULL,
+        salinity TEXT NOT NULL,
+        surface_temp REAL,
+        surface_salinity REAL,
+        max_depth REAL,
+        agency TEXT,
+        created_by TEXT,
+        created_at TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1
+    );
+    """)
+
     # Check if seed users exist
+    cursor.execute("SELECT COUNT(*) as cnt FROM users WHERE username = 'admin'")
+    admin_exists = cursor.fetchone()["cnt"] > 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    if not admin_exists:
+        cursor.execute("""
+        INSERT OR IGNORE INTO users (
+            id, username, password_hash, salt, full_name, email,
+            role, clearance_level, organization, avatar_initials,
+            badge_color, capabilities, created_at, is_active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        """, (
+            "MOES-ADM-000",
+            "admin",
+            hash_password("Samudra#Admin2026!", "admin_salt_9921"),
+            "admin_salt_9921",
+            "System Administrator",
+            "admin@incois.gov.in",
+            "ADMIN",
+            "LEVEL-3 COMMAND",
+            "INCOIS IT & Ocean Data Center",
+            "AD",
+            "#38bdf8",
+            json.dumps([
+                "user_management",
+                "sensor_registration",
+                "model_forecast_validation",
+                "collocation_export",
+                "anomaly_threshold_override"
+            ]),
+            now_iso
+        ))
+
     cursor.execute("SELECT COUNT(*) as cnt FROM users")
     count = cursor.fetchone()["cnt"]
 
-    if count == 0:
-        now_iso = datetime.now(timezone.utc).isoformat()
+    if count <= 1:
         seeds = [
             (
                 "MOES-DIR-001",

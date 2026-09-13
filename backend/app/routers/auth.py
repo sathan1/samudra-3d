@@ -12,7 +12,9 @@ from backend.app.schemas.auth import (
     AuthStatus,
     AuditLogEntry,
     RegisterRequest,
-    RegisterResponse
+    RegisterResponse,
+    AdminUserSummary,
+    UsersListResponse
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Operational Authentication"])
@@ -116,3 +118,59 @@ def get_audit_log(limit: int = 25):
     Returns the recent authentication audit trail for security accountability.
     """
     return auth_service.get_audit_log(limit=limit)
+
+@router.get("/users", response_model=UsersListResponse, summary="List Registered Officers and Users")
+def get_all_users():
+    """
+    Returns all registered user/officer accounts in the SQLite database.
+    Used by the Admin and User Management module.
+    """
+    users = auth_service.get_all_users()
+    return UsersListResponse(users=users, total=len(users))
+
+@router.post("/users", response_model=RegisterResponse, summary="Admin User Registration")
+def create_user_admin(request: RegisterRequest):
+    """
+    Admin action to create and assign roles to new oceanographers, naval officers, or researchers.
+    """
+    if not request.username or not request.password or not request.full_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username, password, and full name are required."
+        )
+    try:
+        user_profile = auth_service.register_user(request)
+        return RegisterResponse(
+            success=True,
+            message=f"User {user_profile.display_name} ({user_profile.role.value}) registered in database.",
+            user=user_profile
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+
+@router.delete("/users/{user_id}", summary="Delete Officer/User Record")
+def delete_user(user_id: str):
+    """
+    Deletes an officer record from the SQLite database.
+    Root executive accounts are protected.
+    """
+    try:
+        success = auth_service.delete_user(user_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User record '{user_id}' not found."
+            )
+        return {
+            "status": "success",
+            "message": f"Officer account '{user_id}' deleted successfully from database."
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+

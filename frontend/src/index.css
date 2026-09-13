@@ -66,63 +66,200 @@ body {
   --accent-amber: #d97706;
   --glass-shadow: 0 16px 36px -8px rgba(15, 45, 65, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.8);
   background: radial-gradient(circle at 50% 0%, #e1eff5 0%, #f0f6f9 70%);
+  --glass-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  background: #f8fafc;
 }
 
 .text-ocean {
-  color: var(--accent);
+  color: #38bdf8;
 }
 
 /* --------------------------------------------------------------------------
-   Command Header with Frosted Glassmorphism
+   Official MoES / INCOIS Header
    -------------------------------------------------------------------------- */
 .header {
-  padding: 16px 36px;
+  padding: 12px 28px;
   border-bottom: 1px solid var(--border);
-  background: rgba(4, 14, 28, 0.8);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  background: #0f172a;
   position: sticky;
   top: 0;
   z-index: 50;
-  transition: var(--liquid-ease);
+}
+
+.app[data-theme='light'] .header {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid var(--border-glow);
-  border-radius: 12px;
-  font-size: 32px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #0284c7;
+  border-radius: 8px;
+  font-size: 24px;
   line-height: 1;
-  color: var(--accent);
-  background: radial-gradient(circle, rgba(0, 245, 212, 0.15) 0%, rgba(4, 16, 32, 0.6) 100%);
-  box-shadow: 0 0 18px -4px rgba(0, 245, 212, 0.3);
-  transition: var(--liquid-ease);
-}
-
-.brand-mark:hover {
-  transform: scale(1.04);
-  border-color: var(--accent);
-  box-shadow: 0 0 24px -2px rgba(0, 245, 212, 0.5);
+  color: #ffffff;
+  background: #0284c7;
 }
 
 .brand-name {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  background: linear-gradient(135deg, #ffffff 40%, var(--accent) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #f8fafc;
+}
+
+.app[data-theme='light'] .brand-name {
+  color: #0f172a;
 }
 
 .brand-subtitle {
   color: var(--muted);
   font-size: 11px;
   margin-top: 1px;
-  letter-spacing: 0.02em;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.header-action-btn:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.header-action-btn.register-sensor-btn {
+  background: #0369a1;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+
+.header-action-btn.register-sensor-btn:hover {
+  background: #0284c7;
+}
+
+.header-action-btn.admin-users-btn {
+  background: #1e293b;
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.header-action-btn.admin-users-btn:hover {
+  background: #0c4a6e;
+  color: #ffffff;
+}
+
+.header-action-btn.assistant-btn {
+  background: #1e293b;
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.header-action-btn.assistant-btn:hover {
+  background: #064e3b;
+  color: #ffffff;
+}
+
+.header-secondary-action {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.header-secondary-action:hover {
+  color: #f8fafc;
+  border-color: #64748b;
+}
+
+.officer-badge-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #38bdf8;
+  background: #1e293b;
+  color: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.avatar-chip {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.clearance-pill {
+  font-size: 9px;
+  font-family: monospace;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid;
+}
+
+.signout-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid #ef4444;
+  background: #450a0a;
+  color: #fca5a5;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.signout-btn:hover {
+  background: #7f1d1d;
+  color: #ffffff;
+}
+
+.officer-login-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.officer-login-btn:hover {
+  border-color: #38bdf8;
+  color: #38bdf8;
 }
 
 .connection {
@@ -137,16 +274,13 @@ body {
 .status-dot {
   display: inline-block;
   flex: none;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #34d399;
-  box-shadow: 0 0 8px #34d399;
+  background: #10b981;
 }
 
-/* --------------------------------------------------------------------------
-   Fluid Interactive Form Controls
-   -------------------------------------------------------------------------- */
+/* Form controls */
 button, select {
   font: inherit;
   font-size: 13px;
@@ -193,54 +327,46 @@ input:disabled {
 }
 
 /* --------------------------------------------------------------------------
-   Hydrodynamic Workspace & Asymmetric CSS Grid
+   Ocean Workspace & Enterprise Grid Layout
    -------------------------------------------------------------------------- */
 .workspace {
   max-width: 1840px;
-  padding: 24px 32px 20px;
+  padding: 16px 28px 20px;
   margin: auto;
 }
 
 .eyebrow {
   font-family: 'JetBrains Mono', Consolas, monospace;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--accent-cyan);
+  display: inline-flex;
+  align-items: center;
+}
+
+.phase-label {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #38bdf8;
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-.eyebrow::before {
-  content: '⌖';
-  font-size: 11px;
-  color: var(--accent);
-}
-
-.phase-label {
-  font-family: 'JetBrains Mono', Consolas, monospace;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  padding: 6px 14px;
-  border-radius: 9999px;
-  background: rgba(0, 245, 212, 0.08);
-  border: 1px solid rgba(0, 245, 212, 0.3);
-  color: var(--accent);
-  box-shadow: 0 0 16px -4px rgba(0, 245, 212, 0.25);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
 h1 {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.25;
-  letter-spacing: -0.03em;
-  margin: 6px 0 8px;
+  letter-spacing: -0.02em;
+  margin: 4px 0 6px;
 }
 
 .muted {
@@ -252,32 +378,29 @@ h1 {
   display: flex;
   align-items: center;
   gap: 12px;
-  border: 1px solid var(--border);
-  background: var(--raised);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  padding: 12px 18px;
-  border-radius: 12px;
-  margin: 18px 0 20px;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--muted);
-  box-shadow: var(--glass-shadow);
-  border-left: 3px solid var(--accent);
+  border: 1px solid #334155;
+  background: #1e293b;
+  padding: 10px 16px;
+  border-radius: 8px;
+  margin: 14px 0 16px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #cbd5e1;
+  border-left: 4px solid #0284c7;
 }
 
 .notice strong {
-  color: var(--text);
+  color: #f8fafc;
   font-weight: 600;
 }
 
-/* Asymmetric CSS Grid with grid-template-areas */
+/* Dashboard Grid */
 .dashboard {
   display: grid;
-  grid-template-columns: 280px minmax(320px, 1fr) 320px;
+  grid-template-columns: 290px minmax(320px, 1fr) 320px;
   grid-template-rows: auto;
   grid-template-areas: "controls viewport inspection";
-  gap: 20px;
+  gap: 16px;
   align-items: stretch;
   position: relative;
 }
@@ -295,36 +418,20 @@ aside.inspection {
 }
 
 /* --------------------------------------------------------------------------
-   Submerged Glassmorphic Panels
+   Clean Slate Enterprise Panels
    -------------------------------------------------------------------------- */
 .panel {
   min-width: 0;
   position: relative;
   background: var(--panel);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--glass-shadow);
-  transition: var(--liquid-ease);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   overflow: hidden;
 }
 
-.panel::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(0, 245, 212, 0.45) 50%, transparent 100%);
-  pointer-events: none;
-  z-index: 2;
-}
-
 .panel:hover {
-  border-color: rgba(0, 245, 212, 0.3);
-  box-shadow: 0 20px 50px -10px rgba(0, 3, 10, 0.85), 0 0 20px -5px rgba(0, 245, 212, 0.15);
+  border-color: #475569;
 }
 
 .panel-heading {

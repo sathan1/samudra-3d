@@ -6,6 +6,8 @@ export default function Header({
   onOpenAssistant,
   onOpenSources,
   onOpenLogin,
+  onOpenRegisterSensor = null,
+  onOpenAdminUsers = null,
   currentUser = null,
   onLogout = null
 }) {
@@ -15,10 +17,43 @@ export default function Header({
         <span className="brand-mark" aria-hidden="true">≈</span>
         <div>
           <span className="brand-name">SAMUDRA<span className="text-ocean">-3D</span></span>
-          <p className="brand-subtitle">Indian Ocean data explorer</p>
+          <p className="brand-subtitle">MoES / INCOIS Ocean Digital Twin Portal</p>
         </div>
       </div>
-      <div className="header-actions flex flex-wrap items-center gap-3">
+      <div className="header-actions flex flex-wrap items-center gap-2.5">
+        <button
+          type="button"
+          data-testid="header-register-sensor-btn"
+          className="header-action-btn register-sensor-btn"
+          onClick={onOpenRegisterSensor}
+          title="Register a new ocean sensor platform (Argo float, Glider, Moored buoy)"
+        >
+          <span aria-hidden="true">🛰️</span>
+          <span>Register Sensor</span>
+        </button>
+
+        <button
+          type="button"
+          data-testid="header-admin-users-btn"
+          className="header-action-btn admin-users-btn"
+          onClick={onOpenAdminUsers}
+          title="View user directory and manage officer accounts"
+        >
+          <span aria-hidden="true">👥</span>
+          <span>Users & Admin</span>
+        </button>
+
+        <button
+          type="button"
+          data-testid="open-assistant-btn"
+          className="header-action-btn assistant-btn"
+          onClick={onOpenAssistant}
+          title="Open Grounded AI Ocean Assistant (Alt+A)"
+        >
+          <span aria-hidden="true">✧</span>
+          <span>AI Ocean Assistant</span>
+        </button>
+
         <button
           type="button"
           className="header-secondary-action"
@@ -27,35 +62,25 @@ export default function Header({
         >
           Data sources
         </button>
-        <button
-          type="button"
-          data-testid="open-assistant-btn"
-          className="hud-button flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-cyan-500/40 bg-cyan-950/30 text-cyan-300 hover:bg-cyan-900/50 hover:text-white font-medium text-xs cursor-pointer"
-          onClick={onOpenAssistant}
-          title="Open Grounded AI Ocean Assistant (Alt+A)"
-        >
-          <span aria-hidden="true">✧</span>
-          <span>AI Ocean Assistant</span>
-        </button>
 
         {currentUser ? (
           <div className="flex items-center gap-2">
             <button
               type="button"
               data-testid="open-login-btn"
-              className="hud-button flex items-center gap-2 px-3 py-1.5 rounded-lg border border-cyan-500/50 bg-cyan-950/40 text-white font-medium text-xs cursor-pointer hover:border-cyan-400"
+              className="officer-badge-btn"
               onClick={onOpenLogin}
               title="View Officer Credentials and Operational Clearance"
             >
               <span
-                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-950"
+                className="avatar-chip"
                 style={{ backgroundColor: currentUser.badge_color || '#00f5d4' }}
               >
                 {currentUser.avatar_initials || 'IN'}
               </span>
-              <span>{currentUser.display_name}</span>
+              <span className="officer-name">{currentUser.display_name}</span>
               <span
-                className="px-1.5 py-0.2 rounded text-[9px] font-mono tracking-wider font-semibold border"
+                className="clearance-pill"
                 style={{
                   color: currentUser.badge_color || '#00f5d4',
                   borderColor: `${currentUser.badge_color || '#00f5d4'}44`
@@ -67,7 +92,7 @@ export default function Header({
             <button
               type="button"
               data-testid="header-signout-btn"
-              className="hud-button px-2.5 py-1.5 rounded-lg border border-red-500/30 bg-red-950/20 text-red-300 hover:bg-red-900/40 hover:text-white font-medium text-xs cursor-pointer"
+              className="signout-btn"
               onClick={onLogout}
               title="Sign Out to Public Viewer Mode"
             >
@@ -78,7 +103,7 @@ export default function Header({
           <button
             type="button"
             data-testid="open-login-btn"
-            className="hud-button flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900/60 text-slate-300 hover:border-cyan-500/50 hover:text-cyan-300 font-medium text-xs cursor-pointer"
+            className="officer-login-btn"
             onClick={onOpenLogin}
             title="Open MoES/INCOIS Operational Authentication Portal"
           >
@@ -89,7 +114,7 @@ export default function Header({
 
         <span className="connection">
           <span className="status-dot" aria-hidden="true" />
-          Demo data loaded
+          Live Data
         </span>
         <button className="theme-button" type="button" aria-pressed={theme === 'light'} onClick={onToggleTheme}>
           Light theme

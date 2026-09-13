@@ -125,3 +125,34 @@ class InsituStatusResponse(BaseModel):
     erddap_live_feed: str
     data_centre: str = "INCOIS-DAC"
     timestamp: str
+
+class SensorRegistrationRequest(BaseModel):
+    platform_type: str = Field("moored_buoy", description="Platform type: argo, glider, moored_buoy, or drifter")
+    name: str = Field(..., description="Human-readable sensor label, e.g. INCOIS OMNI Buoy BD09")
+    wmo_id: Optional[str] = Field(None, description="WMO numeric code or platform code")
+    lat: float = Field(..., description="Latitude within Indian Ocean (-30 to 30)")
+    lon: float = Field(..., description="Longitude within Indian Ocean (30 to 120)")
+    agency: Optional[str] = Field("MoES / INCOIS", description="Deploying or operating agency")
+    surface_temp: Optional[float] = Field(28.4, description="Surface water temperature in °C")
+    surface_salinity: Optional[float] = Field(34.8, description="Surface practical salinity in PSU")
+    max_depth: Optional[float] = Field(2000.0, description="Maximum measurement depth in meters")
+    depths: Optional[List[float]] = Field(None, description="Custom depth profile levels")
+    temperature: Optional[List[float]] = Field(None, description="Custom temperature profile readings")
+    salinity: Optional[List[float]] = Field(None, description="Custom salinity profile readings")
+    created_by: Optional[str] = Field("Officer", description="User or officer who registered the sensor")
+
+class CustomSensorSummary(BaseModel):
+    id: str
+    platform_type: str
+    name: str
+    wmo_id: Optional[str] = None
+    lat: float
+    lon: float
+    surface_temp: Optional[float] = None
+    surface_salinity: Optional[float] = None
+    max_depth: float
+    agency: Optional[str] = None
+    created_at: str
+    created_by: Optional[str] = None
+    is_active: bool = True
+

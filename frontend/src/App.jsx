@@ -6,6 +6,8 @@ import ComparisonPanel from './components/ComparisonPanel.jsx';
 import AIAssistantModal from './components/AIAssistantModal.jsx';
 import LoginModal from './components/LoginModal.jsx';
 import DataSourcesModal from './components/DataSourcesModal.jsx';
+import AdminUsersModal from './components/AdminUsersModal.jsx';
+import SensorRegistrationModal from './components/SensorRegistrationModal.jsx';
 import {
   fetchAnomalyField,
   fetchArgoFloats,
@@ -13,7 +15,8 @@ import {
   fetchGliderTransects,
   fetchGliderById,
   fetchCurrentUser,
-  logoutUser
+  logoutUser,
+  fetchCustomSensors
 } from './services/api.js';
 import {
   computeNextStep,
@@ -52,6 +55,10 @@ export default function App() {
   // Phase 15: AI Ocean Assistant Modal state
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isSourcesOpen, setIsSourcesOpen] = useState(false);
+  // MoES/INCOIS Admin & Sensor Management state
+  const [isAdminUsersOpen, setIsAdminUsersOpen] = useState(false);
+  const [isSensorRegisterOpen, setIsSensorRegisterOpen] = useState(false);
+  const [customSensors, setCustomSensors] = useState([]);
   // MoES/INCOIS Operational Authentication & Session state
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -193,15 +200,40 @@ export default function App() {
     }
   }, []);
 
-  // Load Argo floats when layer is enabled
+  const handleSensorRegistered = useCallback((newSensor) => {
+    if (!newSensor) return;
+    setCustomSensors((prev) => [...prev, newSensor]);
+    if (newSensor.platform_type === 'argo') {
+      setArgoFloats((prev) => {
+        if (prev.some((f) => f.id === newSensor.id)) return prev;
+        return [...prev, newSensor];
+      });
+      setShowArgo(true);
+    }
+    setSelectedFloat(newSensor);
+  }, []);
+
+  // Load Argo floats and registered custom sensors when layer is enabled
   useEffect(() => {
     if (!showArgo) return;
 
     let ignore = false;
-    fetchArgoFloats()
-      .then((data) => {
-        if (!ignore && data) {
-          setArgoFloats(data);
+    Promise.all([
+      fetchArgoFloats(),
+      fetchCustomSensors().catch(() => [])
+    ])
+      .then(([argoData, customData]) => {
+        if (!ignore && argoData) {
+          const list = [...argoData];
+          if (Array.isArray(customData)) {
+            setCustomSensors(customData);
+            for (const cs of customData) {
+              if (cs.platform_type === 'argo' && !list.some((item) => item.id === cs.id)) {
+                list.push(cs);
+              }
+            }
+          }
+          setArgoFloats(list);
         }
       })
       .catch((err) => {
@@ -358,6 +390,8 @@ export default function App() {
         onOpenAssistant={() => setIsAssistantOpen(true)}
         onOpenSources={() => setIsSourcesOpen(true)}
         onOpenLogin={() => setIsLoginOpen(true)}
+        onOpenRegisterSensor={() => setIsSensorRegisterOpen(true)}
+        onOpenAdminUsers={() => setIsAdminUsersOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
       />
@@ -365,15 +399,15 @@ export default function App() {
         <div className="workspace-heading flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="eyebrow text-ocean">OCEAN EXPLORATION</p>
-            <h1>Indian Ocean explorer</h1>
-            <p className="muted">Explore a model field, then compare it with sample ocean observations.</p>
+            <h1>Indian Ocean workspace</h1>
+            <p className="muted">Explore numerical model forecasts, in-situ robot sensors, and real-time anomaly detection.</p>
           </div>
-          <span className="phase-label">INTERACTIVE DEMO · 3D MODEL + OBSERVATIONS</span>
+          <span className="phase-label">OPERATIONAL PLATFORM // MOES-INCOIS</span>
         </div>
         <div className="notice" role="status">
           <span className="status-dot" aria-hidden="true" />
           <p>
-            <strong>Start with a variable, depth and time.</strong> Then switch on Argo or glider observations to inspect a profile and compare it with the model field.
+            <strong>3D Earth Globe active.</strong> Start with a variable, depth and time, then switch on Argo floats or gliders to inspect in-situ observation profiles.
           </p>
         </div>
         <div className="dashboard">
@@ -449,9 +483,9 @@ export default function App() {
           />
         </div>
         <footer className="workspace-footer flex flex-wrap justify-between gap-3">
-          <span>Research demonstrator for Indian Ocean data exploration</span>
+          <span>Ministry of Earth Sciences (MoES) <span aria-hidden="true">·</span> INCOIS Ocean Information Services</span>
           <button type="button" className="footer-source-link" onClick={() => setIsSourcesOpen(true)}>
-            Demo ROMS-style field · source directory
+            Demo ROMS-style field · Data Sources & Specifications
           </button>
         </footer>
         <AIAssistantModal
@@ -471,6 +505,18 @@ export default function App() {
           currentUser={currentUser}
           onLoginSuccess={handleLoginSuccess}
           onLogout={handleLogout}
+        />
+        <AdminUsersModal
+          isOpen={isAdminUsersOpen}
+          onClose={() => setIsAdminUsersOpen(false)}
+          currentUser={currentUser}
+          onLoginSuccess={handleLoginSuccess}
+        />
+        <SensorRegistrationModal
+          isOpen={isSensorRegisterOpen}
+          onClose={() => setIsSensorRegisterOpen(false)}
+          onSensorRegistered={handleSensorRegistered}
+          currentUser={currentUser}
         />
       </main>
     </div>
