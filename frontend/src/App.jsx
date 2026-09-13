@@ -63,6 +63,7 @@ export default function App() {
   const [isProbeLoading, setIsProbeLoading] = useState(false);
   const [activeTransect, setActiveTransect] = useState(null);
   const [isClickToProbeActive, setIsClickToProbeActive] = useState(true);
+  const [isFullView, setIsFullView] = useState(false);
 
   // Phase 15: AI Ocean Assistant Modal state
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
@@ -560,7 +561,7 @@ export default function App() {
             <strong>3D Earth Globe active.</strong> Start with a variable, depth and time, then switch on Argo floats or gliders to inspect in-situ observation profiles.
           </p>
         </div>
-        <div className={`dashboard ${isDrawerOpen ? 'has-open-drawer' : 'drawer-closed'}`}>
+        <div className={`dashboard ${isDrawerOpen ? 'has-open-drawer' : 'drawer-closed'} ${isFullView ? 'full-view-mode' : ''}`}>
           <SidebarControls
             selectedVariable={selectedVariable}
             onSelectVariable={setSelectedVariable}
@@ -620,8 +621,11 @@ export default function App() {
             onSelectAnomalyPoint={handleSelectAnomalyPoint}
             viewMode={viewMode}
             probedPoint={probedPoint}
+            probeData={probeData}
             onProbePoint={handleProbePoint}
             activeTransect={activeTransect}
+            isFullView={isFullView}
+            onToggleFullView={() => setIsFullView((v) => !v)}
           />
           <ComparisonPanel
             selectedFloat={selectedFloat}
@@ -640,6 +644,7 @@ export default function App() {
             probedPoint={probedPoint}
             probeData={probeData}
             isProbeLoading={isProbeLoading}
+            onProbePoint={handleProbePoint}
             activeTransect={activeTransect}
             onClearTransect={() => setActiveTransect(null)}
             onCloseDrawer={handleCloseDrawer}

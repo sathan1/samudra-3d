@@ -2,10 +2,18 @@ import React, { useState, useEffect } from 'react';
 import ProfileModal from './ProfileModal.jsx';
 import { fetchProfileCollocation } from '../services/api.js';
 
+export const BASIN_PRESETS = [
+  { name: 'Arabian Sea', lat: 15.0, lon: 68.0, desc: 'Central Basin' },
+  { name: 'Bay of Bengal', lat: 14.0, lon: 88.0, desc: 'East Basin' },
+  { name: 'Equatorial Basin', lat: 3.0, lon: 78.0, desc: 'South Equator' },
+  { name: 'Lakshadweep', lat: 10.5, lon: 72.5, desc: 'West Margin' },
+  { name: 'Andaman Sea', lat: 11.5, lon: 93.0, desc: 'East Shelf' }
+];
+
 /**
  * ComparisonPanel - Right Slide-Out Inspector Drawer (560-600px)
  * Authority: Master Handbook & HUD UI/UX Overhaul Specifications.
- * Slides out ONLY when a point is probed or an in-situ sensor/transect is selected.
+ * Slides out when a point is probed or an in-situ sensor/transect is selected.
  */
 export default function ComparisonPanel({
   selectedFloat = null,
@@ -14,6 +22,7 @@ export default function ComparisonPanel({
   probedPoint = null,
   probeData = null,
   isProbeLoading = false,
+  onProbePoint = null,
   onCloseDrawer = null,
   activeTransect = null,
   onClearTransect = null,
@@ -52,6 +61,9 @@ export default function ComparisonPanel({
   const unit = anomalyVariable === 'temperature' ? '°C' : 'PSU';
 
   const isOpen = Boolean(selectedFloat || probedPoint || activeTransect);
+  const isOutOfBounds = probedPoint && (
+    probedPoint.lat < 0 || probedPoint.lat > 25 || probedPoint.lon < 65 || probedPoint.lon > 95
+  );
 
   return (
     <aside
@@ -62,14 +74,14 @@ export default function ComparisonPanel({
       <div className="drawer-header flex justify-between items-center py-3 px-4 border-b border-slate-700/60 bg-slate-900/80 sticky top-0 z-20 backdrop-blur">
         <div>
           <span className="eyebrow text-[10px] text-cyan-400">
-            {probedPoint ? 'VIRTUAL CTD STATION' : activeTransect ? 'ODV TRANSECT' : 'SENSOR INSPECTION'}
+            {probedPoint ? 'VIRTUAL CTD STATION' : activeTransect ? 'ODV TRANSECT' : selectedFloat ? 'SENSOR INSPECTION' : 'OCEAN DATA NAVIGATOR'}
           </span>
           <h2 id="inspection-heading" className="text-base font-bold text-slate-100 m-0">
             {probedPoint
               ? `Water Column (${probedPoint.lat.toFixed(2)}°N, ${probedPoint.lon.toFixed(2)}°E)`
               : activeTransect
               ? `Vertical Cross-Section (${activeTransect.total_distance_km} km)`
-              : selectedFloat?.name || 'Ocean Inspector'}
+              : selectedFloat?.name || 'Inspection & Collocation'}
           </h2>
         </div>
         <span
@@ -90,12 +102,52 @@ export default function ComparisonPanel({
       </div>
 
       <div className="drawer-body p-4 space-y-4 overflow-y-auto">
+        {/* Standby Location Navigator Card when no point or sensor is probed */}
+        {!probedPoint && !selectedFloat && !activeTransect && (
+          <section className="location-navigator-standby bg-slate-900/60 border border-slate-700/70 rounded-xl p-3.5 space-y-2.5">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-semibold text-cyan-300 flex items-center gap-1.5">
+                <span>📍</span>
+                <span>Interactive Location Probe</span>
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">9-Depth Sounding</span>
+            </div>
+            <p className="text-xs text-slate-300 m-0 leading-relaxed">
+              Click anywhere on the 3D Indian Ocean globe to probe vertical water columns (SST, Salinity, MLD, Thermocline D20, and Cyclone Heat Potential across 0–4000m).
+            </p>
+            <div className="pt-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                Quick Basin Soundings:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {BASIN_PRESETS.map((b) => (
+                  <span
+                    key={b.name}
+                    role="button"
+                    tabIndex={-1}
+                    onClick={() => onProbePoint?.({ lat: b.lat, lon: b.lon })}
+                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-cyan-300 border border-slate-700 text-[11px] font-medium cursor-pointer transition select-none flex items-center gap-1"
+                    title={`Probe ${b.name} (${b.lat}°N, ${b.lon}°E)`}
+                  >
+                    <span className="text-cyan-400">📍</span>
+                    <span>{b.name}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* 1. Probed Point Virtual CTD Section */}
         {probedPoint && (
           <section className="probed-station-section bg-slate-900/60 border border-slate-700/70 rounded-xl p-3.5 space-y-3.5">
             <div className="flex justify-between items-center">
               <span className="text-xs font-semibold text-cyan-300">Virtual CTD Probe Sounding</span>
-              {probeData?.is_land ? (
+              {isOutOfBounds ? (
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-950/60 border border-amber-500/40 text-amber-300 font-bold">
+                  ⚠️ Outside Basin Bounds
+                </span>
+              ) : probeData?.is_land ? (
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-950/60 border border-amber-500/40 text-amber-300 font-bold">
                   ⚠️ Coastal Land Cell
                 </span>
@@ -106,7 +158,33 @@ export default function ComparisonPanel({
               )}
             </div>
 
-            {isProbeLoading ? (
+            {isOutOfBounds ? (
+              <div className="space-y-2 text-xs">
+                <p className="text-slate-300 m-0">
+                  Station coordinates <strong>{probedPoint.lat.toFixed(2)}°N, {probedPoint.lon.toFixed(2)}°E</strong> lie outside the Northern Indian Ocean simulation domain (0°–25°N, 65°–95°E).
+                </p>
+                <div className="pt-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                    Probe Active Regional Basins:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {BASIN_PRESETS.map((b) => (
+                      <span
+                        key={b.name}
+                        role="button"
+                        tabIndex={-1}
+                        onClick={() => onProbePoint?.({ lat: b.lat, lon: b.lon })}
+                        className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-[11px] font-medium cursor-pointer transition select-none flex items-center gap-1"
+                      >
+                        <span>📍</span>
+                        <span>{b.name}</span>
+                        <span className="text-[9.5px] text-slate-400">({b.lat}°N, {b.lon}°E)</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : isProbeLoading ? (
               <div className="py-8 text-center text-slate-400 animate-pulse text-xs">
                 ⟳ Slicing 3D water column across all 9 depth levels...
               </div>

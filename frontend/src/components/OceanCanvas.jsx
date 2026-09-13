@@ -90,8 +90,11 @@ export default function OceanCanvas({
   onSelectAnomalyPoint = null,
   viewMode = 'globe',
   probedPoint = null,
+  probeData = null,
   onProbePoint = null,
-  activeTransect = null
+  activeTransect = null,
+  isFullView = false,
+  onToggleFullView = null
 }) {
   const containerRef = useRef(null);
   const controlsRef = useRef(null);
@@ -106,6 +109,8 @@ export default function OceanCanvas({
   const particleSystemRef = useRef(null);
   const currentsDataRef = useRef(null);
   const requestedDepthRef = useRef(requestedDepth);
+
+  const [hoveredCoord, setHoveredCoord] = useState(null);
 
   const viewModeRef = useRef(viewMode);
   useEffect(() => {
@@ -679,7 +684,8 @@ export default function OceanCanvas({
           return;
         }
       } else if (viewModeRef.current === 'globe' && earthMeshRef.current) {
-        const hits = raycaster.intersectObject(earthMeshRef.current);
+        const targetMeshes = [scalarMeshRef.current, earthMeshRef.current].filter(Boolean);
+        const hits = raycaster.intersectObjects(targetMeshes, false);
         if (hits.length > 0) {
           const hit = hits[0];
           const geo = cartesianToGeo(hit.point.x, hit.point.y, hit.point.z);
@@ -691,8 +697,50 @@ export default function OceanCanvas({
       }
     };
 
+    // Hover coordinate tracker for real-time cursor feedback
+    const handlePointerMove = (e) => {
+      if (!camera || !renderer) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+
+      if (viewModeRef.current === 'block' && oceanBlockGroupRef.current) {
+        const hits = raycaster.intersectObjects(oceanBlockGroupRef.current.children, true);
+        if (hits.length > 0) {
+          const geo = blockToGeo(hits[0].point.x, hits[0].point.z);
+          setHoveredCoord({
+            lat: Math.round(geo.lat * 100) / 100,
+            lon: Math.round(geo.lon * 100) / 100
+          });
+          return;
+        }
+      } else if (viewModeRef.current === 'globe' && earthMeshRef.current) {
+        const targetMeshes = [scalarMeshRef.current, earthMeshRef.current].filter(Boolean);
+        const hits = raycaster.intersectObjects(targetMeshes, false);
+        if (hits.length > 0) {
+          const geo = cartesianToGeo(hits[0].point.x, hits[0].point.y, hits[0].point.z);
+          setHoveredCoord({
+            lat: Math.round(geo.lat * 100) / 100,
+            lon: Math.round(geo.lon * 100) / 100
+          });
+          return;
+        }
+      }
+      setHoveredCoord(null);
+    };
+
+    const handlePointerLeave = () => {
+      setHoveredCoord(null);
+    };
+
     renderer.domElement.addEventListener('pointerdown', handlePointerDown);
     renderer.domElement.addEventListener('pointerup', handlePointerUp);
+    renderer.domElement.addEventListener('pointermove', handlePointerMove);
+    renderer.domElement.addEventListener('pointerleave', handlePointerLeave);
 
     // Animation & Performance Loop
     let animationFrameId;
@@ -785,6 +833,8 @@ export default function OceanCanvas({
 
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('pointerup', handlePointerUp);
+      renderer.domElement.removeEventListener('pointermove', handlePointerMove);
+      renderer.domElement.removeEventListener('pointerleave', handlePointerLeave);
 
       if (argoMarkersGroupRef.current) {
         disposeArgoMarkers(argoMarkersGroupRef.current);
@@ -950,7 +1000,7 @@ export default function OceanCanvas({
   }, [showAnomalyField, anomalyPoints]);
 
   return (
-    <section className="panel viewport relative flex flex-col" aria-labelledby="viewport-heading">
+    <section className={`panel viewport relative flex flex-col ${isFullView ? 'full-view-active' : ''}`} aria-labelledby="viewport-heading">
       <div className="viewport-top flex flex-wrap justify-between items-center gap-3">
         <div>
           <span className="eyebrow text-ocean">SPATIAL OBSERVATORY</span>
@@ -991,7 +1041,7 @@ export default function OceanCanvas({
           </p>
         </div>
       ) : (
-        <div className="viewport-canvas-container relative flex-1 min-h-[460px] w-full overflow-hidden">
+        <div className="viewport-canvas-container relative flex-1 min-h-[520px] w-full overflow-hidden">
           <div
             ref={containerRef}
             className="globe-canvas-wrapper absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"
@@ -1008,6 +1058,14 @@ export default function OceanCanvas({
           {/* Viewport Floating HUD */}
           <div className="viewport-hud pointer-events-none absolute top-2 left-2 right-2 flex flex-wrap justify-between items-start gap-1.5 text-xs">
             <div className="flex flex-col gap-1 pointer-events-auto max-w-full">
+              {hoveredCoord && (
+                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-cyan-300 shadow bg-slate-900/90 border border-cyan-500/60 max-w-full">
+                  <span className="text-cyan-400 font-bold">📍 CURSOR:</span>{' '}
+                  {hoveredCoord.lat >= 0 ? `${hoveredCoord.lat.toFixed(2)}°N` : `${Math.abs(hoveredCoord.lat).toFixed(2)}°S`},{' '}
+                  {hoveredCoord.lon >= 0 ? `${hoveredCoord.lon.toFixed(2)}°E` : `${Math.abs(hoveredCoord.lon).toFixed(2)}°W`}{' '}
+                  · <span className="text-slate-300">Click to probe data</span>
+                </div>
+              )}
               {viewMode === 'block' && (
                 <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-cyan-300 shadow bg-slate-900/90 border border-cyan-700 max-w-full">
                   <span className="text-cyan-400 font-semibold">VIEW:</span> Regional 3D Ocean Volume Block (0-25°N, 65-95°E)
@@ -1096,12 +1154,49 @@ export default function OceanCanvas({
               >
                 ⟲ Reset View
               </button>
+              {onToggleFullView && (
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  onClick={onToggleFullView}
+                  className="hud-button rounded px-2.5 py-1 text-[11px] font-sans flex items-center gap-1 transition cursor-pointer select-none border border-slate-700 bg-slate-800/90 hover:bg-slate-700 text-slate-200"
+                  title={isFullView ? 'Standard View' : 'Full View Globe'}
+                  data-testid="toggle-full-view-btn"
+                >
+                  <span>{isFullView ? '◱ Standard View' : '⛶ Full View Globe'}</span>
+                </span>
+              )}
             </div>
           </div>
 
+          {/* Floating Probed Station Chip on Canvas */}
+          {probedPoint && (
+            <div className="probed-floating-chip pointer-events-auto absolute bottom-10 left-1/2 -translate-x-1/2 z-10 bg-slate-900/95 backdrop-blur border border-sky-500/60 rounded-full px-3.5 py-1.5 shadow-2xl flex items-center gap-2.5 text-xs text-white">
+              <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping inline-block" />
+              <span className="font-mono text-xs font-bold text-sky-300">
+                📍 {probedPoint.lat}°N, {probedPoint.lon}°E
+              </span>
+              {probeData && (
+                <span className="text-slate-300 font-mono text-[11px] hidden sm:inline">
+                  {probeData.sst !== null && probeData.sst !== undefined ? `SST: ${probeData.sst}°C` : ''}
+                  {probeData.mld !== null && probeData.mld !== undefined ? ` · MLD: ${probeData.mld}m` : ''}
+                </span>
+              )}
+              <span
+                role="button"
+                tabIndex={-1}
+                onClick={() => onProbePoint?.(null)}
+                className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer select-none ml-1"
+                title="Clear probe station"
+              >
+                ✕
+              </span>
+            </div>
+          )}
+
           {/* Controls Usage Hint */}
           <div className="viewport-controls-hint pointer-events-none absolute bottom-3 left-3 bg-slate-900/75 backdrop-blur border border-slate-800 rounded px-2 py-0.5 text-[10px] text-slate-400 font-mono">
-            Rotate: Left Click + Drag · Pan: Right Click · Zoom: Scroll Wheel
+            Rotate: Left Click + Drag · Pan: Right Click · Zoom: Scroll Wheel · Click anywhere to probe data
           </div>
         </div>
       )}
