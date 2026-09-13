@@ -89,7 +89,19 @@ export function buildScalarFieldGeometry(sliceData, options = {}) {
           verticalExaggeration
         });
         const t = (val - vMin) / vRange;
-        const rgb = sampleColormap(palette, t);
+        let rgb = sampleColormap(palette, t);
+
+        // Scientific contour isoline demarcation (1°C for temp, 0.25 PSU for salinity)
+        const isoStep = variable === 'salinity' ? 0.25 : 1.0;
+        const isoDist = Math.abs(val / isoStep - Math.round(val / isoStep));
+        if (isoDist < 0.075) {
+          rgb = [
+            Math.max(0, rgb[0] * 0.68),
+            Math.max(0, rgb[1] * 0.68),
+            Math.max(0, rgb[2] * 0.68)
+          ];
+        }
+
         row.push({
           valid: true,
           pos: [cart.x, cart.y, cart.z],

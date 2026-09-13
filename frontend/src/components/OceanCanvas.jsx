@@ -35,6 +35,18 @@ import {
   createTransectCurtainMesh,
   blockToGeo
 } from '../utils/oceanVolumeBlock.js';
+import {
+  createGraticuleMesh,
+  createBasinLabelsGroup,
+  disposeGraticuleGroup
+} from '../utils/graticules.js';
+
+export const BASIN_ZOOM_PRESETS = [
+  { id: 'arabian', name: 'Arabian Sea', lat: 15.0, lon: 68.0, dist: 145 },
+  { id: 'bob', name: 'Bay of Bengal', lat: 14.0, lon: 88.0, dist: 145 },
+  { id: 'equator', name: 'Equatorial Basin', lat: 2.0, lon: 78.0, dist: 165 },
+  { id: 'global', name: 'Full Basin', lat: 5.0, lon: 75.0, dist: 220 }
+];
 
 /**
  * Checks if WebGL is available in the current browser runtime.
@@ -111,6 +123,11 @@ export default function OceanCanvas({
   const requestedDepthRef = useRef(requestedDepth);
 
   const [hoveredCoord, setHoveredCoord] = useState(null);
+  const [showGraticules, setShowGraticules] = useState(true);
+  const [showBasinLabels, setShowBasinLabels] = useState(true);
+
+  const graticulesGroupRef = useRef(null);
+  const basinLabelsGroupRef = useRef(null);
 
   const viewModeRef = useRef(viewMode);
   useEffect(() => {
@@ -162,6 +179,19 @@ export default function OceanCanvas({
     onSelectAnomalyPointRef.current = onSelectAnomalyPoint;
   }, [onSelectAnomalyPoint]);
 
+  // Keep graticules and labels visibility synced with state
+  useEffect(() => {
+    if (graticulesGroupRef.current) {
+      graticulesGroupRef.current.visible = showGraticules && viewMode === 'globe';
+    }
+  }, [showGraticules, viewMode]);
+
+  useEffect(() => {
+    if (basinLabelsGroupRef.current) {
+      basinLabelsGroupRef.current.visible = showBasinLabels && viewMode === 'globe';
+    }
+  }, [showBasinLabels, viewMode]);
+
   const [webglAvailable] = useState(() => checkWebGLAvailability());
   const [rendererStats, setRendererStats] = useState({ fps: 0, drawCalls: 0 });
   const [retryKey, setRetryKey] = useState(0);
@@ -187,6 +217,48 @@ export default function OceanCanvas({
       }
       controlsRef.current.update();
     }
+  };
+
+  // Smooth camera basin zoom navigation
+  const handleZoomBasin = (preset) => {
+    if (!cameraRef.current || !controlsRef.current || viewMode !== 'globe') return;
+    const targetPos = geoToCartesian(preset.lat, preset.lon, 0, {
+      globeRadius: preset.dist
+    });
+    const startPos = cameraRef.current.position.clone();
+    const startTime = window.performance.now();
+    const duration = 650;
+
+    const animateCam = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1.0, elapsed / duration);
+      const ease = 1 - Math.pow(1 - progress, 3);
+
+      cameraRef.current.position.lerpVectors(startPos, targetPos, ease);
+      controlsRef.current.target.set(0, 0, 0);
+      controlsRef.current.update();
+
+      if (progress < 1.0) {
+        window.requestAnimationFrame(animateCam);
+      }
+    };
+    window.requestAnimationFrame(animateCam);
+  };
+
+  const handleZoomIn = () => {
+    if (!cameraRef.current || !controlsRef.current) return;
+    const len = cameraRef.current.position.length();
+    const newLen = Math.max(controlsRef.current.minDistance + 8, len * 0.82);
+    cameraRef.current.position.setLength(newLen);
+    controlsRef.current.update();
+  };
+
+  const handleZoomOut = () => {
+    if (!cameraRef.current || !controlsRef.current) return;
+    const len = cameraRef.current.position.length();
+    const newLen = Math.min(controlsRef.current.maxDistance - 10, len * 1.20);
+    cameraRef.current.position.setLength(newLen);
+    controlsRef.current.update();
   };
 
   const handleRetry = () => {
@@ -616,6 +688,18 @@ export default function OceanCanvas({
     scene.add(transectGroup);
     transectGroupRef.current = transectGroup;
 
+    // 3D Spherical Coordinate Graticules (Parallels & Meridians)
+    const graticulesMesh = createGraticuleMesh({ globeRadius: DEFAULT_GLOBE_RADIUS });
+    graticulesMesh.visible = showGraticules && viewModeRef.current === 'globe';
+    scene.add(graticulesMesh);
+    graticulesGroupRef.current = graticulesMesh;
+
+    // 3D Ocean Geographic Feature & Basin Labels
+    const basinLabelsGroup = createBasinLabelsGroup({ globeRadius: DEFAULT_GLOBE_RADIUS });
+    basinLabelsGroup.visible = showBasinLabels && viewModeRef.current === 'globe';
+    scene.add(basinLabelsGroup);
+    basinLabelsGroupRef.current = basinLabelsGroup;
+
     // Pointer events for drag vs click discrimination
     const handlePointerDown = (e) => {
       pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
@@ -868,6 +952,18 @@ export default function OceanCanvas({
       if (transectGroupRef.current) {
         scene.remove(transectGroupRef.current);
         transectGroupRef.current = null;
+      }
+
+      if (graticulesGroupRef.current) {
+        disposeGraticuleGroup(graticulesGroupRef.current);
+        scene.remove(graticulesGroupRef.current);
+        graticulesGroupRef.current = null;
+      }
+
+      if (basinLabelsGroupRef.current) {
+        disposeGraticuleGroup(basinLabelsGroupRef.current);
+        scene.remove(basinLabelsGroupRef.current);
+        basinLabelsGroupRef.current = null;
       }
 
       controls.dispose();
@@ -1145,7 +1241,67 @@ export default function OceanCanvas({
               )}
             </div>
 
-            <div className="flex gap-2 pointer-events-auto">
+            <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto">
+              {/* Zoom In / Out Buttons */}
+              <div className="flex items-center rounded border border-slate-700 bg-slate-800/90 overflow-hidden">
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  onClick={handleZoomIn}
+                  className="px-2 py-1 text-xs font-mono font-bold hover:bg-slate-700 text-slate-200 cursor-pointer select-none border-r border-slate-700"
+                  title="Zoom In"
+                  data-testid="zoom-in-btn"
+                >
+                  +
+                </span>
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  onClick={handleZoomOut}
+                  className="px-2 py-1 text-xs font-mono font-bold hover:bg-slate-700 text-slate-200 cursor-pointer select-none"
+                  title="Zoom Out"
+                  data-testid="zoom-out-btn"
+                >
+                  −
+                </span>
+              </div>
+
+              {/* 3D Coordinate Graticules Toggle */}
+              {viewMode === 'globe' && (
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  onClick={() => setShowGraticules((v) => !v)}
+                  className={`hud-button rounded px-2 py-1 text-[11px] font-sans flex items-center gap-1 transition cursor-pointer select-none border ${
+                    showGraticules
+                      ? 'border-sky-500 bg-sky-950/60 text-sky-300'
+                      : 'border-slate-700 bg-slate-800/90 text-slate-400'
+                  }`}
+                  title="Toggle 3D Coordinate Graticules (Latitude & Longitude lines)"
+                  data-testid="toggle-graticules-btn"
+                >
+                  <span>🌐 Grid</span>
+                </span>
+              )}
+
+              {/* 3D Ocean Basin Labels Toggle */}
+              {viewMode === 'globe' && (
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  onClick={() => setShowBasinLabels((v) => !v)}
+                  className={`hud-button rounded px-2 py-1 text-[11px] font-sans flex items-center gap-1 transition cursor-pointer select-none border ${
+                    showBasinLabels
+                      ? 'border-amber-500 bg-amber-950/60 text-amber-300'
+                      : 'border-slate-700 bg-slate-800/90 text-slate-400'
+                  }`}
+                  title="Toggle Ocean Basin & Ridge Labels"
+                  data-testid="toggle-basin-labels-btn"
+                >
+                  <span>🏷️ Basins</span>
+                </span>
+              )}
+
               <button
                 type="button"
                 onClick={handleResetCamera}
@@ -1198,6 +1354,28 @@ export default function OceanCanvas({
           <div className="viewport-controls-hint pointer-events-none absolute bottom-3 left-3 bg-slate-900/75 backdrop-blur border border-slate-800 rounded px-2 py-0.5 text-[10px] text-slate-400 font-mono">
             Rotate: Left Click + Drag · Pan: Right Click · Zoom: Scroll Wheel · Click anywhere to probe data
           </div>
+
+          {/* Quick Basin Zoom Presets Toolbar */}
+          {viewMode === 'globe' && (
+            <div className="ocean-basin-zoom-bar pointer-events-auto absolute bottom-3 right-3 flex items-center gap-1 bg-slate-900/85 backdrop-blur border border-slate-700/70 rounded-lg p-1 text-[11px] shadow-lg">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 hidden md:inline">
+                Basin Zoom:
+              </span>
+              {BASIN_ZOOM_PRESETS.map((preset) => (
+                <span
+                  key={preset.id}
+                  role="button"
+                  tabIndex={-1}
+                  onClick={() => handleZoomBasin(preset)}
+                  className="px-2 py-0.5 rounded text-[10.5px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-sky-300 border border-slate-700/80 transition cursor-pointer select-none"
+                  title={`Focus on ${preset.name} (${preset.lat}°N, ${preset.lon}°E)`}
+                  data-testid={`zoom-basin-${preset.id}`}
+                >
+                  {preset.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

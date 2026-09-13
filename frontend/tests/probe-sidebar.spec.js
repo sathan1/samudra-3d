@@ -1,9 +1,19 @@
-﻿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 const evidenceDir = path.resolve('..', 'docs', 'evidence', 'probe-sidebar');
 mkdirSync(evidenceDir, { recursive: true });
+
+async function safeScreenshot(page, filename) {
+  const filepath = path.join(evidenceDir, filename);
+  try {
+    await page.screenshot({ path: filepath, fullPage: true });
+  } catch {
+    await new Promise((res) => setTimeout(res, 300));
+    await page.screenshot({ path: filepath, fullPage: true }).catch(() => {});
+  }
+}
 
 test.describe('Full View Globe Navigation & Location Probe Sidebar', () => {
   test.beforeEach(async ({ page }) => {
@@ -42,7 +52,7 @@ test.describe('Full View Globe Navigation & Location Probe Sidebar', () => {
     await expect(floatingChip).toContainText('15°N, 68°E');
 
     // Screenshot 1: Probed Arabian Sea Water Column
-    await page.screenshot({ path: path.join(evidenceDir, '01-arabian-sea-probe-sidebar.png'), fullPage: true });
+    await safeScreenshot(page, '01-arabian-sea-probe-sidebar.png');
 
     // 5. Close the drawer
     const closeBtn = page.locator('[data-testid="close-inspector-drawer-btn"]');
@@ -51,7 +61,7 @@ test.describe('Full View Globe Navigation & Location Probe Sidebar', () => {
     await expect(page.locator('.location-navigator-standby')).toBeVisible();
 
     // Screenshot 2: Closed drawer returning to expansive globe navigation
-    await page.screenshot({ path: path.join(evidenceDir, '02-closed-drawer-globe-navigate.png'), fullPage: true });
+    await safeScreenshot(page, '02-closed-drawer-globe-navigate.png');
   });
 
   test('2. Full View Globe toggle activates cinema-mode and restores docked view', async ({ page }) => {
@@ -70,7 +80,7 @@ test.describe('Full View Globe Navigation & Location Probe Sidebar', () => {
     await expect(page.locator('aside.inspection')).not.toBeVisible();
 
     // Screenshot 3: Full View Globe mode
-    await page.screenshot({ path: path.join(evidenceDir, '03-full-view-globe-cinema-mode.png'), fullPage: true });
+    await safeScreenshot(page, '03-full-view-globe-cinema-mode.png');
 
     // Click to restore standard docked view
     await fullViewBtn.click();
@@ -80,7 +90,7 @@ test.describe('Full View Globe Navigation & Location Probe Sidebar', () => {
     await expect(fullViewBtn).toHaveText('⛶ Full View Globe');
 
     // Screenshot 4: Restored standard docked view
-    await page.screenshot({ path: path.join(evidenceDir, '04-restored-standard-view.png'), fullPage: true });
+    await safeScreenshot(page, '04-restored-standard-view.png');
   });
 
   test('3. Canvas click raycast drops probe and updates sidebar', async ({ page }) => {
@@ -100,6 +110,6 @@ test.describe('Full View Globe Navigation & Location Probe Sidebar', () => {
     await expect(chipOrSection.first()).toBeVisible({ timeout: 5000 });
 
     // Screenshot 5: Click-to-probe on 3D Globe
-    await page.screenshot({ path: path.join(evidenceDir, '05-click-to-probe-globe-interaction.png'), fullPage: true });
+    await safeScreenshot(page, '05-click-to-probe-globe-interaction.png');
   });
 });
