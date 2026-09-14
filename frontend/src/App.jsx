@@ -3,6 +3,7 @@ import Header from './components/Header.jsx';
 import SidebarControls from './components/SidebarControls.jsx';
 import OceanCanvas from './components/OceanCanvas.jsx';
 import ComparisonPanel from './components/ComparisonPanel.jsx';
+import ModelComparisonModal from './components/ModelComparisonModal.jsx';
 import AIAssistantModal from './components/AIAssistantModal.jsx';
 import LoginModal from './components/LoginModal.jsx';
 import DataSourcesModal from './components/DataSourcesModal.jsx';
@@ -65,6 +66,7 @@ export default function App() {
   const [activeTransect, setActiveTransect] = useState(null);
   const [isClickToProbeActive, setIsClickToProbeActive] = useState(true);
   const [isFullView, setIsFullView] = useState(false);
+  const [isComparisonOpen, setIsComparisonOpen] = useState(false);
 
   // Phase 15: AI Ocean Assistant Modal state
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
@@ -627,6 +629,7 @@ export default function App() {
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           onApplyPreset={handleApplyPreset}
+          onOpenComparison={() => setIsComparisonOpen(true)}
         />
         <AuthGate onLoginSuccess={handleLoginSuccess} theme={theme} />
         <footer className="workspace-footer flex flex-wrap justify-between gap-3 px-6 py-4 border-t border-slate-800 text-xs">
@@ -666,6 +669,7 @@ export default function App() {
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onApplyPreset={handleApplyPreset}
+        onOpenComparison={() => setIsComparisonOpen(true)}
       />
       <main id="workspace" tabIndex={-1} className="workspace">
         <div className="workspace-heading flex flex-wrap items-end justify-between gap-4">
@@ -717,6 +721,7 @@ export default function App() {
             isClickToProbeActive={isClickToProbeActive}
             onToggleClickToProbe={setIsClickToProbeActive}
             onTriggerSampleTransect={handleTriggerSampleTransect}
+            onOpenComparison={() => setIsComparisonOpen(true)}
           />
           <OceanCanvas
             selectedVariable={selectedVariable}
@@ -770,6 +775,7 @@ export default function App() {
             activeTransect={activeTransect}
             onClearTransect={() => setActiveTransect(null)}
             onCloseDrawer={handleCloseDrawer}
+            onOpenComparison={() => setIsComparisonOpen(true)}
           />
         </div>
         <footer className="workspace-footer flex flex-wrap justify-between gap-3">
@@ -786,6 +792,24 @@ export default function App() {
             selectedVariable,
             requestedDepth,
             timeIndex
+          }}
+        />
+        <ModelComparisonModal
+          isOpen={isComparisonOpen}
+          onClose={() => setIsComparisonOpen(false)}
+          argoFloats={argoFloats}
+          gliderTransects={gliderTransects}
+          selectedFloat={selectedFloat}
+          showAnomalyField={showAnomalyField}
+          onToggleAnomalyField={setShowAnomalyField}
+          onFocusFloat={(platform) => {
+            if (platform?.type === 'glider' || platform?.waypoints) {
+              setSelectedGlider(platform);
+              setShowGliders(true);
+            } else {
+              setSelectedFloat(platform);
+              setShowArgo(true);
+            }
           }}
         />
         <DataSourcesModal isOpen={isSourcesOpen} onClose={() => setIsSourcesOpen(false)} />

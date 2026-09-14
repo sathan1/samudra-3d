@@ -54,7 +54,8 @@ export default function SidebarControls({
   onSelectGliderId = null,
   isClickToProbeActive = false,
   onToggleClickToProbe = null,
-  onTriggerSampleTransect = null
+  onTriggerSampleTransect = null,
+  onOpenComparison = null
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -108,6 +109,20 @@ export default function SidebarControls({
                 data-testid="load-transect-btn"
               >
                 <span>ODV Transect</span>
+              </span>
+            </div>
+
+            <div className="pt-0.5">
+              <span
+                role="button"
+                tabIndex={-1}
+                className="w-full py-1.5 px-2 rounded font-semibold border text-xs flex items-center justify-center gap-1.5 bg-sky-950/70 border-sky-600/50 hover:bg-sky-900 text-sky-300 transition cursor-pointer select-none shadow-sm"
+                onClick={() => onOpenComparison?.()}
+                title="Open Model Prediction vs Observation Comparison Suite"
+                data-testid="sidebar-compare-btn"
+              >
+                <span>📊</span>
+                <span>Compare Model vs In-Situ</span>
               </span>
             </div>
 

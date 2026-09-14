@@ -33,7 +33,8 @@ export default function ComparisonPanel({
   anomalyThreshold = 0.5,
   onChangeAnomalyThreshold = null,
   anomalyData = null,
-  onSelectAnomalyPoint = null
+  onSelectAnomalyPoint = null,
+  onOpenComparison = null
 }) {
   const [internalCollocation, setInternalCollocation] = useState(null);
 
@@ -495,9 +496,23 @@ export default function ComparisonPanel({
 
         {/* 4. Model vs Observation 4D Collocation Summary */}
         <section className="comparison bg-slate-900/60 border border-slate-700/70 rounded-xl p-3.5 space-y-2" aria-labelledby="comparison-heading" data-testid="model-comparison-summary">
-          <h3 id="comparison-heading" className="text-xs font-bold text-slate-200 uppercase tracking-wide m-0">
-            Model vs Observation
-          </h3>
+          <div className="flex justify-between items-center">
+            <h3 id="comparison-heading" className="text-xs font-bold text-slate-200 uppercase tracking-wide m-0">
+              Model vs Observation
+            </h3>
+            {onOpenComparison && (
+              <span
+                role="button"
+                tabIndex={-1}
+                data-testid="open-full-comparison-modal-btn"
+                onClick={() => onOpenComparison()}
+                className="text-[10px] px-2 py-0.5 rounded font-bold bg-sky-950/70 border border-sky-500/50 text-sky-300 hover:bg-sky-900/80 cursor-pointer transition select-none flex items-center gap-1"
+                title="Open dedicated model prediction vs in-situ observation comparison suite"
+              >
+                <span>📊 Full Suite ↗</span>
+              </span>
+            )}
+          </div>
           {selectedFloat && selectedFloat.has_observations === false ? (
             <>
               <span className="subtle-tag" style={{ background: 'var(--field)', color: '#fbbf24', fontWeight: 600 }}>
@@ -542,6 +557,19 @@ export default function ComparisonPanel({
                   {activeCollocation.model_health} (RMSE {tempSummary?.rmse ?? 'N/A'}°C)
                 </strong>
               </div>
+              {onOpenComparison && (
+                <div className="pt-2">
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    data-testid="comparison-launch-suite-btn"
+                    onClick={() => onOpenComparison()}
+                    className="w-full py-1.5 px-2 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/40 text-sky-300 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition select-none"
+                  >
+                    <span>⚡ Run & Compare Model Predictions ↗</span>
+                  </span>
+                </div>
+              )}
             </>
           ) : (
             <>

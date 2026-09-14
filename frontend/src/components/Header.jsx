@@ -13,7 +13,8 @@ export default function Header({
   onNavigate = null,
   viewMode = 'globe',
   onViewModeChange = null,
-  onApplyPreset = null
+  onApplyPreset = null,
+  onOpenComparison = null
 }) {
   const isAdmin = currentUser?.role === 'ADMIN';
 
@@ -117,6 +118,22 @@ export default function Header({
           title="Open Grounded AI Ocean Assistant (Alt+A)"
         >
           <span>AI Ocean Assistant</span>
+        </button>
+
+        <button
+          type="button"
+          data-testid="header-compare-btn"
+          className="header-action-btn compare-btn"
+          onClick={onOpenComparison}
+          title="Open Model Prediction vs Observation Comparison Suite"
+          style={{
+            backgroundColor: 'rgba(2, 132, 199, 0.15)',
+            border: '1px solid #0284c7',
+            color: '#38bdf8',
+            fontWeight: 600
+          }}
+        >
+          <span>📊 Compare Prediction vs Obs</span>
         </button>
 
         <button
