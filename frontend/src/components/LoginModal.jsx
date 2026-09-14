@@ -120,7 +120,7 @@ export default function LoginModal({
               fontSize: '12px'
             }}
           >
-            ?
+            ✕
           </button>
         </div>
 

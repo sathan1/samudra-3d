@@ -105,10 +105,25 @@ test.describe('MoES/INCOIS Operational Authentication & RBAC Administration Suit
     });
     await page.reload();
 
-    // 1. Verify AuthGate is displayed
+    // 1. Verify AuthGate is displayed with zero header or footer
     const authGate = page.locator('[data-testid="auth-gate"]');
     await expect(authGate).toBeVisible();
     await expect(authGate).toContainText('SAMUDRA-3D');
+    await expect(page.locator('header')).toHaveCount(0);
+    await expect(page.locator('footer.workspace-footer')).toHaveCount(0);
+    await expect(page.locator('[data-testid="auth-theme-toggle-btn"]')).toBeVisible();
+
+    // Capture clean dark mode login screenshot without header/footer
+    await page.screenshot({ path: 'C:/Users/Sathandhurkes/.gemini/antigravity/brain/a96cc5d9-f0ab-4fcb-b70b-ce2e0a9071d5/evidence/auth-and-light-theme/01-auth-gate-dark.png' });
+
+    // Toggle to light mode on login gate, verify and capture clean light mode login screenshot
+    await page.click('[data-testid="auth-theme-toggle-btn"]');
+    await expect(page.locator('header')).toHaveCount(0);
+    await expect(page.locator('footer.workspace-footer')).toHaveCount(0);
+    await page.screenshot({ path: 'C:/Users/Sathandhurkes/.gemini/antigravity/brain/a96cc5d9-f0ab-4fcb-b70b-ce2e0a9071d5/evidence/auth-and-light-theme/02-auth-gate-light.png' });
+
+    // Toggle back to dark
+    await page.click('[data-testid="auth-theme-toggle-btn"]');
 
     // 2. Verify 3D ocean canvas and workspace are completely blocked/unmounted
     const canvas = page.locator('canvas');

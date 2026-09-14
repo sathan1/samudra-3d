@@ -281,7 +281,7 @@ export default function AdminPortal({ currentUser, authToken, onNavigate, onLogo
             onClick={() => onNavigate?.('/app')}
             style={{ padding: '6px 12px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#38bdf8', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <span>?</span>
+            <span>←</span>
             <span>Ocean Workspace</span>
           </button>
           <div>
@@ -296,7 +296,7 @@ export default function AdminPortal({ currentUser, authToken, onNavigate, onLogo
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ textAlign: 'right' }}>
             <span style={{ fontSize: '13px', fontWeight: 600, color: '#f8fafc', display: 'block' }}>{currentUser.display_name}</span>
-            <span style={{ fontSize: '11px', color: '#38bdf8' }}>{currentUser.role} ? {currentUser.organization}</span>
+            <span style={{ fontSize: '11px', color: '#38bdf8' }}>{currentUser.role} · {currentUser.organization}</span>
           </div>
           <button
             type="button"
@@ -356,8 +356,8 @@ export default function AdminPortal({ currentUser, authToken, onNavigate, onLogo
           }}
         >
           <span>{statusMsg.text}</span>
-          <button type="button" onClick={() => setStatusMsg({ text: '', isError: false })} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '13px' }}>
-            ?
+          <button type="button" onClick={() => setStatusMsg({ text: '', isError: false })} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: '13px' }} title="Dismiss notification">
+            ✕
           </button>
         </div>
       )}
@@ -398,13 +398,13 @@ export default function AdminPortal({ currentUser, authToken, onNavigate, onLogo
               <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 600, color: '#f8fafc' }}>Quick Administrative Actions</h3>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                 <button type="button" onClick={() => setActiveTab('users')} style={{ padding: '8px 14px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#f8fafc', fontSize: '12px', cursor: 'pointer' }}>
-                  Manage Officer Accounts ?
+                  Manage Officer Accounts →
                 </button>
                 <button type="button" onClick={() => setActiveTab('sensors')} style={{ padding: '8px 14px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#f8fafc', fontSize: '12px', cursor: 'pointer' }}>
-                  Deploy / Decommission Sensors ?
+                  Deploy / Decommission Sensors →
                 </button>
                 <button type="button" onClick={() => setActiveTab('audit_logs')} style={{ padding: '8px 14px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#f8fafc', fontSize: '12px', cursor: 'pointer' }}>
-                  Inspect Audit Logs ?
+                  Inspect Audit Logs →
                 </button>
               </div>
             </div>

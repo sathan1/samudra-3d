@@ -6,7 +6,7 @@ import { loginUser } from '../services/api';
  * Single streamlined login for all users (officers, admins, scientists, analysts).
  * Inputs start empty with zero auto-loaded credentials or unnecessary descriptions.
  */
-export default function AuthGate({ onLoginSuccess }) {
+export default function AuthGate({ onLoginSuccess, theme = 'dark', onToggleTheme = null }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +38,7 @@ export default function AuthGate({ onLoginSuccess }) {
 
   return (
     <div
-      className="auth-gate-container flex min-h-screen items-center justify-center p-4 sm:p-6"
+      className="auth-gate-container relative flex min-h-screen w-full items-center justify-center p-4 sm:p-6"
       data-testid="auth-gate"
       style={{
         backgroundColor: 'var(--bg)',
@@ -46,6 +46,23 @@ export default function AuthGate({ onLoginSuccess }) {
         fontFamily: 'Inter, system-ui, sans-serif'
       }}
     >
+      {onToggleTheme && (
+        <button
+          type="button"
+          onClick={onToggleTheme}
+          data-testid="auth-theme-toggle-btn"
+          className="absolute top-4 right-4 px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-sm hover:opacity-80"
+          style={{
+            backgroundColor: 'var(--panel)',
+            borderColor: 'var(--border)',
+            color: 'var(--text)'
+          }}
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        >
+          <span>{theme === 'dark' ? '☀️' : '🌙'}</span>
+          <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+        </button>
+      )}
       <div
         className="auth-card w-full max-w-md rounded-xl border p-6 sm:p-8 shadow-2xl"
         style={{

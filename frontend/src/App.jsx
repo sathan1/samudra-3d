@@ -614,37 +614,11 @@ export default function App() {
   // Strict Institutional Authentication Barrier: Without verified officer credentials, 3D digital twin telemetry is restricted.
   if (!currentUser) {
     return (
-      <div className="app min-h-screen" data-theme={theme}>
-        <Header
+      <div className="app min-h-screen flex flex-col justify-center items-center" data-theme={theme}>
+        <AuthGate
+          onLoginSuccess={handleLoginSuccess}
           theme={theme}
           onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          onOpenAssistant={() => setIsAssistantOpen(true)}
-          onOpenSources={() => setIsSourcesOpen(true)}
-          onOpenLogin={() => setIsLoginOpen(true)}
-          onOpenRegisterSensor={() => setIsSensorRegisterOpen(true)}
-          onOpenAdminUsers={() => handleNavigate('/admin')}
-          currentUser={currentUser}
-          onLogout={handleLogout}
-          onNavigate={handleNavigate}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          onApplyPreset={handleApplyPreset}
-          onOpenComparison={() => setIsComparisonOpen(true)}
-        />
-        <AuthGate onLoginSuccess={handleLoginSuccess} theme={theme} />
-        <footer className="workspace-footer flex flex-wrap justify-between gap-3 px-6 py-4 border-t border-slate-800 text-xs">
-          <span>Ministry of Earth Sciences (MoES) <span aria-hidden="true">·</span> INCOIS Ocean Information Services</span>
-          <button type="button" className="footer-source-link" onClick={() => setIsSourcesOpen(true)}>
-            Data Sources & Specifications
-          </button>
-        </footer>
-        <DataSourcesModal isOpen={isSourcesOpen} onClose={() => setIsSourcesOpen(false)} />
-        <LoginModal
-          isOpen={isLoginOpen}
-          onClose={() => setIsLoginOpen(false)}
-          currentUser={currentUser}
-          onLoginSuccess={handleLoginSuccess}
-          onLogout={handleLogout}
         />
       </div>
     );
