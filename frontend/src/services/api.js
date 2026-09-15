@@ -282,13 +282,33 @@ export async function fetchAnomalySummary(signal = null) {
 /**
  * Submits a bounded natural language or scientific query to the AI Ocean Assistant.
  */
-export async function queryAssistant(query, context = {}, signal = null) {
+export async function queryAssistant(query, context = {}, options = {}, signal = null) {
   const url = `${API_BASE}/assistant/query`;
+  let actualSignal = signal;
+  let apiKey = null;
+  let apiProvider = 'gemini';
+  let conversationHistory = [];
+
+  if (options instanceof AbortSignal) {
+    actualSignal = options;
+  } else if (options && typeof options === 'object') {
+    apiKey = options.apiKey || null;
+    apiProvider = options.apiProvider || 'gemini';
+    conversationHistory = options.conversationHistory || [];
+    actualSignal = options.signal || signal;
+  }
+
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, context }),
-    signal
+    body: JSON.stringify({
+      query,
+      context,
+      api_key: apiKey,
+      api_provider: apiProvider,
+      conversation_history: conversationHistory
+    }),
+    signal: actualSignal
   });
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));

@@ -45,8 +45,12 @@ export default function ModelComparisonModal({
   const [jobStatusMsg, setJobStatusMsg] = useState('');
   const [collocationData, setCollocationData] = useState(null);
   const [hoveredLevel, setHoveredLevel] = useState(null);
+  const [hoveredResidual, setHoveredResidual] = useState(null);
   const [activeTab, setActiveTab] = useState('curves'); // 'curves' | 'residuals' | 'table'
   const [lastRunStats, setLastRunStats] = useState(null);
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [isCompactScorecard, setIsCompactScorecard] = useState(false);
+  const [depthZoom, setDepthZoom] = useState('all'); // 'all' | 'thermocline' (0-250m)
 
   // Synchronize available in-situ platforms
   useEffect(() => {
@@ -184,12 +188,21 @@ export default function ModelComparisonModal({
     return calculatePearsonR(obsArr, modArr);
   }, [levels]);
 
+  const activeLevels = useMemo(() => {
+    if (!levels) return [];
+    if (depthZoom === 'thermocline') {
+      const shallow = levels.filter(l => l.depth <= 250);
+      return shallow.length >= 3 ? shallow : levels;
+    }
+    return levels;
+  }, [levels, depthZoom]);
+
   // Chart coordinate scales
   const chartScales = useMemo(() => {
-    if (!levels || levels.length === 0) return null;
-    const depths = levels.map(l => l.depth);
-    const obsVals = levels.map(l => l.observed_value);
-    const modVals = levels.map(l => l.model_value);
+    if (!activeLevels || activeLevels.length === 0) return null;
+    const depths = activeLevels.map(l => l.depth);
+    const obsVals = activeLevels.map(l => l.observed_value);
+    const modVals = activeLevels.map(l => l.model_value);
     const allVals = [...obsVals, ...modVals];
 
     const maxDepth = Math.max(...depths, 100);
@@ -197,34 +210,34 @@ export default function ModelComparisonModal({
     const maxVal = Math.ceil(Math.max(...allVals) * 10) / 10;
     const valSpan = Math.max(maxVal - minVal, 1.0);
 
-    const chartWidth = 520;
-    const chartHeight = 320;
-    const pad = { top: 25, right: 30, bottom: 40, left: 55 };
+    const chartWidth = 640;
+    const chartHeight = 360;
+    const pad = { top: 25, right: 35, bottom: 40, left: 55 };
 
     const valueToX = (v) => pad.left + ((v - minVal) / valSpan) * (chartWidth - pad.left - pad.right);
     const depthToY = (d) => pad.top + Math.sqrt(d / maxDepth) * (chartHeight - pad.top - pad.bottom);
 
     return { chartWidth, chartHeight, pad, minVal, maxVal, maxDepth, valueToX, depthToY };
-  }, [levels]);
+  }, [activeLevels]);
 
   // Residual chart scales
   const residualScales = useMemo(() => {
-    if (!levels || levels.length === 0) return null;
-    const depths = levels.map(l => l.depth);
-    const deltas = levels.map(l => l.delta || 0);
+    if (!activeLevels || activeLevels.length === 0) return null;
+    const depths = activeLevels.map(l => l.depth);
+    const deltas = activeLevels.map(l => l.delta || 0);
     const maxAbsDelta = Math.max(...deltas.map(d => Math.abs(d)), 0.5);
     const maxDepth = Math.max(...depths, 100);
 
-    const width = 280;
-    const height = 320;
-    const pad = { top: 25, right: 20, bottom: 40, left: 45 };
+    const width = 640;
+    const height = 360;
+    const pad = { top: 25, right: 35, bottom: 40, left: 55 };
 
     const deltaToX = (d) => pad.left + ((d + maxAbsDelta) / (2 * maxAbsDelta)) * (width - pad.left - pad.right);
     const depthToY = (depth) => pad.top + Math.sqrt(depth / maxDepth) * (height - pad.top - pad.bottom);
     const zeroX = deltaToX(0);
 
     return { width, height, pad, maxAbsDelta, maxDepth, deltaToX, depthToY, zeroX };
-  }, [levels]);
+  }, [activeLevels]);
 
   // Export comparison to CSV
   const handleExportCSV = () => {
@@ -260,7 +273,11 @@ export default function ModelComparisonModal({
       }}
     >
       <div
-        className="modal-container w-full max-w-6xl max-h-[92vh] rounded-2xl border shadow-2xl flex flex-col overflow-hidden"
+        className={`modal-container border shadow-2xl flex flex-col overflow-hidden transition-all duration-200 ${
+          isMaximized
+            ? 'w-[98vw] h-[96vh] max-w-none max-h-none rounded-2xl'
+            : 'w-full max-w-6xl max-h-[94vh] rounded-2xl'
+        }`}
         style={{
           backgroundColor: 'var(--panel)',
           borderColor: 'var(--border)',
@@ -289,6 +306,28 @@ export default function ModelComparisonModal({
           </div>
 
           <div className="flex items-center gap-2 mt-2 sm:mt-0">
+            {/* Compact / Expand Scorecard toggle */}
+            <button
+              type="button"
+              onClick={() => setIsCompactScorecard(!isCompactScorecard)}
+              className="px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer hover:bg-slate-700/50"
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              title={isCompactScorecard ? 'Expand metric cards' : 'Compact metrics into 1-line bar to maximize chart space'}
+            >
+              <span>{isCompactScorecard ? '📑 Expand Cards' : '📊 Compact Stats'}</span>
+            </button>
+
+            {/* Maximize Fullscreen toggle */}
+            <button
+              type="button"
+              onClick={() => setIsMaximized(!isMaximized)}
+              className="px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer hover:bg-slate-700/50"
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              title={isMaximized ? 'Restore normal window' : 'Full-screen maximize for unobstructed chart exploration'}
+            >
+              <span>{isMaximized ? '🗗 Restore' : '⛶ Fullscreen'}</span>
+            </button>
+
             <button
               type="button"
               onClick={handleExportCSV}
@@ -413,99 +452,132 @@ export default function ModelComparisonModal({
         )}
 
         {/* 3. Statistical Validation Scorecard */}
-        <div className="scorecard-grid p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 border-b" style={{ backgroundColor: 'var(--panel)', borderColor: 'var(--border)' }}>
-          {/* 1. Mean Bias Error */}
-          <div className="metric-card p-3 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
-            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
-              Mean Bias Error (MBE)
-            </span>
-            <div className="my-1">
-              <span className="text-lg font-extrabold font-mono" data-testid="metric-bias-val" style={{ color: (summary?.bias || 0) < 0 ? '#38bdf8' : '#fbbf24' }}>
-                {summary?.bias !== null && summary?.bias !== undefined
-                  ? `${summary.bias > 0 ? '+' : ''}${summary.bias} ${unitStr}`
-                  : 'N/A'}
+        {isCompactScorecard ? (
+          <div className="scorecard-compact px-5 py-2.5 border-b flex flex-wrap items-center justify-between gap-2.5 text-xs" style={{ backgroundColor: 'var(--panel)', borderColor: 'var(--border)' }}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Scorecard:</span>
+              <span className="px-2 py-0.5 rounded border font-mono text-[11px]" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+                MBE: <strong data-testid="metric-bias-val" style={{ color: (summary?.bias || 0) < 0 ? '#38bdf8' : '#fbbf24' }}>{summary?.bias !== null && summary?.bias !== undefined ? `${summary.bias > 0 ? '+' : ''}${summary.bias} ${unitStr}` : 'N/A'}</strong>
+              </span>
+              <span className="px-2 py-0.5 rounded border font-mono text-[11px]" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+                RMSE: <strong data-testid="metric-rmse-val" className="text-cyan-400">{summary?.rmse !== null && summary?.rmse !== undefined ? `${summary.rmse} ${unitStr}` : 'N/A'}</strong>
+              </span>
+              <span className="px-2 py-0.5 rounded border font-mono text-[11px]" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+                MAE: <strong data-testid="metric-mae-val" className="text-teal-400">{summary?.mae !== null && summary?.mae !== undefined ? `${summary.mae} ${unitStr}` : 'N/A'}</strong>
+              </span>
+              <span className="px-2 py-0.5 rounded border font-mono text-[11px]" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+                R: <strong data-testid="metric-pearson-val" className="text-emerald-400">{pearsonR ? `+${pearsonR}` : '1.000'}</strong>
+              </span>
+              <span className="px-2 py-0.5 rounded border font-mono text-[11px]" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+                Grade: <strong data-testid="metric-health-val" className="text-emerald-400">{collocationData?.model_health || 'GOOD'}</strong>
+              </span>
+              <span className="px-2 py-0.5 rounded border font-mono text-[11px] text-sky-400" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+                Offset: <strong>{summary?.spatial_distance_km ? `${summary.spatial_distance_km} km` : 'Collocated'}</strong>
               </span>
             </div>
-            <span className="text-[10px] font-semibold uppercase" style={{ color: 'var(--muted)' }}>
-              {summary?.prediction_tendency || 'Balanced Skill'}
-            </span>
+            <button
+              type="button"
+              onClick={() => setIsCompactScorecard(false)}
+              className="text-[11px] text-sky-400 hover:underline cursor-pointer"
+            >
+              Expand Cards ▾
+            </button>
           </div>
+        ) : (
+          <div className="scorecard-grid p-3.5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 border-b" style={{ backgroundColor: 'var(--panel)', borderColor: 'var(--border)' }}>
+            {/* 1. Mean Bias Error */}
+            <div className="metric-card p-3 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
+                Mean Bias Error (MBE)
+              </span>
+              <div className="my-1">
+                <span className="text-lg font-extrabold font-mono" data-testid="metric-bias-val" style={{ color: (summary?.bias || 0) < 0 ? '#38bdf8' : '#fbbf24' }}>
+                  {summary?.bias !== null && summary?.bias !== undefined
+                    ? `${summary.bias > 0 ? '+' : ''}${summary.bias} ${unitStr}`
+                    : 'N/A'}
+                </span>
+              </div>
+              <span className="text-[10px] font-semibold uppercase" style={{ color: 'var(--muted)' }}>
+                {summary?.prediction_tendency || 'Balanced Skill'}
+              </span>
+            </div>
 
-          {/* 2. Root Mean Square Error (RMSE) */}
-          <div className="metric-card p-3 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
-            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
-              RMSE (Skill Measure)
-            </span>
-            <div className="my-1">
-              <span className="text-lg font-extrabold font-mono text-cyan-400" data-testid="metric-rmse-val">
-                {summary?.rmse !== null && summary?.rmse !== undefined ? `${summary.rmse} ${unitStr}` : 'N/A'}
+            {/* 2. Root Mean Square Error (RMSE) */}
+            <div className="metric-card p-3 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
+                RMSE (Skill Measure)
+              </span>
+              <div className="my-1">
+                <span className="text-lg font-extrabold font-mono text-cyan-400" data-testid="metric-rmse-val">
+                  {summary?.rmse !== null && summary?.rmse !== undefined ? `${summary.rmse} ${unitStr}` : 'N/A'}
+                </span>
+              </div>
+              <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                Lower is better
               </span>
             </div>
-            <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
-              Lower is better
-            </span>
-          </div>
 
-          {/* 3. Mean Absolute Error (MAE) */}
-          <div className="metric-card p-3 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
-            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
-              Mean Absolute Error
-            </span>
-            <div className="my-1">
-              <span className="text-lg font-extrabold font-mono text-teal-400" data-testid="metric-mae-val">
-                {summary?.mae !== null && summary?.mae !== undefined ? `${summary.mae} ${unitStr}` : 'N/A'}
+            {/* 3. Mean Absolute Error (MAE) */}
+            <div className="metric-card p-3 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
+                Mean Absolute Error
+              </span>
+              <div className="my-1">
+                <span className="text-lg font-extrabold font-mono text-teal-400" data-testid="metric-mae-val">
+                  {summary?.mae !== null && summary?.mae !== undefined ? `${summary.mae} ${unitStr}` : 'N/A'}
+                </span>
+              </div>
+              <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                Level deviation avg
               </span>
             </div>
-            <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
-              Level deviation avg
-            </span>
-          </div>
 
-          {/* 4. Pearson Correlation (R) */}
-          <div className="metric-card p-3 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
-            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
-              Pearson Corr (R)
-            </span>
-            <div className="my-1">
-              <span className="text-lg font-extrabold font-mono text-emerald-400" data-testid="metric-pearson-val">
-                {pearsonR ? `+${pearsonR}` : '1.000'}
+            {/* 4. Pearson Correlation (R) */}
+            <div className="metric-card p-3 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
+                Pearson Corr (R)
+              </span>
+              <div className="my-1">
+                <span className="text-lg font-extrabold font-mono text-emerald-400" data-testid="metric-pearson-val">
+                  {pearsonR ? `+${pearsonR}` : '1.000'}
+                </span>
+              </div>
+              <span className="text-[10px] text-emerald-400 font-semibold">
+                High Stratification Match
               </span>
             </div>
-            <span className="text-[10px] text-emerald-400 font-semibold">
-              High Stratification Match
-            </span>
-          </div>
 
-          {/* 5. Model Skill Grade */}
-          <div className="metric-card p-3 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
-            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
-              Model Health Grade
-            </span>
-            <div className="my-1">
-              <span className="text-base font-extrabold font-mono text-emerald-400" data-testid="metric-health-val">
-                {collocationData?.model_health || 'GOOD'}
+            {/* 5. Model Skill Grade */}
+            <div className="metric-card p-3 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
+                Model Health Grade
+              </span>
+              <div className="my-1">
+                <span className="text-base font-extrabold font-mono text-emerald-400" data-testid="metric-health-val">
+                  {collocationData?.model_health || 'GOOD'}
+                </span>
+              </div>
+              <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                {summary?.valid_pairs || levels.length} levels validated
               </span>
             </div>
-            <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
-              {summary?.valid_pairs || levels.length} levels validated
-            </span>
-          </div>
 
-          {/* 6. Spatial-Temporal Collocation Offset */}
-          <div className="metric-card p-3 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
-            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
-              Grid Spatial Offset
-            </span>
-            <div className="my-1">
-              <span className="text-base font-extrabold font-mono text-sky-400">
-                {summary?.spatial_distance_km ? `${summary.spatial_distance_km} km` : 'Collocated'}
+            {/* 6. Spatial-Temporal Collocation Offset */}
+            <div className="metric-card p-3 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>
+                Grid Spatial Offset
+              </span>
+              <div className="my-1">
+                <span className="text-base font-extrabold font-mono text-sky-400">
+                  {summary?.spatial_distance_km ? `${summary.spatial_distance_km} km` : 'Collocated'}
+                </span>
+              </div>
+              <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                Nearest ROMS cell
               </span>
             </div>
-            <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
-              Nearest ROMS cell
-            </span>
           </div>
-        </div>
+        )}
 
         {/* 4. Tab Selector (Dual Curves vs Residuals vs Audit Table) */}
         <div className="tab-bar px-5 pt-3 flex flex-wrap justify-between items-center border-b gap-2" style={{ backgroundColor: 'var(--panel)', borderColor: 'var(--border)' }}>
@@ -539,7 +611,30 @@ export default function ModelComparisonModal({
             </button>
           </div>
 
-          <div className="text-[11px] flex items-center gap-3 pb-2" style={{ color: 'var(--muted)' }}>
+          <div className="flex flex-wrap items-center gap-3 pb-2 text-[11px]" style={{ color: 'var(--muted)' }}>
+            {/* Depth Zoom Selector */}
+            <div className="flex items-center gap-1 rounded-lg border p-0.5" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+              <span className="text-[10px] font-bold uppercase px-1.5 text-slate-400">Depth Zoom:</span>
+              <button
+                type="button"
+                onClick={() => setDepthZoom('all')}
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${
+                  depthZoom === 'all' ? 'bg-sky-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                All (0–2000m)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDepthZoom('thermocline')}
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${
+                  depthZoom === 'thermocline' ? 'bg-sky-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Thermocline (0–250m)
+              </button>
+            </div>
+
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
               <strong className="text-emerald-400">Original Observed Data</strong> (CTD Sensor)
@@ -737,43 +832,72 @@ export default function ModelComparisonModal({
               {/* Detailed Depth Residual SVG Graph */}
               {residualScales && (
                 <div className="rounded-xl border p-4 shadow" style={{ backgroundColor: 'var(--panel)', borderColor: 'var(--border)' }}>
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-sky-400">
-                      Depth Residual Curve (Δ = Model - Observed) Across Depth
-                    </span>
-                    <span className="text-[11px] font-mono" style={{ color: 'var(--muted)' }}>
-                      0m Surface to {residualScales.maxDepth}m Deep
-                    </span>
+                  <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-sky-400 block">
+                        Depth Residual Curve (Δ = Model - Observed)
+                      </span>
+                      <span className="text-[11px] font-mono" style={{ color: 'var(--muted)' }}>
+                        0m Surface to {residualScales.maxDepth}m Depth ({depthZoom === 'thermocline' ? 'Thermocline Focus' : 'Full Basin Column'})
+                      </span>
+                    </div>
+
+                    {hoveredResidual ? (
+                      <div className="px-3 py-1 rounded-lg border text-xs font-mono shadow animate-in fade-in duration-150" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
+                        Depth: <strong style={{ color: 'var(--text)' }}>{hoveredResidual.depth}m</strong> · Obs: <strong className="text-emerald-400">{hoveredResidual.observed_value} {unitStr}</strong> · ROMS: <strong className="text-purple-400">{hoveredResidual.model_value} {unitStr}</strong> · Δ: <strong style={{ color: hoveredResidual.delta < 0 ? '#38bdf8' : '#fbbf24' }}>{hoveredResidual.delta > 0 ? `+${hoveredResidual.delta}` : hoveredResidual.delta} {unitStr}</strong> <span className="text-[10px] font-sans text-slate-400">({hoveredResidual.delta < 0 ? 'Under-prediction' : 'Over-prediction'})</span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] font-mono text-slate-500">
+                        Hover points along the profile to inspect level discrepancies
+                      </span>
+                    )}
                   </div>
-                  <div className="w-full flex items-center justify-center">
-                    <svg viewBox={`0 0 ${residualScales.width} ${residualScales.height}`} className="w-full max-w-2xl h-auto overflow-visible select-none" data-testid="residuals-svg">
+
+                  <div className="w-full flex items-center justify-center overflow-x-auto">
+                    <svg viewBox={`0 0 ${residualScales.width} ${residualScales.height}`} className="w-full max-w-3xl h-auto overflow-visible select-none" data-testid="residuals-svg">
                       {/* Zero Center Axis Line */}
-                      <line x1={residualScales.zeroX} y1={residualScales.pad.top} x2={residualScales.zeroX} y2={residualScales.height - residualScales.pad.bottom} stroke="#38bdf8" strokeWidth="2" strokeDasharray="4 2" />
-                      <text x={residualScales.zeroX} y={residualScales.height - residualScales.pad.bottom + 16} fill="#38bdf8" fontSize="10" textAnchor="middle" fontFamily="monospace">0.0 Δ</text>
+                      <line x1={residualScales.zeroX} y1={residualScales.pad.top} x2={residualScales.zeroX} y2={residualScales.height - residualScales.pad.bottom} stroke="#38bdf8" strokeWidth="1.5" strokeDasharray="4 2" />
+                      <text x={residualScales.zeroX} y={residualScales.height - residualScales.pad.bottom + 16} fill="#38bdf8" fontSize="10" textAnchor="middle" fontFamily="monospace">0.0 Δ (Zero Bias)</text>
+
+                      {/* Negative / Positive Reference Guides */}
+                      <text x={residualScales.pad.left + 10} y={residualScales.height - residualScales.pad.bottom + 16} fill="#38bdf8" fontSize="9" textAnchor="start" fontFamily="monospace">← Under-predict ({unitStr})</text>
+                      <text x={residualScales.width - residualScales.pad.right - 10} y={residualScales.height - residualScales.pad.bottom + 16} fill="#fbbf24" fontSize="9" textAnchor="end" fontFamily="monospace">Over-predict ({unitStr}) →</text>
 
                       {/* Depth ticks */}
-                      {[0, 100, 500, 1000, 2000, 4000].filter(d => d <= residualScales.maxDepth).map(d => {
+                      {(depthZoom === 'thermocline' ? [0, 25, 50, 75, 100, 150, 200, 250] : [0, 50, 100, 250, 500, 1000, 1500, 2000]).filter(d => d <= residualScales.maxDepth).map(d => {
                         const y = residualScales.depthToY(d);
                         return (
                           <g key={`res-tab-d-${d}`}>
                             <line x1={residualScales.pad.left} y1={y} x2={residualScales.width - residualScales.pad.right} y2={y} stroke="var(--border)" strokeDasharray="3 3" strokeOpacity="0.4" />
-                            <text x={residualScales.pad.left - 6} y={y + 3} fill="var(--muted)" fontSize="9" textAnchor="end" fontFamily="monospace">{d}m</text>
+                            <text x={residualScales.pad.left - 8} y={y + 3} fill="var(--muted)" fontSize="9" textAnchor="end" fontFamily="monospace">{d}m</text>
                           </g>
                         );
                       })}
 
                       {/* Residual Delta Polyline */}
                       {(() => {
-                        const pts = levels.map(l => `${residualScales.deltaToX(l.delta || 0).toFixed(1)},${residualScales.depthToY(l.depth).toFixed(1)}`).join(' ');
+                        const pts = activeLevels.map(l => `${residualScales.deltaToX(l.delta || 0).toFixed(1)},${residualScales.depthToY(l.depth).toFixed(1)}`).join(' ');
                         return <polyline data-testid="residual-path" fill="none" stroke="#f59e0b" strokeWidth="2.5" points={pts} />;
                       })()}
 
                       {/* Delta points */}
-                      {levels.map((l, i) => {
+                      {activeLevels.map((l, i) => {
                         const x = residualScales.deltaToX(l.delta || 0);
                         const y = residualScales.depthToY(l.depth);
+                        const isHovered = hoveredResidual?.depth === l.depth;
                         return (
-                          <circle key={`del-tab-pt-${i}`} cx={x} cy={y} r="4" fill={l.delta < 0 ? '#38bdf8' : '#fbbf24'} stroke="#0f172a" strokeWidth="1.5">
+                          <circle
+                            key={`del-tab-pt-${i}`}
+                            cx={x}
+                            cy={y}
+                            r={isHovered ? 6 : 4}
+                            fill={l.delta < 0 ? '#38bdf8' : '#fbbf24'}
+                            stroke="#0f172a"
+                            strokeWidth={isHovered ? 2 : 1.5}
+                            className="cursor-pointer transition-all"
+                            onMouseEnter={() => setHoveredResidual(l)}
+                            onMouseLeave={() => setHoveredResidual(null)}
+                          >
                             <title>{`${l.depth}m: Delta = ${l.delta > 0 ? '+' : ''}${l.delta} ${unitStr}`}</title>
                           </circle>
                         );
@@ -783,31 +907,51 @@ export default function ModelComparisonModal({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {levels.map((l, i) => (
-                  <div key={i} className="p-3 rounded-lg border" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
-                    <div className="flex justify-between items-center text-[11px] mb-1">
-                      <span className="font-bold" style={{ color: 'var(--text)' }}>{l.depth} m Depth</span>
-                      <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${l.delta < 0 ? 'bg-sky-950/60 text-sky-400' : 'bg-amber-950/60 text-amber-400'}`}>
-                        {l.delta < 0 ? 'Under-predicted' : 'Over-predicted'}
-                      </span>
+              {/* Scrollable Depth Level Verification Cards */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Depth Stratification Audit ({activeLevels.length} Collocated Levels)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500">
+                    Scroll to inspect deeper observations
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                  {activeLevels.map((l, i) => (
+                    <div
+                      key={i}
+                      onMouseEnter={() => setHoveredResidual(l)}
+                      onMouseLeave={() => setHoveredResidual(null)}
+                      className="p-3 rounded-lg border transition hover:border-sky-500/60"
+                      style={{
+                        backgroundColor: hoveredResidual?.depth === l.depth ? 'var(--panel)' : 'var(--field)',
+                        borderColor: hoveredResidual?.depth === l.depth ? '#38bdf8' : 'var(--border)'
+                      }}
+                    >
+                      <div className="flex justify-between items-center text-[11px] mb-1">
+                        <span className="font-bold" style={{ color: 'var(--text)' }}>{l.depth} m Depth</span>
+                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${l.delta < 0 ? 'bg-sky-950/60 text-sky-400' : 'bg-amber-950/60 text-amber-400'}`}>
+                          {l.delta < 0 ? 'Under-predicted' : 'Over-predicted'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs font-mono py-0.5">
+                        <span style={{ color: 'var(--muted)' }}>In-Situ Obs:</span>
+                        <strong className="text-emerald-400">{l.observed_value} {unitStr}</strong>
+                      </div>
+                      <div className="flex justify-between text-xs font-mono py-0.5">
+                        <span style={{ color: 'var(--muted)' }}>ROMS Model:</span>
+                        <strong className="text-purple-400">{l.model_value} {unitStr}</strong>
+                      </div>
+                      <div className="flex justify-between text-xs font-mono py-0.5 border-t mt-1 pt-1" style={{ borderColor: 'var(--border)' }}>
+                        <span style={{ color: 'var(--muted)' }}>Residual (Δ):</span>
+                        <strong style={{ color: l.delta < 0 ? '#38bdf8' : '#fbbf24' }}>
+                          {l.delta > 0 ? `+${l.delta}` : l.delta} {unitStr}
+                        </strong>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-xs font-mono py-0.5">
-                      <span style={{ color: 'var(--muted)' }}>In-Situ Obs:</span>
-                      <strong className="text-emerald-400">{l.observed_value} {unitStr}</strong>
-                    </div>
-                    <div className="flex justify-between text-xs font-mono py-0.5">
-                      <span style={{ color: 'var(--muted)' }}>ROMS Model:</span>
-                      <strong className="text-purple-400">{l.model_value} {unitStr}</strong>
-                    </div>
-                    <div className="flex justify-between text-xs font-mono py-0.5 border-t mt-1 pt-1" style={{ borderColor: 'var(--border)' }}>
-                      <span style={{ color: 'var(--muted)' }}>Residual (Δ):</span>
-                      <strong style={{ color: l.delta < 0 ? '#38bdf8' : '#fbbf24' }}>
-                        {l.delta > 0 ? `+${l.delta}` : l.delta} {unitStr}
-                      </strong>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           ) : (

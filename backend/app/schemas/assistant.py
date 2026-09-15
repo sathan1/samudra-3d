@@ -16,6 +16,9 @@ class AssistantQueryContext(BaseModel):
 class AssistantQueryRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=500, description="User's natural language or bounded scientific question")
     context: Optional[AssistantQueryContext] = Field(default_factory=AssistantQueryContext, description="Current workspace context")
+    api_key: Optional[str] = Field(None, description="Optional Google Gemini or OpenAI API Key provided by user")
+    api_provider: Optional[str] = Field("gemini", description="AI Provider ('gemini' or 'openai')")
+    conversation_history: Optional[List[Dict[str, str]]] = Field(default_factory=list, description="Recent conversation turns")
 
 
 class SupportingMetric(BaseModel):
@@ -36,14 +39,15 @@ class GroundedDataScope(BaseModel):
 
 class AssistantQueryResponse(BaseModel):
     query: str
-    intent: str = Field(..., description="Classified intent (e.g. LARGEST_RESIDUAL, COVERAGE_SUMMARY, PLATFORM_SUMMARY)")
+    intent: str = Field(..., description="Classified intent (e.g. LARGEST_RESIDUAL, COVERAGE_SUMMARY, PLATFORM_SUMMARY, CONVERSATIONAL_AI)")
     confidence: float = Field(1.0, description="Confidence in grounded query evaluation")
     answer_markdown: str = Field(..., description="Grounded markdown response")
     grounded_scope: GroundedDataScope
     supporting_metrics: List[SupportingMetric] = Field(default_factory=list)
     suggestions: List[str] = Field(default_factory=list, description="Follow-up scientific query suggestions")
     latency_ms: float = Field(0.0, description="Response generation time in milliseconds")
-    engine_mode: str = Field("DETERMINISTIC_GROUNDED", description="Assistant generation engine mode")
+    engine_mode: str = Field("DETERMINISTIC_GROUNDED", description="Assistant generation engine mode (e.g. GEMINI_1_5_FLASH, OPENAI_GPT4O, DETERMINISTIC_GROUNDED, CONVERSATIONAL_SIM)")
+    navigation_action: Optional[Dict[str, Any]] = Field(None, description="Actionable navigation parameters for the UI")
 
 
 class PresetQuery(BaseModel):

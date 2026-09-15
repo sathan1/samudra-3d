@@ -236,6 +236,38 @@ export default function App() {
     }
   }, [selectedFloat]);
 
+  const handleAssistantNavigate = useCallback((action) => {
+    if (!action) return;
+    if (action.type === 'SET_VARIABLE' && action.value) {
+      setSelectedVariable(action.value.toLowerCase());
+    } else if (action.type === 'SET_DEPTH' && action.value !== undefined) {
+      setRequestedDepth(Number(action.value));
+    } else if (action.type === 'SET_TIME' && action.value !== undefined) {
+      setTimeIndex(Number(action.value));
+    } else if (action.type === 'OPEN_MODAL') {
+      if (action.modal === 'comparison') {
+        setIsComparisonOpen(true);
+      } else if (action.modal === 'sources') {
+        setIsSourcesOpen(true);
+      }
+    } else if (action.type === 'FOCUS_PLATFORM' && action.platform_id) {
+      const pid = action.platform_id.toUpperCase();
+      const argo = argoFloats.find(f => (f.id || '').toUpperCase() === pid || (f.wmo_id || '').toUpperCase() === pid);
+      if (argo) {
+        setSelectedFloat(argo);
+        setShowArgo(true);
+      } else {
+        const glider = gliderTransects.find(g => (g.id || '').toUpperCase() === pid);
+        if (glider) {
+          setSelectedGlider(glider);
+          setShowGliders(true);
+        }
+      }
+    } else if (action.type === 'TOGGLE_RESIDUALS') {
+      setShowAnomalyField(prev => action.value !== undefined ? action.value : !prev);
+    }
+  }, [argoFloats, gliderTransects]);
+
   // Phase 14: Load Anomaly Field when layer is enabled or filters change
   useEffect(() => {
     if (!showAnomalyField) return;
@@ -767,6 +799,7 @@ export default function App() {
             requestedDepth,
             timeIndex
           }}
+          onNavigate={handleAssistantNavigate}
         />
         <ModelComparisonModal
           isOpen={isComparisonOpen}
