@@ -621,3 +621,55 @@ export async function fetchDataSources(token = null, signal = null) {
   return res.json();
 }
 
+/**
+ * Dataset Catalog & Download Management
+ */
+export async function fetchDatasets(signal = null) {
+  const res = await fetch(`${API_BASE}/datasets`, { signal });
+  if (!res.ok) throw new Error(`Failed to load datasets: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function selectActiveDataset(datasetId, signal = null) {
+  const res = await fetch(`${API_BASE}/datasets/select`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dataset_id: datasetId }),
+    signal
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to switch dataset: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function estimateDatasetDownloadSize(estimateData, signal = null) {
+  const res = await fetch(`${API_BASE}/datasets/estimate-size`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(estimateData),
+    signal
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to estimate dataset size: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function registerCustomDataset(customData, signal = null) {
+  const res = await fetch(`${API_BASE}/datasets/custom`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(customData),
+    signal
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to register custom dataset: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+

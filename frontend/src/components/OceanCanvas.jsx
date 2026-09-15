@@ -107,7 +107,8 @@ export default function OceanCanvas({
   onProbePoint = null,
   activeTransect = null,
   isFullView = false,
-  onToggleFullView = null
+  onToggleFullView = null,
+  targetRegion = null
 }) {
   const containerRef = useRef(null);
   const rendererRef = useRef(null);
@@ -246,6 +247,12 @@ export default function OceanCanvas({
     };
     window.requestAnimationFrame(animateCam);
   };
+
+  useEffect(() => {
+    if (targetRegion) {
+      handleZoomBasin(targetRegion);
+    }
+  }, [targetRegion]);
 
   const handleZoomIn = () => {
     if (!cameraRef.current || !controlsRef.current) return;

@@ -89,7 +89,16 @@ The Indian Ocean is one of the most dynamically complex marine ecosystems on Ear
 - **Zero Hallucination:** Deterministic mathematical query engine evaluates queries directly against active NetCDF arrays.
 - **Sub-200ms Execution:** In-memory AST evaluation completes in an average of 142ms.
 - **Adversarial Security:** Hardened boundary regex sanitizes prompt injections and system override attacks.
-- **100% Offline:** Zero external cloud API keys or internet egress required.
+### 6. Real Copernicus Marine GLORYS12V1 Integration & Dataset Architecture
+- **Verified Real Ocean Physics:** Uses genuine Copernicus Marine GLORYS12V1 global physics reanalysis subset (`cmems_mod_glo_phy_my_0.083deg_P1D-m`) at 0.0833° (~8.3 km) spatial resolution.
+- **Configurable Data Root:** Fully externalized data directory (`SAMUDRA_DATA_ROOT` in `.env`) keeping multi-hundred-megabyte NetCDF tensors out of Git version control.
+- **Dynamic Runtime Switching:** Switch between Real Copernicus GLORYS12V1 and Synthetic ROMS baseline at runtime via the `📁 Datasets` UI manager or `POST /api/datasets/select`.
+- **Scientific Download Size Estimator:** Calibrated volume estimator predicting uncompressed RAM tensor footprint, zlib-deflated NetCDF4 disk size, bandwidth transfer times, and target disk space headroom.
+- **Hierarchical Precision Navigation:** Zoom seamlessly across 4 geographic tiers: Macro Basin &rarr; Regional Sub-Basin &rarr; Coastal Maritime Shelf &rarr; Local Harbor / PFZ Sector.
+- **Specialized Operational Modes:**
+  - **Fisherman Mode & PFZ Advisory:** Thermal front gradient ($\nabla T \ge 0.3^\circ\text{C/km}$), coastal upwelling MLD, and nearest fishing harbor distance/conditions with explicit safety notices.
+  - **Cyclone Heat Engine & TCHP:** Upper-ocean heat potential ($>110\,\text{kJ/cm}^2$ Severe / Rapid Intensification threshold) with strict institutional separation from official IMD forecast tracks.
+- **Official Open Data Provenance:** Direct verified endpoints for INCOIS LAS, Copernicus Marine, Ifremer Argo GDAC, and Ifremer Gliders.
 
 ---
 

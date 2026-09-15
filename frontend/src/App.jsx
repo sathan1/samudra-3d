@@ -12,6 +12,9 @@ import SensorRegistrationModal from './components/SensorRegistrationModal.jsx';
 import LoginPage from './components/LoginPage.jsx';
 import AdminPortal from './components/AdminPortal.jsx';
 import AuthGate from './components/AuthGate.jsx';
+import DatasetManagerModal from './components/DatasetManagerModal.jsx';
+import FishermanModeModal from './components/FishermanModeModal.jsx';
+import CycloneModeModal from './components/CycloneModeModal.jsx';
 import {
   fetchAnomalyField,
   fetchArgoFloats,
@@ -22,7 +25,8 @@ import {
   logoutUser,
   fetchCustomSensors,
   fetchOceanProbe,
-  fetchOceanTransect
+  fetchOceanTransect,
+  fetchDatasets
 } from './services/api.js';
 import {
   computeNextStep,
@@ -67,6 +71,14 @@ export default function App() {
   const [isClickToProbeActive, setIsClickToProbeActive] = useState(true);
   const [isFullView, setIsFullView] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+
+  // Real Dataset Architecture, Fisherman & Cyclone Modes, Precision Navigation
+  const [activeDataset, setActiveDataset] = useState(null);
+  const [isDatasetsModalOpen, setIsDatasetsModalOpen] = useState(false);
+  const [isFishermanModalOpen, setIsFishermanModalOpen] = useState(false);
+  const [isCycloneModalOpen, setIsCycloneModalOpen] = useState(false);
+  const [targetRegion, setTargetRegion] = useState(null);
+  const [selectedSectorId, setSelectedSectorId] = useState('macro-nio');
 
   // Phase 15: AI Ocean Assistant Modal state
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
@@ -161,6 +173,52 @@ export default function App() {
       });
     return () => { isMounted = false; };
   }, [authToken]);
+
+  // Load active ocean dataset catalog on mount
+  useEffect(() => {
+    let isMounted = true;
+    fetchDatasets()
+      .then((data) => {
+        if (!isMounted) return;
+        if (data.datasets && data.active_dataset_id) {
+          const found = data.datasets.find((d) => d.dataset_id === data.active_dataset_id);
+          setActiveDataset(found || data.datasets[0]);
+        }
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
+  const handleSelectRegion = useCallback((sector) => {
+    if (!sector) return;
+    setSelectedSectorId(sector.id);
+    setTargetRegion(sector);
+    if (sector.level === 'Local Sector' && sector.lat && sector.lon) {
+      setProbedPoint({ lat: sector.lat, lon: sector.lon });
+      setIsProbeLoading(true);
+      fetchOceanProbe({ lat: sector.lat, lon: sector.lon, time_idx: timeIndex })
+        .then((data) => {
+          setProbeData(data);
+        })
+        .catch((err) => {
+          console.error('Probe error on sector focus:', err);
+        })
+        .finally(() => {
+          setIsProbeLoading(false);
+        });
+    }
+  }, [timeIndex]);
+
+  const handleDatasetSwitched = useCallback((newDataset) => {
+    setActiveDataset(newDataset);
+    if (probedPoint) {
+      setIsProbeLoading(true);
+      fetchOceanProbe({ lat: probedPoint.lat, lon: probedPoint.lon, time_idx: timeIndex })
+        .then(setProbeData)
+        .catch(() => {})
+        .finally(() => setIsProbeLoading(false));
+    }
+  }, [probedPoint, timeIndex]);
 
   const handleLoginSuccess = useCallback((user, token) => {
     setCurrentUser(user);
@@ -676,6 +734,12 @@ export default function App() {
         onViewModeChange={setViewMode}
         onApplyPreset={handleApplyPreset}
         onOpenComparison={() => setIsComparisonOpen(true)}
+        activeDataset={activeDataset}
+        onOpenDatasetsModal={() => setIsDatasetsModalOpen(true)}
+        onOpenFishermanModal={() => setIsFishermanModalOpen(true)}
+        onOpenCycloneModal={() => setIsCycloneModalOpen(true)}
+        onSelectRegion={handleSelectRegion}
+        selectedSectorId={selectedSectorId}
       />
       <main id="workspace" tabIndex={-1} className="workspace">
         <div className="workspace-heading flex flex-wrap items-end justify-between gap-4">
@@ -759,6 +823,7 @@ export default function App() {
             activeTransect={activeTransect}
             isFullView={isFullView}
             onToggleFullView={() => setIsFullView((v) => !v)}
+            targetRegion={targetRegion}
           />
           <ComparisonPanel
             selectedFloat={selectedFloat}
@@ -838,6 +903,24 @@ export default function App() {
           onClose={() => setIsSensorRegisterOpen(false)}
           onSensorRegistered={handleSensorRegistered}
           currentUser={currentUser}
+        />
+        <DatasetManagerModal
+          isOpen={isDatasetsModalOpen}
+          onClose={() => setIsDatasetsModalOpen(false)}
+          onDatasetSwitched={handleDatasetSwitched}
+          currentActiveDatasetId={activeDataset?.dataset_id}
+        />
+        <FishermanModeModal
+          isOpen={isFishermanModalOpen}
+          onClose={() => setIsFishermanModalOpen(false)}
+          onSelectHarbor={(h) => handleSelectRegion({ id: h.id, lat: h.lat, lon: h.lon, dist: 112, level: 'Local Sector' })}
+          probeData={probeData}
+        />
+        <CycloneModeModal
+          isOpen={isCycloneModalOpen}
+          onClose={() => setIsCycloneModalOpen(false)}
+          probeData={probeData}
+          onFocusCycloneTrack={() => handleSelectRegion({ id: 'sub-bob', lat: 14.0, lon: 88.0, dist: 145, level: 'Sub-Basin' })}
         />
       </main>
     </div>

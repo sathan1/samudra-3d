@@ -15,4 +15,13 @@ frontend/playwright-report/
 tools/
 *.exe
 tmp/
+# Large scientific datasets & external data root (Rule: Never commit large datasets to Git)
+SAMUDRA_DATA/
+*.nc
+!backend/sample_data/model_indian_ocean.nc
+*.zarr/
+*.h5
+*.hdf5
+*.tar.gz
+
 # Original references and docs/evidence are deliberately not ignored.

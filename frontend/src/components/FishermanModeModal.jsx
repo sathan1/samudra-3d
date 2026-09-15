@@ -1,0 +1,162 @@
+import React, { useState } from 'react';
+
+const FISHING_HARBORS = [
+  { id: 'veraval', name: 'Veraval Fishing Harbor', state: 'Gujarat', lat: 20.90, lon: 70.37, depth_m: 14, pfz_status: 'HIGH_POTENTIAL', sst: '28.2°C', mld: '22m', thermal_gradient: '0.42°C/km (Strong Front)' },
+  { id: 'kochi', name: 'Kochi Bight & Harbor', state: 'Kerala', lat: 9.96, lon: 76.24, depth_m: 18, pfz_status: 'MODERATE_UPWELLING', sst: '28.8°C', mld: '16m', thermal_gradient: '0.31°C/km (Upwelling)' },
+  { id: 'wadge', name: 'Wadge Bank Fishery Grounds', state: 'Tamil Nadu / Kerala', lat: 7.80, lon: 77.30, depth_m: 35, pfz_status: 'EXCELLENT_PELAGIC', sst: '28.5°C', mld: '28m', thermal_gradient: '0.48°C/km (Major Bank)' },
+  { id: 'chennai', name: 'Chennai Kasimedu Harbor', state: 'Tamil Nadu', lat: 13.12, lon: 80.30, depth_m: 12, pfz_status: 'MODERATE_POTENTIAL', sst: '28.6°C', mld: '19m', thermal_gradient: '0.25°C/km (Coastal Front)' },
+  { id: 'vizag', name: 'Visakhapatnam Fishing Harbor', state: 'Andhra Pradesh', lat: 17.69, lon: 83.30, depth_m: 16, pfz_status: 'HIGH_UPWELLING', sst: '28.1°C', mld: '15m', thermal_gradient: '0.39°C/km (Upwelling Center)' },
+  { id: 'paradip', name: 'Paradip Port & Fishery Base', state: 'Odisha', lat: 20.26, lon: 86.67, depth_m: 15, pfz_status: 'HIGH_NUTRIENT', sst: '27.6°C', mld: '12m', thermal_gradient: '0.36°C/km (River Plume Front)' }
+];
+
+export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, probeData }) {
+  const [selectedHarbor, setSelectedHarbor] = useState(FISHING_HARBORS[0]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="relative w-full max-w-3xl bg-slate-900 border border-slate-700 rounded-xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-slate-100">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/60">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+              <span className="text-xl">🐟</span>
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
+                Fisherman Operational Intelligence & PFZ Advisory
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-300">MoES / INCOIS PFZ</span>
+              </h2>
+              <p className="text-xs text-slate-400">Thermal front gradients, coastal upwelling, and nearest fishing landing centers.</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Safety Notice */}
+        <div className="mx-6 mt-4 p-3 bg-amber-950/50 border border-amber-800/60 rounded-lg text-amber-200 text-xs flex items-start gap-2.5">
+          <svg className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          <div className="leading-relaxed">
+            <strong className="font-semibold text-white">Navigational & Resolution Notice:</strong> Numerical model resolution is ~8.3 km grid (~0.083°). Coastal navigation inside harbors, breaker lines, and near-shore shoals requires official nautical charts, port radar, and local INCOIS broadcast advisories. Do not navigate shallow inlets by macro model alone.
+          </div>
+        </div>
+
+        {/* Body Content */}
+        <div className="p-6 overflow-y-auto space-y-5 flex-1 text-xs">
+          
+          {/* Active Sector / Probed Conditions */}
+          {probeData && (
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+              <h3 className="font-semibold text-slate-200 uppercase tracking-wider text-[11px] flex items-center justify-between">
+                <span>Currently Probed Water Column (At {probeData.lat}°N, {probeData.lon}°E)</span>
+                <span className="text-sky-400 font-mono">Depth: 0m to {probeData.depths ? probeData.depths[probeData.depths.length - 1] : 92}m</span>
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center pt-1">
+                <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                  <div className="text-[10px] text-slate-400">Sea Surface Temp</div>
+                  <div className="text-base font-bold text-sky-400">{probeData.sst !== null ? `${probeData.sst}°C` : 'N/A'}</div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                  <div className="text-[10px] text-slate-400">Mixed Layer (MLD)</div>
+                  <div className="text-base font-bold text-emerald-400">{probeData.mld !== null ? `${probeData.mld} m` : 'N/A'}</div>
+                  <div className="text-[9px] text-slate-400">Upwelling boundary</div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                  <div className="text-[10px] text-slate-400">Surface Current Speed</div>
+                  <div className="text-base font-bold text-amber-400">{probeData.surface_current_speed !== null ? `${probeData.surface_current_speed} m/s` : 'N/A'}</div>
+                  <div className="text-[9px] text-slate-400">Drift velocity</div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                  <div className="text-[10px] text-slate-400">Thermocline (D20)</div>
+                  <div className="text-base font-bold text-purple-400">{probeData.d20 !== null ? `${probeData.d20} m` : 'N/A'}</div>
+                  <div className="text-[9px] text-slate-400">Nutrient barrier</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Major Indian Fishing Harbors & PFZ Sectors */}
+          <div className="space-y-3">
+            <h3 className="font-semibold text-slate-300 uppercase tracking-wider text-[11px]">
+              Major Coastal Fishing Harbors & Potential Fishing Grounds (PFZ)
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {FISHING_HARBORS.map((h) => {
+                const isSelected = selectedHarbor.id === h.id;
+                return (
+                  <div
+                    key={h.id}
+                    onClick={() => setSelectedHarbor(h)}
+                    className={`p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-slate-800/90 border-emerald-500 ring-1 ring-emerald-500/50'
+                        : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-sm">{h.name}</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                          {h.pfz_status}
+                        </span>
+                      </div>
+                      <div className="text-slate-400 text-[11px]">
+                        {h.state} • Coordinates: <span className="font-mono text-slate-300">{h.lat}°N, {h.lon}°E</span>
+                      </div>
+                      <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-300">
+                        <span>SST: <strong className="text-sky-400">{h.sst}</strong></span>
+                        <span>MLD: <strong className="text-emerald-400">{h.mld}</strong></span>
+                        <span>Gradient: <strong className="text-amber-400">{h.thermal_gradient}</strong></span>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between">
+                      <span className="text-[10px] text-slate-400">Harbor Depth: ~{h.depth_m}m</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onSelectHarbor) onSelectHarbor(h);
+                          onClose();
+                        }}
+                        className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition"
+                      >
+                        Focus Sector & Probe
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Advisory Guidelines */}
+          <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+            <h4 className="font-semibold text-slate-200 text-xs">How SAMUDRA-3D Identifies Potential Fishing Zones (PFZ):</h4>
+            <ul className="list-disc list-inside space-y-1 text-slate-400 text-[11px] leading-relaxed">
+              <li><strong className="text-slate-300">Thermal Fronts ($
+abla T \ge 0.3^\circ	ext{C/km}$):</strong> Boundaries between warm coastal waters and colder offshore upwelling concentrate phytoplankton, attracting pelagic shoals (sardines, mackerel, tuna).</li>
+              <li><strong className="text-slate-300">Shallow Mixed Layer Depth (MLD &lt; 20m):</strong> Indicates strong vertical upwelling pumping nitrate and phosphate nutrients to the euphotic zone.</li>
+              <li><strong className="text-slate-300">Current Divergence Zones:</strong> Current velocity shears create nutrient traps and eddies identifiable on our 3D vector slice.</li>
+            </ul>
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-3 border-t border-slate-800 bg-slate-950/80 text-xs text-slate-400">
+          <span>Authority: MoES / INCOIS Potential Fishing Zone (PFZ) Advisory System</span>
+          <button onClick={onClose} className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition font-medium">
+            Close
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}

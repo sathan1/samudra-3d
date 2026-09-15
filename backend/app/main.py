@@ -9,6 +9,7 @@ from backend.app.routers.anomaly import router as anomaly_router
 from backend.app.routers.assistant import router as assistant_router
 from backend.app.routers.auth import router as auth_router
 from backend.app.routers.admin import router as admin_router
+from backend.app.routers.datasets import router as datasets_router
 from backend.app.services.ocean_service import ocean_service
 from backend.app.db import init_db
 
@@ -56,6 +57,7 @@ app.include_router(anomaly_router)
 app.include_router(assistant_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(datasets_router)
 
 @app.get("/", tags=["System"])
 def root():

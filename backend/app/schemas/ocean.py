@@ -21,6 +21,11 @@ class OceanMetadataResponse(BaseModel):
     institution: str
     source: str
     synthetic: bool
+    source_mode: Optional[str] = "SYNTHETIC"
+    dataset_id: Optional[str] = None
+    provider: Optional[str] = None
+    license_or_attribution: Optional[str] = None
+    provenance: Optional[Dict[str, Any]] = None
     dimensions: Dict[str, int]
     variables: Dict[str, VariableMetadata]
     time_steps_hours: List[float]
@@ -37,6 +42,10 @@ class OceanDataSliceResponse(BaseModel):
     timestamp: str
     requested_depth: float
     selected_depth: float
+    source_mode: Optional[str] = "SYNTHETIC"
+    dataset_id: Optional[str] = None
+    resolution: Optional[str] = None
+    cached: Optional[bool] = False
     shape: List[int]
     lats: List[float]
     lons: List[float]
