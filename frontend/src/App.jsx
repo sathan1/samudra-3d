@@ -15,6 +15,7 @@ import AuthGate from './components/AuthGate.jsx';
 import DatasetManagerModal from './components/DatasetManagerModal.jsx';
 import FishermanModeModal from './components/FishermanModeModal.jsx';
 import CycloneModeModal from './components/CycloneModeModal.jsx';
+import InDepthOceanModal from './components/InDepthOceanModal.jsx';
 import {
   fetchAnomalyField,
   fetchArgoFloats,
@@ -77,6 +78,7 @@ export default function App() {
   const [isDatasetsModalOpen, setIsDatasetsModalOpen] = useState(false);
   const [isFishermanModalOpen, setIsFishermanModalOpen] = useState(false);
   const [isCycloneModalOpen, setIsCycloneModalOpen] = useState(false);
+  const [isInDepthModalOpen, setIsInDepthModalOpen] = useState(false);
   const [targetRegion, setTargetRegion] = useState(null);
   const [selectedSectorId, setSelectedSectorId] = useState('macro-nio');
 
@@ -738,6 +740,7 @@ export default function App() {
         onOpenDatasetsModal={() => setIsDatasetsModalOpen(true)}
         onOpenFishermanModal={() => setIsFishermanModalOpen(true)}
         onOpenCycloneModal={() => setIsCycloneModalOpen(true)}
+        onOpenInDepthAnalysis={() => setIsInDepthModalOpen(true)}
         onSelectRegion={handleSelectRegion}
         selectedSectorId={selectedSectorId}
       />
@@ -847,6 +850,10 @@ export default function App() {
             onClearTransect={() => setActiveTransect(null)}
             onCloseDrawer={handleCloseDrawer}
             onOpenComparison={() => setIsComparisonOpen(true)}
+            onOpenInDepthModal={(pt) => {
+              if (pt) setProbedPoint(pt);
+              setIsInDepthModalOpen(true);
+            }}
           />
         </div>
         <footer className="workspace-footer flex flex-wrap justify-between gap-3">
@@ -921,6 +928,12 @@ export default function App() {
           onClose={() => setIsCycloneModalOpen(false)}
           probeData={probeData}
           onFocusCycloneTrack={() => handleSelectRegion({ id: 'sub-bob', lat: 14.0, lon: 88.0, dist: 145, level: 'Sub-Basin' })}
+        />
+        <InDepthOceanModal
+          isOpen={isInDepthModalOpen}
+          onClose={() => setIsInDepthModalOpen(false)}
+          initialCoords={probedPoint || { lat: 15.0, lon: 85.0 }}
+          currentActiveDatasetId={activeDataset?.dataset_id}
         />
       </main>
     </div>

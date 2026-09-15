@@ -750,3 +750,17 @@ export async function fetchThermalFronts({ lat_min = 0.0, lat_max = 25.0, lon_mi
   }
   return res.json();
 }
+
+export async function fetchInDepthOceanAnalysis({ lat, lon, time_idx = 0, signal = null } = {}) {
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lon: String(lon),
+    time_idx: String(time_idx)
+  });
+  const res = await fetch(`${API_BASE}/ocean/in-depth-analysis?${params.toString()}`, { signal });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to fetch in-depth analysis: HTTP ${res.status}`);
+  }
+  return res.json();
+}

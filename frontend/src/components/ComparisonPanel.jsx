@@ -34,7 +34,8 @@ export default function ComparisonPanel({
   onChangeAnomalyThreshold = null,
   anomalyData = null,
   onSelectAnomalyPoint = null,
-  onOpenComparison = null
+  onOpenComparison = null,
+  onOpenInDepthModal = null
 }) {
   const [internalCollocation, setInternalCollocation] = useState(null);
 
@@ -344,6 +345,17 @@ export default function ComparisonPanel({
                     No in-situ ocean observation platform within 200 km radius.
                   </div>
                 )}
+
+                <button
+                  type="button"
+                  data-testid="open-depth-analysis-btn"
+                  onClick={() => onOpenInDepthModal?.(probedPoint)}
+                  className="w-full py-2 px-3 rounded-lg bg-indigo-600/90 hover:bg-indigo-500 text-white font-semibold text-xs border border-indigo-400 flex items-center justify-center gap-1.5 shadow-sm transition mt-3"
+                  title="Open In-Depth Acoustic, Density, and Water Mass Analysis for this Station"
+                >
+                  <span>🌊</span>
+                  <span>Analyze In-Depth Column (Acoustics & Stability)</span>
+                </button>
               </>
             ) : null}
           </section>

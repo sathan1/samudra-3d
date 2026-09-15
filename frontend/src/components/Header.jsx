@@ -58,6 +58,7 @@ export default function Header({
   onOpenDatasetsModal = null,
   onOpenFishermanModal = null,
   onOpenCycloneModal = null,
+  onOpenInDepthAnalysis = null,
   onSelectRegion = null,
   selectedSectorId = 'macro-nio'
 }) {
@@ -257,6 +258,22 @@ export default function Header({
           }}
         >
           <span>📊 Compare Prediction vs Obs</span>
+        </button>
+
+        <button
+          type="button"
+          data-testid="header-in-depth-btn"
+          className="header-action-btn in-depth-btn"
+          onClick={onOpenInDepthAnalysis}
+          title="Open In-Depth Ocean Physical & Acoustic Analysis Engine (EOS-80, Mackenzie SVP, SOFAR Channel Axis, N² Stability)"
+          style={{
+            backgroundColor: 'rgba(99, 102, 241, 0.15)',
+            border: '1px solid #6366f1',
+            color: '#a5b4fc',
+            fontWeight: 600
+          }}
+        >
+          <span>🌊 In-Depth Physics</span>
         </button>
 
         <button

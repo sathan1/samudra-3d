@@ -184,3 +184,47 @@ def get_thermal_fronts(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error computing thermal fronts: {str(e)}"
         )
+
+@router.get("/ocean/in-depth-analysis", summary="Compute in-depth ocean physics, acoustics, SOFAR axis, buoyancy stability, and water mass identification")
+def get_in_depth_analysis(
+    lat: float = Query(..., ge=-90.0, le=90.0, description="Latitude in degrees"),
+    lon: float = Query(..., ge=-180.0, le=180.0, description="Longitude in degrees"),
+    time_idx: int = Query(0, ge=0, description="Forecast time index")
+):
+    """
+    Evaluates vertical physical oceanography column:
+    - Mackenzie (1981) Sound Velocity Profile & SOFAR Channel Axis
+    - UNESCO EOS-80 Potential Density Anomaly & Pycnocline
+    - Brunt-Väisälä Buoyancy Frequency N² (Stratification Stability)
+    - Regional Indian Ocean Water Mass Fingerprinting
+    - Marine Heatwave Subsurface Depth Penetration
+    """
+    from backend.app.services.depth_analysis import analyze_in_depth_column
+    try:
+        probe_res = ocean_service.probe_water_column(lat=lat, lon=lon, time_idx=time_idx)
+        analysis = analyze_in_depth_column(
+            lat=lat,
+            lon=lon,
+            depths=probe_res.depths,
+            temperatures=probe_res.temperature,
+            salinities=probe_res.salinity
+        )
+        analysis["sst"] = probe_res.sst
+        analysis["sss"] = probe_res.sss
+        analysis["mld"] = probe_res.mld
+        analysis["d20"] = probe_res.d20
+        analysis["d26"] = probe_res.d26
+        analysis["tchp"] = probe_res.tchp
+        analysis["tchp_category"] = probe_res.tchp_category
+        analysis["nearest_observation"] = probe_res.nearest_observation
+        return analysis
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error evaluating in-depth ocean analysis: {str(e)}"
+        )
