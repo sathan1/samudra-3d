@@ -1,0 +1,72 @@
+{
+  "timestamp": "2026-09-14T18:51:16.717Z",
+  "browser": "153.0.4234.32",
+  "viewport": {
+    "width": 1024,
+    "height": 900
+  },
+  "layout": {
+    "boxes": [
+      {
+        "x": 24,
+        "y": 393.75,
+        "width": 260,
+        "height": 1158.296875,
+        "right": 284,
+        "bottom": 1552.046875
+      },
+      {
+        "x": 302,
+        "y": 393.75,
+        "width": 698,
+        "height": 1158.296875,
+        "right": 1000,
+        "bottom": 1552.046875
+      },
+      {
+        "x": 24,
+        "y": 1570.046875,
+        "width": 976,
+        "height": 913.84375,
+        "right": 1000,
+        "bottom": 2483.890625
+      }
+    ],
+    "scrollWidth": 1024,
+    "clientWidth": 1024,
+    "tailwindDisplay": "flex",
+    "minHeight": "900px"
+  },
+  "focus": {
+    "outline": "solid",
+    "width": "3px",
+    "top": 8
+  },
+  "errors": [],
+  "requests": [
+    "http://127.0.0.1:4175/",
+    "http://127.0.0.1:4175/assets/index-DW5XBuUt.js",
+    "http://127.0.0.1:4175/assets/index-_dFfs_YA.css",
+    "http://127.0.0.1:8000/api/assistant/presets",
+    "http://127.0.0.1:4175/textures/earth_blue_marble.jpg",
+    "http://127.0.0.1:4175/textures/earth_specular.jpg",
+    "http://127.0.0.1:4175/textures/earth_normal.jpg",
+    "http://127.0.0.1:4175/textures/earth_clouds.png",
+    "http://127.0.0.1:4175/favicon.svg",
+    "http://127.0.0.1:8000/api/ocean-data?variable=temperature&time_idx=0&depth=0",
+    "http://127.0.0.1:4175/favicon.svg",
+    "http://127.0.0.1:4175/",
+    "http://127.0.0.1:4175/assets/index-DW5XBuUt.js",
+    "http://127.0.0.1:4175/assets/index-_dFfs_YA.css",
+    "http://127.0.0.1:4175/textures/earth_blue_marble.jpg",
+    "http://127.0.0.1:4175/textures/earth_specular.jpg",
+    "http://127.0.0.1:4175/textures/earth_normal.jpg",
+    "http://127.0.0.1:4175/textures/earth_clouds.png",
+    "http://127.0.0.1:8000/api/assistant/presets",
+    "http://127.0.0.1:4175/favicon.svg",
+    "http://127.0.0.1:8000/api/ocean-data?variable=temperature&time_idx=0&depth=0"
+  ],
+  "disabledControls": 2,
+  "refreshTextStable": true,
+  "result": "PASS"
+}

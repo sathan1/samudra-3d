@@ -1,0 +1,72 @@
+{
+  "timestamp": "2026-09-15T06:57:34.242Z",
+  "browser": "153.0.4234.32",
+  "viewport": {
+    "width": 320,
+    "height": 900
+  },
+  "layout": {
+    "boxes": [
+      {
+        "x": 16,
+        "y": 750,
+        "width": 288,
+        "height": 1039.125,
+        "right": 304,
+        "bottom": 1789.125
+      },
+      {
+        "x": 16,
+        "y": 1805.125,
+        "width": 288,
+        "height": 843.5,
+        "right": 304,
+        "bottom": 2648.625
+      },
+      {
+        "x": 16,
+        "y": 2664.625,
+        "width": 288,
+        "height": 1141.015625,
+        "right": 304,
+        "bottom": 3805.640625
+      }
+    ],
+    "scrollWidth": 320,
+    "clientWidth": 320,
+    "tailwindDisplay": "flex",
+    "minHeight": "900px"
+  },
+  "focus": {
+    "outline": "solid",
+    "width": "3px",
+    "top": 8
+  },
+  "errors": [],
+  "requests": [
+    "http://127.0.0.1:4175/",
+    "http://127.0.0.1:4175/assets/index-e3z4c33F.js",
+    "http://127.0.0.1:4175/assets/index-l_o5wxGq.css",
+    "http://127.0.0.1:8000/api/assistant/presets",
+    "http://127.0.0.1:4175/textures/earth_blue_marble.jpg",
+    "http://127.0.0.1:4175/textures/earth_specular.jpg",
+    "http://127.0.0.1:4175/textures/earth_normal.jpg",
+    "http://127.0.0.1:4175/textures/earth_clouds.png",
+    "http://127.0.0.1:4175/favicon.svg",
+    "http://127.0.0.1:8000/api/ocean-data?variable=temperature&time_idx=0&depth=0",
+    "http://127.0.0.1:4175/favicon.svg",
+    "http://127.0.0.1:4175/",
+    "http://127.0.0.1:4175/assets/index-e3z4c33F.js",
+    "http://127.0.0.1:4175/assets/index-l_o5wxGq.css",
+    "http://127.0.0.1:4175/textures/earth_blue_marble.jpg",
+    "http://127.0.0.1:4175/textures/earth_specular.jpg",
+    "http://127.0.0.1:4175/textures/earth_normal.jpg",
+    "http://127.0.0.1:4175/textures/earth_clouds.png",
+    "http://127.0.0.1:8000/api/assistant/presets",
+    "http://127.0.0.1:4175/favicon.svg",
+    "http://127.0.0.1:8000/api/ocean-data?variable=temperature&time_idx=0&depth=0"
+  ],
+  "disabledControls": 2,
+  "refreshTextStable": true,
+  "result": "PASS"
+}
