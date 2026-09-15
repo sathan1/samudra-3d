@@ -77,13 +77,28 @@ export default function ComparisonPanel({
           <span className="eyebrow text-[10px] text-cyan-400">
             {probedPoint ? 'VIRTUAL CTD STATION' : activeTransect ? 'ODV TRANSECT' : selectedFloat ? 'SENSOR INSPECTION' : 'OCEAN DATA NAVIGATOR'}
           </span>
-          <h2 id="inspection-heading" className="text-base font-bold text-slate-100 m-0">
-            {probedPoint
-              ? `Water Column (${probedPoint.lat.toFixed(2)}°N, ${probedPoint.lon.toFixed(2)}°E)`
-              : activeTransect
-              ? `Vertical Cross-Section (${activeTransect.total_distance_km} km)`
-              : selectedFloat?.name || 'Inspection & Collocation'}
-          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 id="inspection-heading" className="text-base font-bold text-slate-100 m-0">
+              {probedPoint
+                ? `Water Column (${probedPoint.lat.toFixed(2)}°N, ${probedPoint.lon.toFixed(2)}°E)`
+                : activeTransect
+                ? `Vertical Cross-Section (${activeTransect.total_distance_km} km)`
+                : selectedFloat?.name || 'Inspection & Collocation'}
+            </h2>
+            {selectedFloat && (
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
+                selectedFloat.source_mode === 'REAL_LOCAL' || selectedFloat.metadata?.source_mode === 'REAL_LOCAL'
+                  ? selectedFloat.platform_type === 'buoy'
+                    ? 'bg-sky-950 text-sky-300 border border-sky-700'
+                    : selectedFloat.platform_type === 'glider'
+                    ? 'bg-purple-950 text-purple-300 border border-purple-700'
+                    : 'bg-emerald-950 text-emerald-300 border border-emerald-700'
+                  : 'bg-amber-950 text-amber-300 border border-amber-700'
+              }`}>
+                {selectedFloat.metadata?.provenance_badge || (selectedFloat.source_mode === 'REAL_LOCAL' ? '[REAL • IN-SITU]' : '[SYNTHETIC • TEST]')}
+              </span>
+            )}
+          </div>
         </div>
         <span
           role="button"

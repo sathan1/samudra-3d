@@ -673,3 +673,80 @@ export async function registerCustomDataset(customData, signal = null) {
 }
 
 
+
+export async function generateSubsetCommand(subsetParams, signal = null) {
+  const res = await fetch(`${API_BASE}/datasets/generate-command`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(subsetParams),
+    signal
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to generate command: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchDatasetManifests(signal = null) {
+  const res = await fetch(`${API_BASE}/datasets/manifests`, { signal });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch manifests: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchDatasetManifestById(manifestId, signal = null) {
+  const res = await fetch(`${API_BASE}/datasets/manifests/${manifestId}`, { signal });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch manifest: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function startDatasetDownload(subsetParams, forceOverride = false, signal = null) {
+  const res = await fetch(`${API_BASE}/datasets/download`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subset_request: subsetParams, force_override: forceOverride }),
+    signal
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Download request failed: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchDownloadStatus(jobId, signal = null) {
+  const res = await fetch(`${API_BASE}/datasets/download/status/${jobId}`, { signal });
+  if (!res.ok) {
+    throw new Error(`Failed to poll download status: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function cancelDatasetDownload(jobId, signal = null) {
+  const res = await fetch(`${API_BASE}/datasets/download/cancel/${jobId}`, {
+    method: 'POST',
+    signal
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to cancel download: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchThermalFronts({ lat_min = 0.0, lat_max = 25.0, lon_min = 50.0, lon_max = 100.0, signal = null } = {}) {
+  const params = new URLSearchParams({
+    lat_min: String(lat_min),
+    lat_max: String(lat_max),
+    lon_min: String(lon_min),
+    lon_max: String(lon_max)
+  });
+  const res = await fetch(`${API_BASE}/ocean/thermal-fronts?${params.toString()}`, { signal });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch thermal fronts: HTTP ${res.status}`);
+  }
+  return res.json();
+}

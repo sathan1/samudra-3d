@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { fetchThermalFronts } from '../services/api';
 
 const FISHING_HARBORS = [
   { id: 'veraval', name: 'Veraval Fishing Harbor', state: 'Gujarat', lat: 20.90, lon: 70.37, depth_m: 14, pfz_status: 'HIGH_POTENTIAL', sst: '28.2°C', mld: '22m', thermal_gradient: '0.42°C/km (Strong Front)' },
@@ -11,6 +12,29 @@ const FISHING_HARBORS = [
 
 export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, probeData }) {
   const [selectedHarbor, setSelectedHarbor] = useState(FISHING_HARBORS[0]);
+  const [activeTab, setActiveTab] = useState('harbors'); // 'harbors' | 'fronts'
+  const [thermalFronts, setThermalFronts] = useState([]);
+  const [loadingFronts, setLoadingFronts] = useState(false);
+  const [frontsBadge, setFrontsBadge] = useState('[REAL • COPERNICUS]');
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'fronts') {
+      loadFronts();
+    }
+  }, [isOpen, activeTab]);
+
+  const loadFronts = async () => {
+    setLoadingFronts(true);
+    try {
+      const data = await fetchThermalFronts({ lat_min: 0.0, lat_max: 25.0, lon_min: 50.0, lon_max: 100.0 });
+      setThermalFronts(data.fronts || []);
+      if (data.provenance_badge) setFrontsBadge(data.provenance_badge);
+    } catch (err) {
+      console.error('Failed to fetch thermal fronts:', err);
+    } finally {
+      setLoadingFronts(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -34,6 +58,35 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Tab Selector */}
+        <div className="flex border-b border-slate-800 bg-slate-950/40 px-6 pt-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('harbors')}
+            className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition border-b-2 flex items-center gap-2 ${
+              activeTab === 'harbors'
+                ? 'border-emerald-500 text-emerald-400 bg-slate-900/90'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <span>⚓ Major Fishing Harbors ({FISHING_HARBORS.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setActiveTab('fronts'); loadFronts(); }}
+            className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition border-b-2 flex items-center gap-2 ${
+              activeTab === 'fronts'
+                ? 'border-emerald-500 text-emerald-400 bg-slate-900/90'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <span>🌊 Live Thermal Fronts (|∇T| ≥ 0.02°C/km)</span>
+            <span className="text-[10px] font-mono px-1.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+              {thermalFronts.length > 0 ? thermalFronts.length : 'Live'}
+            </span>
           </button>
         </div>
 
@@ -79,68 +132,135 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
             </div>
           )}
 
-          {/* Major Indian Fishing Harbors & PFZ Sectors */}
-          <div className="space-y-3">
-            <h3 className="font-semibold text-slate-300 uppercase tracking-wider text-[11px]">
-              Major Coastal Fishing Harbors & Potential Fishing Grounds (PFZ)
-            </h3>
+          {/* Tab 1: Major Indian Fishing Harbors & PFZ Sectors */}
+          {activeTab === 'harbors' && (
+            <div className="space-y-3">
+              <h3 className="font-semibold text-slate-300 uppercase tracking-wider text-[11px]">
+                Major Coastal Fishing Harbors & Potential Fishing Grounds (PFZ)
+              </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {FISHING_HARBORS.map((h) => {
-                const isSelected = selectedHarbor.id === h.id;
-                return (
-                  <div
-                    key={h.id}
-                    onClick={() => setSelectedHarbor(h)}
-                    className={`p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
-                      isSelected
-                        ? 'bg-slate-800/90 border-emerald-500 ring-1 ring-emerald-500/50'
-                        : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-white text-sm">{h.name}</span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-                          {h.pfz_status}
-                        </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {FISHING_HARBORS.map((h) => {
+                  const isSelected = selectedHarbor.id === h.id;
+                  return (
+                    <div
+                      key={h.id}
+                      onClick={() => setSelectedHarbor(h)}
+                      className={`p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
+                        isSelected
+                          ? 'bg-slate-800/90 border-emerald-500 ring-1 ring-emerald-500/50'
+                          : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-white text-sm">{h.name}</span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                            {h.pfz_status}
+                          </span>
+                        </div>
+                        <div className="text-slate-400 text-[11px]">
+                          {h.state} • Coordinates: <span className="font-mono text-slate-300">{h.lat}°N, {h.lon}°E</span>
+                        </div>
+                        <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-300">
+                          <span>SST: <strong className="text-sky-400">{h.sst}</strong></span>
+                          <span>MLD: <strong className="text-emerald-400">{h.mld}</strong></span>
+                          <span>Gradient: <strong className="text-amber-400">{h.thermal_gradient}</strong></span>
+                        </div>
                       </div>
-                      <div className="text-slate-400 text-[11px]">
-                        {h.state} • Coordinates: <span className="font-mono text-slate-300">{h.lat}°N, {h.lon}°E</span>
-                      </div>
-                      <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-300">
-                        <span>SST: <strong className="text-sky-400">{h.sst}</strong></span>
-                        <span>MLD: <strong className="text-emerald-400">{h.mld}</strong></span>
-                        <span>Gradient: <strong className="text-amber-400">{h.thermal_gradient}</strong></span>
+
+                      <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400">Harbor Depth: ~{h.depth_m}m</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onSelectHarbor) onSelectHarbor(h);
+                            onClose();
+                          }}
+                          className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition"
+                        >
+                          Focus Sector & Probe
+                        </button>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
-                    <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between">
-                      <span className="text-[10px] text-slate-400">Harbor Depth: ~{h.depth_m}m</span>
+          {/* Tab 2: Live Detected Thermal Fronts */}
+          {activeTab === 'fronts' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-slate-300 uppercase tracking-wider text-[11px] flex items-center gap-2">
+                    <span>High-Resolution Thermal Front Gradient Vectors (|∇T|)</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                      {frontsBadge}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Derived from 8.3 km horizontal temperature tensor derivatives (∂T/∂x, ∂T/∂y).</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadFronts}
+                  disabled={loadingFronts}
+                  className="px-2.5 py-1 text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 rounded border border-slate-700"
+                >
+                  {loadingFronts ? 'Evaluating...' : '↻ Recalculate'}
+                </button>
+              </div>
+
+              {loadingFronts ? (
+                <div className="p-8 text-center text-slate-400">Evaluating 2D spatial temperature gradient field across Indian Ocean domain...</div>
+              ) : thermalFronts.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 bg-slate-950/60 rounded-xl border border-slate-800">
+                  No thermal fronts detected above gradient threshold for active domain.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-1">
+                  {thermalFronts.slice(0, 30).map((f, i) => (
+                    <div key={i} className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 font-mono text-slate-200">
+                          <strong>{f.lat}°N, {f.lon}°E</strong>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                            f.front_intensity === 'HIGH' ? 'bg-rose-950 text-rose-300 border border-rose-800' : 'bg-amber-950 text-amber-300 border border-amber-800'
+                          }`}>
+                            {f.front_intensity}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          Gradient: <strong className="text-amber-300 font-mono">{f.gradient_deg_c_per_km} °C/km</strong> • SST: {f.sst_celsius}°C
+                        </div>
+                        <div className="text-[10px] text-emerald-400 mt-0.5">
+                          PFZ Confidence: <strong>{(f.pfz_probability * 100).toFixed(0)}%</strong>
+                        </div>
+                      </div>
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onSelectHarbor) onSelectHarbor(h);
+                        onClick={() => {
+                          if (onSelectHarbor) onSelectHarbor({ lat: f.lat, lon: f.lon, name: `Thermal Front (${f.lat}°N, ${f.lon}°E)` });
                           onClose();
                         }}
-                        className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition"
+                        className="px-2.5 py-1 bg-sky-700 hover:bg-sky-600 text-white rounded text-[10px] font-semibold transition shrink-0 ml-2"
                       >
-                        Focus Sector & Probe
+                        Probe
                       </button>
                     </div>
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           {/* Advisory Guidelines */}
           <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
             <h4 className="font-semibold text-slate-200 text-xs">How SAMUDRA-3D Identifies Potential Fishing Zones (PFZ):</h4>
             <ul className="list-disc list-inside space-y-1 text-slate-400 text-[11px] leading-relaxed">
-              <li><strong className="text-slate-300">Thermal Fronts ($
-abla T \ge 0.3^\circ	ext{C/km}$):</strong> Boundaries between warm coastal waters and colder offshore upwelling concentrate phytoplankton, attracting pelagic shoals (sardines, mackerel, tuna).</li>
+              <li><strong className="text-slate-300">Thermal Fronts (|∇T| ≥ 0.02°C/km):</strong> Boundaries between warm coastal waters and colder offshore upwelling concentrate phytoplankton, attracting pelagic shoals (sardines, mackerel, tuna).</li>
               <li><strong className="text-slate-300">Shallow Mixed Layer Depth (MLD &lt; 20m):</strong> Indicates strong vertical upwelling pumping nitrate and phosphate nutrients to the euphotic zone.</li>
               <li><strong className="text-slate-300">Current Divergence Zones:</strong> Current velocity shears create nutrient traps and eddies identifiable on our 3D vector slice.</li>
             </ul>

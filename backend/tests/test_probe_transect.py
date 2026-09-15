@@ -15,6 +15,9 @@ from backend.app.main import app
 client = TestClient(app)
 
 class TestProbeTransect(unittest.TestCase):
+    def setUp(self):
+        from backend.app.services.ocean_service import ocean_service
+        ocean_service.set_active_dataset("incois_roms_synthetic")
     def test_ocean_probe_valid(self):
         """Tests vertical water column probe at Bay of Bengal coordinate."""
         r = client.get("/api/ocean/probe?lat=12.0&lon=82.0&time_idx=0")

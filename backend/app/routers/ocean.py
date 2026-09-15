@@ -159,3 +159,28 @@ def get_ocean_transect(
             detail=f"Error extracting ocean transect: {str(e)}"
         )
 
+
+@router.get("/ocean/thermal-fronts", summary="Extract surface thermal fronts and Potential Fishing Zone (PFZ) boundaries")
+def get_thermal_fronts(
+    lat_min: float = Query(0.0, description="Minimum latitude"),
+    lat_max: float = Query(25.0, description="Maximum latitude"),
+    lon_min: float = Query(50.0, description="Minimum longitude"),
+    lon_max: float = Query(100.0, description="Maximum longitude")
+):
+    """
+    Computes spatial temperature gradient vector |∇T| across surface SST field
+    and returns detected thermal fronts and PFZ probabilities.
+    """
+    from backend.app.data.satellite_ingest import satellite_manager
+    try:
+        return satellite_manager.get_surface_thermal_analysis(
+            lat_min=lat_min,
+            lat_max=lat_max,
+            lon_min=lon_min,
+            lon_max=lon_max
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error computing thermal fronts: {str(e)}"
+        )

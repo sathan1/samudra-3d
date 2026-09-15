@@ -96,11 +96,27 @@ The Indian Ocean is one of the most dynamically complex marine ecosystems on Ear
 - **Scientific Download Size Estimator:** Calibrated volume estimator predicting uncompressed RAM tensor footprint, zlib-deflated NetCDF4 disk size, bandwidth transfer times, and target disk space headroom.
 - **Hierarchical Precision Navigation:** Zoom seamlessly across 4 geographic tiers: Macro Basin &rarr; Regional Sub-Basin &rarr; Coastal Maritime Shelf &rarr; Local Harbor / PFZ Sector.
 - **Specialized Operational Modes:**
-  - **Fisherman Mode & PFZ Advisory:** Thermal front gradient ($\nabla T \ge 0.3^\circ\text{C/km}$), coastal upwelling MLD, and nearest fishing harbor distance/conditions with explicit safety notices.
+  - **Fisherman Mode & PFZ Advisory:** Thermal front gradient ($\nabla T \ge 0.3^\circ\text{C/km}$), coastal upwelling MLD, live 2D gradient extraction, and nearest fishing harbor distance/conditions with explicit safety notices.
   - **Cyclone Heat Engine & TCHP:** Upper-ocean heat potential ($>110\,\text{kJ/cm}^2$ Severe / Rapid Intensification threshold) with strict institutional separation from official IMD forecast tracks.
-- **Official Open Data Provenance:** Direct verified endpoints for INCOIS LAS, Copernicus Marine, Ifremer Argo GDAC, and Ifremer Gliders.
 
----
+### 7. Safe Ocean Download Pipeline & Subsetting Generator
+- **Protection Against Unbounded Global Downloads:** Enforces strict parameter-based bounding boxes for `copernicusmarine subset` (`--minimum-longitude`, `--maximum-longitude`, `--minimum-latitude`, `--maximum-latitude`, `--minimum-depth`, `--maximum-depth`, `--start-datetime`, `--end-datetime`, `-v`). Prohibits full-archive global fetches (which exceed 14.48 TB) from automatic execution.
+- **Safety Level Thresholds:**
+  - `SAFE` (< 1 GB): Standard download approved.
+  - `CONFIRMATION_REQUIRED` (1 – 10 GB): Warning with user confirmation step.
+  - `EXPLICIT_CONFIRMATION_REQUIRED` (10 – 100 GB): High-volume warning requiring explicit administrator confirmation.
+  - `CRITICAL_WARNING` (> 100 GB): Very high volume; requires manual review.
+  - `BLOCKED` (> 1 TB or insufficient local disk space): Execution automatically prevented to safeguard system stability.
+- **Atomic Downloads & Resumption:** Uses atomic `.part` chunking (`filename.nc.part` &rarr; atomic rename to `filename.nc` upon verification).
+- **Cryptographic Manifests:** Generates SHA-256 checksums and provenance records stored in `SAMUDRA_DATA/manifests/{manifest_id}.json`.
+
+### 8. Multi-Platform Real In-situ Ingestion (Argo, Gliders, INCOIS Buoys, Satellite)
+- **Argo GDAC Parser (`argo_ingest.py`):** Parses WMO v3.1 NetCDF files (`PRES`, `TEMP`, `PSAL`, `*_QC`), converts pressure to depth via standard UNESCO factor (0.992), and honors WMO QC flags (1-4).
+- **Underwater Gliders (`glider_ingest.py`):** Ingests IFREMER / OceanGliders NetCDF mission trajectories with 3D dive/climb waypoints.
+- **INCOIS Moored Buoy Network (`incois_ingest.py`):** Ingests authentic OMNI / RAMA moored buoy thermistor chain profiles (BD08, BD10, AD01, AD06, CB02).
+- **Satellite Thermal Front Engine (`satellite_ingest.py`):** Calculates 2D spatial temperature gradient vectors ($|\nabla T| = \sqrt{(\partial T/\partial x)^2 + (\partial T/\partial y)^2}$) across surface fields to detect thermal fronts for marine ecology and PFZ.
+- **Scientific Provenance Integrity:** Every observation and model slice displays explicit provenance badges (`[REAL • COPERNICUS]`, `[REAL • ARGO]`, `[REAL • GLIDER]`, `[REAL • INCOIS]`, `[REAL • SATELLITE]`, `[SYNTHETIC • ROMS]`). Never claims synthetic data is real.
+
 
 ## 🚀 Quick Start Guide
 
@@ -127,14 +143,15 @@ Prerequisites: Python 3.11+, Node.js 20+ / 22+ LTS.
 ```powershell
 Set-Location -LiteralPath 'D:\Studies\SIH\Samudra 3Dackend'
 python -m venv venv
-.env\Scripts\Activate.ps1
+.
+env\Scripts\Activate.ps1
 pip install -r requirements.txt
 python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 #### 2. Frontend Setup
 ```powershell
-Set-Location -LiteralPath 'D:\Studies\SIH\Samudra 3Drontend'
+Set-Location -LiteralPath 'D:\Studies\SIH\Samudra 3D\frontend'
 npm ci
 npm run dev
 ```

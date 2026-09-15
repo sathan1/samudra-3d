@@ -1,6 +1,7 @@
 """
 SAMUDRA-3D Dataset Management Router
-Exposes endpoints for cataloging, selecting, estimating download sizes, and registering ocean datasets.
+Exposes endpoints for cataloging, selecting, estimating download sizes,
+generating safe CLI commands, tracking download manifests, and registering ocean datasets.
 """
 from typing import List, Optional, Dict, Any
 from pathlib import Path
@@ -12,6 +13,13 @@ from backend.app.data.estimator import (
     SizeEstimateRequest,
     SizeEstimateResponse,
     estimate_dataset_download_size
+)
+from backend.app.data.download_manager import (
+    download_manager,
+    SubsetCommandRequest,
+    SubsetCommandResponse,
+    ManifestRecord,
+    DownloadJobInfo
 )
 from backend.app.services.ocean_service import ocean_service
 
@@ -44,6 +52,11 @@ class DatasetsListResponse(BaseModel):
     active_dataset_id: Optional[str]
     active_source_mode: Optional[str]
     datasets: List[DatasetDescriptor]
+
+
+class StartDownloadRequest(BaseModel):
+    subset_request: SubsetCommandRequest
+    force_override: bool = False
 
 
 @router.get("", response_model=DatasetsListResponse, summary="List all registered ocean datasets")
@@ -111,6 +124,91 @@ def estimate_size(req: SizeEstimateRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error estimating dataset size: {str(e)}"
         )
+
+
+@router.post("/generate-command", response_model=SubsetCommandResponse, summary="Generate verified safe copernicusmarine subset CLI command")
+def generate_subset_command(req: SubsetCommandRequest):
+    """
+    Constructs the exact, safe copernicusmarine CLI command for the requested ocean subset,
+    verifying dimensions, calculating byte-size transfers, and evaluating safety thresholds.
+    """
+    try:
+        return download_manager.generate_command(req)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to generate subset command: {str(e)}"
+        )
+
+
+@router.get("/manifests", response_model=List[ManifestRecord], summary="List all downloaded dataset manifests and SHA-256 checksums")
+def list_manifests():
+    """
+    Returns verified manifest records for all NetCDF files downloaded or stored in SAMUDRA_DATA/raw,
+    including SHA-256 hashes, byte sizes, bounds, and provenance.
+    """
+    return download_manager.list_manifests()
+
+
+@router.get("/manifests/{manifest_id}", response_model=ManifestRecord, summary="Retrieve a specific download manifest")
+def get_manifest(manifest_id: str):
+    """
+    Returns single manifest record by manifest_id or filename match.
+    """
+    m = download_manager.get_manifest(manifest_id)
+    if not m:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Manifest '{manifest_id}' not found"
+        )
+    return m
+
+
+@router.post("/download", response_model=DownloadJobInfo, summary="Start atomic chunked download job")
+def start_download(req: StartDownloadRequest):
+    """
+    Initiates an asynchronous atomic download job for the specified ocean subset.
+    """
+    try:
+        return download_manager.start_download_job(req.subset_request, force_override=req.force_override)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Download initiation failed: {str(e)}"
+        )
+
+
+@router.get("/download/status/{job_id}", response_model=DownloadJobInfo, summary="Get download job status")
+def get_download_status(job_id: str):
+    """
+    Polls live progress and status of a download job.
+    """
+    st = download_manager.get_job_status(job_id)
+    if not st:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job '{job_id}' not found"
+        )
+    return st
+
+
+@router.post("/download/cancel/{job_id}", summary="Cancel active download job")
+def cancel_download(job_id: str):
+    """
+    Cancels an active download job and cleans up temporary .part files.
+    """
+    ok = download_manager.cancel_job(job_id)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job '{job_id}' not found or already terminated"
+        )
+    return {"status": "cancelled", "job_id": job_id}
 
 
 @router.post("/custom", response_model=DatasetDescriptor, summary="Register custom dataset or sensor feed")

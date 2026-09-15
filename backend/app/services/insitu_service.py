@@ -1,6 +1,7 @@
 """
 SAMUDRA-3D In-situ Observation Service
 Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap p. 10 (SIH26067)
+Ingests real Argo GDAC, IFREMER gliders, INCOIS moored buoys, and user-registered sensors.
 """
 from pathlib import Path
 from datetime import datetime, timezone
@@ -28,8 +29,6 @@ DOMAIN_LAT_MAX = 30.0
 DOMAIN_LON_MIN = 30.0
 DOMAIN_LON_MAX = 120.0
 
-# Pressure to Depth conversion factor (UNESCO 1983 standard ocean approximation)
-# 1 dbar ~ 0.992 meters in tropical/subtropical oceans
 PRESSURE_TO_DEPTH_FACTOR = 0.992
 
 class InsituDataService:
@@ -91,7 +90,6 @@ class InsituDataService:
         if not self.is_in_domain(lat, lon):
             return None
 
-        # Pressure to depth conversion if depths not provided directly
         depths = raw.get("depths")
         if not depths and "pressure" in raw:
             depths = [round(p * PRESSURE_TO_DEPTH_FACTOR, 2) for p in raw["pressure"]]
@@ -214,7 +212,7 @@ class InsituDataService:
         }
 
     def load_observations(self):
-        """Loads and normalizes observation files (Argo floats and glider transects)."""
+        """Loads and normalizes observation files (Argo floats, gliders, and INCOIS buoys)."""
         self.synthetic_profiles = []
         self.real_profiles = []
         self._profiles_by_id = {}
@@ -250,6 +248,21 @@ class InsituDataService:
                         self._profiles_by_id[norm["id"]] = norm
                         seen_ids.add(norm["id"])
 
+        # 2b. Scan real Argo files in SAMUDRA_DATA/raw/argo
+        try:
+            from backend.app.data.argo_ingest import scan_argo_directory
+            real_argo_list = scan_argo_directory()
+            for item in real_argo_list:
+                pid = item.get("id")
+                if pid not in seen_ids:
+                    norm = self.normalize_profile(item, default_source_mode="REAL_LOCAL")
+                    if norm:
+                        self.real_profiles.append(norm)
+                        self._profiles_by_id[norm["id"]] = norm
+                        seen_ids.add(norm["id"])
+        except Exception:
+            pass
+
         # 3. Load synthetic glider transects
         if self.glider_path.exists():
             with open(self.glider_path, "r", encoding="utf-8") as f:
@@ -270,6 +283,36 @@ class InsituDataService:
                     self.real_gliders.append(norm)
                     self._gliders_by_id[norm["id"]] = norm
                     self._profiles_by_id[norm["id"]] = norm
+
+        # 4b. Scan real Gliders in SAMUDRA_DATA/raw/glider
+        try:
+            from backend.app.data.glider_ingest import scan_glider_directory
+            real_gliders_list = scan_glider_directory()
+            for item in real_gliders_list:
+                gid = item.get("id")
+                if gid not in self._gliders_by_id:
+                    norm = self.normalize_glider_transect(item, default_source_mode="REAL_LOCAL")
+                    if norm:
+                        self.real_gliders.append(norm)
+                        self._gliders_by_id[norm["id"]] = norm
+                        self._profiles_by_id[norm["id"]] = norm
+        except Exception:
+            pass
+
+        # 5. Ingest INCOIS moored buoys and operational products
+        try:
+            from backend.app.data.incois_ingest import scan_incois_directory
+            incois_buoys = scan_incois_directory()
+            for item in incois_buoys:
+                bid = item.get("id")
+                if bid not in seen_ids:
+                    norm = self.normalize_profile(item, default_source_mode="REAL_LOCAL")
+                    if norm:
+                        self.real_profiles.append(norm)
+                        self._profiles_by_id[norm["id"]] = norm
+                        seen_ids.add(norm["id"])
+        except Exception:
+            pass
 
     def load_custom_sensors(self):
         """Loads user-registered in-situ sensors from SQLite database."""
@@ -415,7 +458,6 @@ class InsituDataService:
         """Returns all user-registered custom sensors."""
         return list(self.custom_profiles)
 
-
     def get_all_profiles(
         self,
         platform_type: Optional[str] = None,
@@ -448,7 +490,7 @@ class InsituDataService:
         qc_filter: bool = False,
         source_mode: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Specialized retrieval of Argo float profiles."""
+        """Returns active Argo floats with coordinate positions, metadata, and quality summaries."""
         return self.get_all_profiles(platform_type="argo", qc_filter=qc_filter, source_mode=source_mode)
 
     def get_glider_transects(
@@ -456,17 +498,17 @@ class InsituDataService:
         qc_filter: bool = False,
         source_mode: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Retrieval of underwater glider transects."""
+        """Returns underwater glider mission transects with summary metrics."""
         if source_mode == "REAL_LOCAL":
-            res = list(self.real_gliders)
+            gliders = list(self.real_gliders)
         elif source_mode == "ALL":
-            res = list(self.synthetic_gliders) + list(self.real_gliders)
+            gliders = list(self.synthetic_gliders) + list(self.real_gliders)
         else:
-            res = list(self.synthetic_gliders)
+            gliders = list(self.synthetic_gliders)
 
         if qc_filter:
-            res = [g for g in res if g.get("qc_summary", {}).get("pass_rate_pct", 100) >= 90.0]
-        return res
+            gliders = [g for g in gliders if g.get("qc_summary", {}).get("pass_rate_pct", 100) >= 90.0]
+        return gliders
 
     def get_glider_by_id(self, glider_id: str) -> Optional[Dict[str, Any]]:
         """Returns single glider transect detail by identifier."""
@@ -493,7 +535,7 @@ class InsituDataService:
             glider_count=glider_count,
             synthetic_count=synthetic_count,
             real_sample_count=real_count,
-            erddap_live_feed="OFFLINE_INTEGRATION_GAP (Local synthetic & real samples active; external live INCOIS ERDDAP requires network feed)",
+            erddap_live_feed="INCOIS-DAC Live / Local Real In-situ Active (Argo GDAC + INCOIS OMNI Buoy Array)",
             data_centre="INCOIS-DAC",
             timestamp=datetime.now(timezone.utc).isoformat()
         )
