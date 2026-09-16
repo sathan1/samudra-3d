@@ -27,7 +27,8 @@ import {
   fetchCustomSensors,
   fetchOceanProbe,
   fetchOceanTransect,
-  fetchDatasets
+  fetchDatasets,
+  selectActiveDataset
 } from './services/api.js';
 import {
   computeNextStep,
@@ -51,6 +52,7 @@ export default function App() {
   const [currentTimeTimestamp, setCurrentTimeTimestamp] = useState(FORECAST_TIMESTAMPS[0]);
   const [showCurrents, setShowCurrents] = useState(false);
   const [showArgo, setShowArgo] = useState(false);
+  const [insituSourceMode, setInsituSourceMode] = useState('REAL_LOCAL');
   const [argoFloats, setArgoFloats] = useState([]);
   const [selectedFloat, setSelectedFloat] = useState(null);
   const [showGliders, setShowGliders] = useState(false);
@@ -176,15 +178,27 @@ export default function App() {
     return () => { isMounted = false; };
   }, [authToken]);
 
-  // Load active ocean dataset catalog on mount
+  // Load active ocean dataset catalog on mount - guarantee real Copernicus GLORYS12V1 is active
   useEffect(() => {
     let isMounted = true;
     fetchDatasets()
-      .then((data) => {
+      .then(async (data) => {
         if (!isMounted) return;
-        if (data.datasets && data.active_dataset_id) {
+        if (data?.datasets) {
+          const glorys = data.datasets.find((d) => d.dataset_id === 'cmems_mod_glo_phy_my_0.083deg_P1D-m');
+          if (glorys && data.active_dataset_id !== glorys.dataset_id) {
+            try {
+              const res = await selectActiveDataset(glorys.dataset_id);
+              if (isMounted && res?.active_dataset) {
+                setActiveDataset(res.active_dataset);
+                return;
+              }
+            } catch (e) {
+              console.warn('Auto-activation of GLORYS failed:', e);
+            }
+          }
           const found = data.datasets.find((d) => d.dataset_id === data.active_dataset_id);
-          setActiveDataset(found || data.datasets[0]);
+          setActiveDataset(found || glorys || data.datasets[0]);
         }
       })
       .catch(() => {});
@@ -195,7 +209,7 @@ export default function App() {
     if (!sector) return;
     setSelectedSectorId(sector.id);
     setTargetRegion(sector);
-    if (sector.level === 'Local Sector' && sector.lat && sector.lon) {
+    if (sector.lat && sector.lon && (sector.level === 'Local Sector' || sector.level === 'Coastal')) {
       setProbedPoint({ lat: sector.lat, lon: sector.lon });
       setIsProbeLoading(true);
       fetchOceanProbe({ lat: sector.lat, lon: sector.lon, time_idx: timeIndex })
@@ -391,7 +405,7 @@ export default function App() {
 
     let ignore = false;
     Promise.all([
-      fetchArgoFloats(),
+      fetchArgoFloats({ source_mode: insituSourceMode }),
       fetchCustomSensors().catch(() => [])
     ])
       .then(([argoData, customData]) => {
@@ -415,14 +429,14 @@ export default function App() {
     return () => {
       ignore = true;
     };
-  }, [showArgo]);
+  }, [showArgo, insituSourceMode]);
 
   // Load Glider transects when layer is enabled
   useEffect(() => {
     if (!showGliders) return;
 
     let ignore = false;
-    fetchGliderTransects()
+    fetchGliderTransects({ source_mode: insituSourceMode === 'SYNTHETIC' ? 'SYNTHETIC' : 'REAL_LOCAL' })
       .then((data) => {
         if (!ignore && data) {
           setGliderTransects(data);
@@ -435,7 +449,7 @@ export default function App() {
     return () => {
       ignore = true;
     };
-  }, [showGliders]);
+  }, [showGliders, insituSourceMode]);
 
   const handleSelectFloat = useCallback(
     (floatOrSummary) => {
@@ -783,6 +797,8 @@ export default function App() {
             onToggleCurrents={setShowCurrents}
             showArgo={showArgo}
             onToggleArgo={handleToggleArgo}
+            insituSourceMode={insituSourceMode}
+            onInsituSourceModeChange={setInsituSourceMode}
             argoFloats={argoFloats}
             selectedFloatId={selectedFloat?.id || null}
             onSelectFloatId={handleSelectFloatId}
@@ -827,6 +843,7 @@ export default function App() {
             isFullView={isFullView}
             onToggleFullView={() => setIsFullView((v) => !v)}
             targetRegion={targetRegion}
+            onSelectRegion={handleSelectRegion}
           />
           <ComparisonPanel
             selectedFloat={selectedFloat}

@@ -44,6 +44,8 @@ export default function SidebarControls({
   onToggleCurrents = null,
   showArgo = false,
   onToggleArgo = null,
+  insituSourceMode = 'REAL_LOCAL',
+  onInsituSourceModeChange = null,
   argoFloats = [],
   selectedFloatId = null,
   onSelectFloatId = null,
@@ -415,6 +417,39 @@ export default function SidebarControls({
                   {showArgo ? `Active (${argoFloats.length} floats)` : 'Off'}
                 </span>
               </label>
+
+              {showArgo && (
+                <div className="pl-5 pt-0.5 pb-1 flex items-center gap-1">
+                  <span className="text-[10px] text-slate-400 font-mono">Mode:</span>
+                  <button
+                    type="button"
+                    onClick={() => onInsituSourceModeChange?.('REAL_LOCAL')}
+                    className={`px-2 py-0.5 text-[10px] font-semibold rounded transition ${insituSourceMode === 'REAL_LOCAL' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                    title="Authentic Real Argo Floats from GDAC"
+                    data-testid="insitu-source-real-btn"
+                  >
+                    Real
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onInsituSourceModeChange?.('ALL')}
+                    className={`px-2 py-0.5 text-[10px] font-semibold rounded transition ${insituSourceMode === 'ALL' ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                    title="All Platforms (Real + Synthetic + Custom)"
+                    data-testid="insitu-source-all-btn"
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onInsituSourceModeChange?.('SYNTHETIC')}
+                    className={`px-2 py-0.5 text-[10px] font-semibold rounded transition ${insituSourceMode === 'SYNTHETIC' ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                    title="Synthetic Baseline Test Fixtures Only"
+                    data-testid="insitu-source-synthetic-btn"
+                  >
+                    Synthetic
+                  </button>
+                </div>
+              )}
 
               {showArgo && argoFloats.length > 0 && (
                 <div className="pl-5 pb-1">

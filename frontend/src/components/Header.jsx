@@ -1,41 +1,50 @@
 import React from 'react';
+import { PRECISION_OCEAN_PLACES } from '../utils/graticules.js';
 
 export const PRECISION_OCEAN_SECTORS = [
   {
     group: 'Macro Basin (Level 1)',
-    options: [
-      { id: 'macro-nio', name: 'Northern Indian Ocean (Full Basin 0-25°N, 50-100°E)', lat: 5.0, lon: 75.0, dist: 220, level: 'Macro' }
-    ]
+    options: PRECISION_OCEAN_PLACES.filter((p) => p.level === 1).map((p) => ({
+      id: p.id,
+      name: `${p.name} [${p.tag}]`,
+      lat: p.lat,
+      lon: p.lon,
+      dist: p.peakDist || 210,
+      level: 'Macro'
+    }))
   },
   {
     group: 'Regional Sub-Basin (Level 2)',
-    options: [
-      { id: 'sub-arabian', name: 'Arabian Sea (8-25°N, 55-77°E)', lat: 15.0, lon: 66.0, dist: 145, level: 'Sub-Basin' },
-      { id: 'sub-bob', name: 'Bay of Bengal (5-22°N, 80-95°E)', lat: 14.0, lon: 88.0, dist: 145, level: 'Sub-Basin' },
-      { id: 'sub-andaman', name: 'Andaman Sea (6-14°N, 92-98°E)', lat: 10.0, lon: 95.0, dist: 130, level: 'Sub-Basin' },
-      { id: 'sub-equator', name: 'Equatorial Indian Ocean (0-6°N, 60-95°E)', lat: 2.0, lon: 76.0, dist: 165, level: 'Sub-Basin' }
-    ]
+    options: PRECISION_OCEAN_PLACES.filter((p) => p.level === 2).map((p) => ({
+      id: p.id,
+      name: `${p.name} [${p.tag}]`,
+      lat: p.lat,
+      lon: p.lon,
+      dist: p.peakDist || 160,
+      level: 'Sub-Basin'
+    }))
   },
   {
     group: 'Coastal Maritime Zone (Level 3)',
-    options: [
-      { id: 'coast-gujarat', name: 'Gujarat Coastal Shelf & Khambhat', lat: 21.0, lon: 70.0, dist: 120, level: 'Coastal' },
-      { id: 'coast-konkan', name: 'Konkan Coast & Mumbai Offshore', lat: 18.5, lon: 72.0, dist: 120, level: 'Coastal' },
-      { id: 'coast-malabar', name: 'Malabar Coast & Kerala Upwelling', lat: 10.0, lon: 75.5, dist: 120, level: 'Coastal' },
-      { id: 'coast-coromandel', name: 'Coromandel Coast & Palk Bay', lat: 12.0, lon: 81.0, dist: 120, level: 'Coastal' },
-      { id: 'coast-odisha', name: 'Odisha Shelf & Northern Circars', lat: 19.0, lon: 85.5, dist: 120, level: 'Coastal' }
-    ]
+    options: PRECISION_OCEAN_PLACES.filter((p) => p.level === 3).map((p) => ({
+      id: p.id,
+      name: `${p.name} [${p.tag}]`,
+      lat: p.lat,
+      lon: p.lon,
+      dist: p.peakDist || 130,
+      level: 'Coastal'
+    }))
   },
   {
     group: 'Local Maritime Sector / Harbor / PFZ (Level 4)',
-    options: [
-      { id: 'sec-veraval', name: 'Veraval Fishing Harbor & PFZ (20.9°N, 70.4°E)', lat: 20.90, lon: 70.37, dist: 112, level: 'Local Sector' },
-      { id: 'sec-kochi', name: 'Kochi Port & Bight Sector (10.0°N, 76.2°E)', lat: 9.96, lon: 76.24, dist: 112, level: 'Local Sector' },
-      { id: 'sec-wadge', name: 'Wadge Bank Pelagic Fishery (7.8°N, 77.3°E)', lat: 7.80, lon: 77.30, dist: 112, level: 'Local Sector' },
-      { id: 'sec-chennai', name: 'Chennai Port & Kasimedu Base (13.1°N, 80.3°E)', lat: 13.12, lon: 80.30, dist: 112, level: 'Local Sector' },
-      { id: 'sec-vizag', name: 'Visakhapatnam Harbor & Cell (17.7°N, 83.3°E)', lat: 17.69, lon: 83.30, dist: 112, level: 'Local Sector' },
-      { id: 'sec-paradip', name: 'Paradip Anchorage & Plume (20.3°N, 86.7°E)', lat: 20.26, lon: 86.67, dist: 112, level: 'Local Sector' }
-    ]
+    options: PRECISION_OCEAN_PLACES.filter((p) => p.level === 4).map((p) => ({
+      id: p.id,
+      name: `${p.name} [${p.tag}]`,
+      lat: p.lat,
+      lon: p.lon,
+      dist: p.peakDist || 114,
+      level: 'Local Sector'
+    }))
   }
 ];
 
@@ -97,6 +106,13 @@ export default function Header({
                 <span>SYNTHETIC • ROMS (~55 km)</span>
               </button>
             )}
+            <span
+              className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-sky-950/80 border border-sky-600/50 text-sky-300"
+              title="Real In-situ Fleet: 387 Authentic Argo GDAC Profiles, IMOS Ningaloo Underwater Glider, OceanSITES & INCOIS Moored Buoys"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+              <span>387 REAL ARGO • GLIDERS • BUOYS</span>
+            </span>
           </div>
           <p className="brand-subtitle text-[11px] text-slate-400 m-0">MoES / INCOIS Operational Ocean Digital Twin</p>
         </div>

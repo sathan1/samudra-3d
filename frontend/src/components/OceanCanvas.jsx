@@ -37,7 +37,10 @@ import {
 } from '../utils/oceanVolumeBlock.js';
 import {
   createGraticuleMesh,
+  createHierarchicalPlaceMeshGroup,
   createBasinLabelsGroup,
+  updatePlaceLabelsLOD,
+  raycastPlaceMarker,
   disposeGraticuleGroup
 } from '../utils/graticules.js';
 
@@ -108,7 +111,8 @@ export default function OceanCanvas({
   activeTransect = null,
   isFullView = false,
   onToggleFullView = null,
-  targetRegion = null
+  targetRegion = null,
+  onSelectRegion = null
 }) {
   const containerRef = useRef(null);
   const rendererRef = useRef(null);
@@ -131,6 +135,16 @@ export default function OceanCanvas({
 
   const graticulesGroupRef = useRef(null);
   const basinLabelsGroupRef = useRef(null);
+
+  const showBasinLabelsRef = useRef(showBasinLabels);
+  useEffect(() => {
+    showBasinLabelsRef.current = showBasinLabels;
+  }, [showBasinLabels]);
+
+  const onSelectRegionRef = useRef(onSelectRegion);
+  useEffect(() => {
+    onSelectRegionRef.current = onSelectRegion;
+  }, [onSelectRegion]);
 
   const viewModeRef = useRef(viewMode);
   useEffect(() => {
@@ -215,7 +229,7 @@ export default function OceanCanvas({
       } else {
         cameraRef.current.position.set(INITIAL_CAM_POS.x, INITIAL_CAM_POS.y, INITIAL_CAM_POS.z);
         controlsRef.current.target.set(0, 0, 0);
-        controlsRef.current.minDistance = 108;
+        controlsRef.current.minDistance = 103.5;
         controlsRef.current.maxDistance = 420;
       }
       controlsRef.current.update();
@@ -226,7 +240,7 @@ export default function OceanCanvas({
   const handleZoomBasin = (preset) => {
     if (!cameraRef.current || !controlsRef.current || viewMode !== 'globe') return;
     const targetPos = geoToCartesian(preset.lat, preset.lon, 0, {
-      globeRadius: preset.dist
+      globeRadius: Math.max(105, preset.dist || 120)
     });
     const startPos = cameraRef.current.position.clone();
     const startTime = window.performance.now();
@@ -257,7 +271,7 @@ export default function OceanCanvas({
   const handleZoomIn = () => {
     if (!cameraRef.current || !controlsRef.current) return;
     const len = cameraRef.current.position.length();
-    const newLen = Math.max(controlsRef.current.minDistance + 8, len * 0.82);
+    const newLen = Math.max(controlsRef.current.minDistance + 0.5, len * 0.85);
     cameraRef.current.position.setLength(newLen);
     controlsRef.current.update();
   };
@@ -265,7 +279,7 @@ export default function OceanCanvas({
   const handleZoomOut = () => {
     if (!cameraRef.current || !controlsRef.current) return;
     const len = cameraRef.current.position.length();
-    const newLen = Math.min(controlsRef.current.maxDistance - 10, len * 1.20);
+    const newLen = Math.min(controlsRef.current.maxDistance - 5, len * 1.18);
     cameraRef.current.position.setLength(newLen);
     controlsRef.current.update();
   };
@@ -580,7 +594,7 @@ export default function OceanCanvas({
     controls.dampingFactor = 0.06;
     controls.rotateSpeed = 0.75;
     controls.zoomSpeed = 0.85;
-    controls.minDistance = 108;
+    controls.minDistance = 103.5;
     controls.maxDistance = 420;
     controls.target.set(0, 0, 0);
     controlsRef.current = controls;
@@ -727,11 +741,11 @@ export default function OceanCanvas({
     scene.add(graticulesMesh);
     graticulesGroupRef.current = graticulesMesh;
 
-    // 3D Ocean Geographic Feature & Basin Labels
-    const basinLabelsGroup = createBasinLabelsGroup({ globeRadius: DEFAULT_GLOBE_RADIUS });
-    basinLabelsGroup.visible = showBasinLabels && viewModeRef.current === 'globe';
-    scene.add(basinLabelsGroup);
-    basinLabelsGroupRef.current = basinLabelsGroup;
+    // 3D Ocean Geographic Feature & Basin Labels (Google Maps-Style Multi-Scale LOD)
+    const placeLabelsGroup = createHierarchicalPlaceMeshGroup({ globeRadius: DEFAULT_GLOBE_RADIUS });
+    placeLabelsGroup.visible = showBasinLabels && viewModeRef.current === 'globe';
+    scene.add(placeLabelsGroup);
+    basinLabelsGroupRef.current = placeLabelsGroup;
 
     // Pointer events for drag vs click discrimination
     const handlePointerDown = (e) => {
@@ -789,6 +803,28 @@ export default function OceanCanvas({
         }
       }
 
+      // 3b. Raycast against Hierarchical Ocean Places (Google Maps-Style Place Click & Fly)
+      if (showBasinLabelsRef.current && basinLabelsGroupRef.current && viewModeRef.current === 'globe') {
+        const hitPlace = raycastPlaceMarker(raycaster, basinLabelsGroupRef.current);
+        if (hitPlace) {
+          handleZoomBasin({
+            lat: hitPlace.lat,
+            lon: hitPlace.lon,
+            dist: Math.min(hitPlace.peakDist || 114, 114)
+          });
+          onSelectRegionRef.current?.({
+            id: hitPlace.id,
+            name: hitPlace.name,
+            lat: hitPlace.lat,
+            lon: hitPlace.lon,
+            dist: Math.min(hitPlace.peakDist || 114, 114),
+            level: hitPlace.level === 4 ? 'Local Sector' : (hitPlace.level === 3 ? 'Coastal' : (hitPlace.level === 2 ? 'Sub-Basin' : 'Macro'))
+          });
+          onProbePointRef.current?.({ lat: hitPlace.lat, lon: hitPlace.lon });
+          return;
+        }
+      }
+
       // 4. Raycast for Click-to-Probe (Block mode vs Globe mode)
       if (viewModeRef.current === 'block' && oceanBlockGroupRef.current) {
         const hits = raycaster.intersectObjects(oceanBlockGroupRef.current.children, true);
@@ -824,6 +860,24 @@ export default function OceanCanvas({
       );
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouse, camera);
+
+      // Dynamic cursor feedback for clickable ocean places and sensor platforms
+      let isInteractive = false;
+      if (viewModeRef.current === 'globe') {
+        if (basinLabelsGroupRef.current && showBasinLabelsRef.current) {
+          const hit = raycastPlaceMarker(raycaster, basinLabelsGroupRef.current);
+          if (hit) isInteractive = true;
+        }
+        if (!isInteractive && argoMarkersGroupRef.current && showArgoRef.current) {
+          const hit = raycastArgoMarkers(raycaster, argoMarkersGroupRef.current, camera.position, DEFAULT_GLOBE_RADIUS);
+          if (hit) isInteractive = true;
+        }
+        if (!isInteractive && gliderGroupRef.current && showGlidersRef.current) {
+          const hit = raycastGliderTransects(raycaster, gliderGroupRef.current, camera.position, DEFAULT_GLOBE_RADIUS);
+          if (hit) isInteractive = true;
+        }
+      }
+      renderer.domElement.style.cursor = isInteractive ? 'pointer' : 'default';
 
       if (viewModeRef.current === 'block' && oceanBlockGroupRef.current) {
         const hits = raycaster.intersectObjects(oceanBlockGroupRef.current.children, true);
@@ -887,8 +941,11 @@ export default function OceanCanvas({
         );
       }
 
-      // Update Earth occlusion in Globe mode
+      // Update Earth occlusion and hierarchical LOD in Globe mode
       if (viewModeRef.current === 'globe') {
+        if (basinLabelsGroupRef.current && showBasinLabelsRef.current) {
+          updatePlaceLabelsLOD(basinLabelsGroupRef.current, camera, DEFAULT_GLOBE_RADIUS);
+        }
         if (argoMarkersGroupRef.current && showArgoRef.current) {
           updateOccludedMarkersVisibility(argoMarkersGroupRef.current, camera.position, DEFAULT_GLOBE_RADIUS);
         }
