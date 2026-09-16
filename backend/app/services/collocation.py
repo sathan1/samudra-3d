@@ -55,6 +55,8 @@ class CollocationEngine:
         self.ocean_svc = ocean_svc
         self.insitu_svc = insitu_svc
         self.base_datetime = datetime(2026, 9, 10, 0, 0, 0, tzinfo=timezone.utc)
+        self._profile_cache: Dict[Tuple[str, str, str], Any] = {}
+        self._glider_cache: Dict[Tuple[str, str], Any] = {}
 
     def _ensure_ocean_dataset(self):
         if not self.ocean_svc.is_loaded():
@@ -316,6 +318,10 @@ class CollocationEngine:
         t_start = time.perf_counter()
         self._ensure_ocean_dataset()
 
+        cache_key = (profile_id, time_strategy, str(self.ocean_svc.active_dataset_id))
+        if cache_key in self._profile_cache:
+            return self._profile_cache[cache_key]
+
         profile = self.insitu_svc.get_profile_by_id(profile_id)
         if not profile:
             return None
@@ -494,7 +500,7 @@ class CollocationEngine:
 
         latency = (time.perf_counter() - t_start) * 1000.0
 
-        return ProfileCollocationResponse(
+        res = ProfileCollocationResponse(
             profile_id=profile["id"],
             platform_type=profile.get("platform_type", "argo"),
             name=profile.get("name"),
@@ -509,6 +515,8 @@ class CollocationEngine:
             model_health_description=desc,
             latency_ms=round(latency, 2)
         )
+        self._profile_cache[cache_key] = res
+        return res
 
     def collocate_glider(self, glider_id: str) -> Optional[GliderCollocationResponse]:
         """

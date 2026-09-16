@@ -57,8 +57,8 @@ def parse_glider_netcdf(file_path: Path) -> Optional[Dict[str, Any]]:
             mission = getattr(ds, "title", "Oceanographic Transect Mission")
 
             # Try finding coordinate and sensor variables
-            lat_var = ds.variables.get("LATITUDE") or ds.variables.get("lat")
-            lon_var = ds.variables.get("LONGITUDE") or ds.variables.get("lon")
+            lat_var = ds.variables.get("LATITUDE") or ds.variables.get("lat") or ds.variables.get("latitude")
+            lon_var = ds.variables.get("LONGITUDE") or ds.variables.get("lon") or ds.variables.get("longitude")
             time_var = ds.variables.get("TIME") or ds.variables.get("time")
 
             depth_var = ds.variables.get("DEPTH") or ds.variables.get("depth")
@@ -186,18 +186,38 @@ def scan_glider_directory(raw_dir: Optional[Path] = None) -> List[Dict[str, Any]
     Scans the raw glider directory for NetCDF (*.nc) and JSON files.
     """
     if raw_dir is None:
-        raw_dir = settings.RAW_DATA_DIR / "glider" if settings.RAW_DATA_DIR else None
+        if settings.RAW_DATA_DIR:
+            raw_dir = settings.RAW_DATA_DIR / "glider"
+            if not raw_dir.exists():
+                raw_dir = settings.RAW_DATA_DIR / "gliders"
+        else:
+            raw_dir = None
 
     if not raw_dir or not raw_dir.exists():
         return []
 
+    # Check cache validity
+    cache_file = settings.CACHE_DATA_DIR / "glider_scan_cache.json" if settings.CACHE_DATA_DIR else None
+    nc_files = list(raw_dir.glob("*.nc"))
+    json_files = list(raw_dir.glob("*.json"))
+
+    if cache_file and cache_file.exists() and nc_files:
+        try:
+            cache_mtime = cache_file.stat().st_mtime
+            newest_input = max(f.stat().st_mtime for f in (nc_files + json_files))
+            if cache_mtime >= newest_input:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+
     all_gliders = []
-    for nc_file in raw_dir.glob("*.nc"):
+    for nc_file in nc_files:
         parsed = parse_glider_netcdf(nc_file)
         if parsed:
             all_gliders.append(parsed)
 
-    for json_file in raw_dir.glob("*.json"):
+    for json_file in json_files:
         try:
             with open(json_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -207,5 +227,13 @@ def scan_glider_directory(raw_dir: Optional[Path] = None) -> List[Dict[str, Any]
                     all_gliders.append(data)
         except Exception:
             continue
+
+    # Save to cache
+    if cache_file and settings.CACHE_DATA_DIR and settings.CACHE_DATA_DIR.exists():
+        try:
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump(all_gliders, f)
+        except Exception:
+            pass
 
     return all_gliders

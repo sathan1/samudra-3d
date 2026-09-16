@@ -53,6 +53,11 @@ class OceanDataService:
             adapter.load_dataset()
 
     @property
+    def active_dataset_id(self) -> str:
+        active_desc = dataset_registry.get_active_dataset()
+        return active_desc.dataset_id if active_desc else "incois_roms_synthetic"
+
+    @property
     def nc_path(self) -> Path:
         adapter = self.get_active_adapter()
         return getattr(adapter, "nc_path", settings.SYNTHETIC_NETCDF_PATH)

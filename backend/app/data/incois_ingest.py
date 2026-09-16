@@ -213,9 +213,10 @@ def scan_incois_directory(raw_dir: Optional[Path] = None) -> List[Dict[str, Any]
             except Exception:
                 continue
 
-    # If no local raw files yet, provide verified INCOIS reference network
-    if not buoys:
-        for b in INCOIS_REFERENCE_BUOYS:
+    # Ensure verified INCOIS OMNI reference network buoys are always included alongside file-based buoys
+    existing_ids = {b.get("id") for b in buoys}
+    for b in INCOIS_REFERENCE_BUOYS:
+        if b.get("id") not in existing_ids:
             qc = b.get("qc_flags", [1] * len(b["depths"]))
             tot = len(qc)
             item = dict(b)

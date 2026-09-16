@@ -60,6 +60,9 @@ class AnomalyEngine:
     """
     Aggregates all available in-situ collocations into a sparse 3D residual field.
     """
+    def __init__(self):
+        self._field_cache: Dict[Tuple[str, Optional[float], float, float, str], AnomalyFieldResponse] = {}
+        self._summary_cache: Dict[str, AnomalySummaryResponse] = {}
 
     def compute_field(
         self,
@@ -76,6 +79,11 @@ class AnomalyEngine:
 
         if threshold is None:
             threshold = DEFAULT_TEMP_THRESHOLD if variable == "temperature" else DEFAULT_SAL_THRESHOLD
+
+        cache_key = (variable, threshold, depth_min, depth_max, str(collocation_engine.ocean_svc.active_dataset_id))
+        if cache_key in self._field_cache:
+            cached_resp = self._field_cache[cache_key]
+            return cached_resp.model_copy(update={"latency_ms": round((time.perf_counter() - t_start) * 1000.0, 2)})
 
         unit = "degC" if variable == "temperature" else "PSU"
         points: List[AnomalyPoint] = []
@@ -185,7 +193,7 @@ class AnomalyEngine:
 
         latency = (time.perf_counter() - t_start) * 1000.0
 
-        return AnomalyFieldResponse(
+        resp = AnomalyFieldResponse(
             variable=variable,
             unit=unit,
             threshold=threshold,
@@ -202,19 +210,27 @@ class AnomalyEngine:
             support_radius_km=SUPPORT_RADIUS_KM,
             latency_ms=round(latency, 2),
         )
+        self._field_cache[cache_key] = resp
+        return resp
 
     def compute_summary(self) -> AnomalySummaryResponse:
         """Returns cross-variable summary for both Temperature and Salinity."""
+        cache_key = str(collocation_engine.ocean_svc.active_dataset_id)
+        if cache_key in self._summary_cache:
+            return self._summary_cache[cache_key]
+
         temp_field = self.compute_field("temperature", DEFAULT_TEMP_THRESHOLD)
         sal_field = self.compute_field("salinity", DEFAULT_SAL_THRESHOLD)
         platform_ids = set(p.platform_id for p in temp_field.points) | set(p.platform_id for p in sal_field.points)
         now = datetime.now(tz=timezone.utc).isoformat()
-        return AnomalySummaryResponse(
+        res = AnomalySummaryResponse(
             temperature=temp_field,
             salinity=sal_field,
             platform_count=len(platform_ids),
             timestamp=now,
         )
+        self._summary_cache[cache_key] = res
+        return res
 
 
 anomaly_engine = AnomalyEngine()

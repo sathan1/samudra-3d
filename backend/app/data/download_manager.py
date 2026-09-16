@@ -338,23 +338,60 @@ class DownloadManager:
         return record
 
     def _ensure_existing_files_manifested(self):
-        """Indexes any existing .nc files in raw_dir that lack a manifest."""
-        if not self.raw_dir.exists():
-            return
+        """Indexes any existing .nc files in raw_dir and its subdirectories that lack a manifest."""
+        self.scan_and_catalog()
 
-        existing_manifests = {m.file_name for m in self.list_manifests()}
-        for nc in self.raw_dir.glob("*.nc"):
-            if nc.name not in existing_manifests:
-                try:
-                    self.create_manifest(
-                        file_path=nc,
-                        dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m",
-                        bounds={"lat_min": 0.0, "lat_max": 25.0, "lon_min": 50.0, "lon_max": 100.0, "depth_min": 0.49, "depth_max": 92.33},
-                        variables=["thetao", "so", "uo", "vo"],
-                        time_range={"start": "2025-01-01", "end": "2025-01-07"}
-                    )
-                except Exception:
-                    pass
+    def scan_and_catalog(self) -> List[ManifestRecord]:
+        """
+        Recursively scans raw_dir for real NetCDF (*.nc) files across all categories
+        (Argo, Gliders, Moored Buoys, and Copernicus Reanalysis),
+        computes SHA-256 hashes, creates missing manifests, and returns the manifest list.
+        """
+        if not self.raw_dir.exists():
+            return []
+
+        existing_manifests = {m.file_name: m for m in self.list_manifests()}
+        for nc_path in self.raw_dir.rglob("*.nc"):
+            if nc_path.name in existing_manifests:
+                continue
+
+            # Classify provenance and metadata
+            parent_name = nc_path.parent.name.lower()
+            name_lower = nc_path.name.lower()
+
+            if parent_name == "argo" or "argo" in name_lower or "2902" in name_lower:
+                ds_id = f"argo_real_{nc_path.stem}"
+                badge = "[REAL • ARGO]"
+                vars_list = ["TEMP", "PSAL", "PRES"]
+                category = "ARGO"
+            elif parent_name in ("glider", "gliders") or "glider" in name_lower:
+                ds_id = f"glider_real_{nc_path.stem}"
+                badge = "[REAL • GLIDER]"
+                vars_list = ["temperature", "salinity", "depth"]
+                category = "GLIDER"
+            elif parent_name == "incois" or "oceansites" in name_lower or "omni" in name_lower:
+                ds_id = f"mooring_real_{nc_path.stem}"
+                badge = "[REAL • INCOIS]"
+                vars_list = ["TEMP", "PSAL", "DEPTH"]
+                category = "BUOY"
+            else:
+                ds_id = "cmems_mod_glo_phy_my_0.083deg_P1D-m"
+                badge = "[REAL • COPERNICUS]"
+                vars_list = ["thetao", "so", "uo", "vo"]
+                category = "NUMERICAL_MODEL"
+
+            try:
+                self.create_manifest(
+                    file_path=nc_path,
+                    dataset_id=ds_id,
+                    bounds={"lat_min": 0.0, "lat_max": 25.0, "lon_min": 50.0, "lon_max": 100.0, "depth_min": 0.49, "depth_max": 92.33},
+                    variables=vars_list,
+                    time_range={"start": "2024-01-01", "end": "2026-09-15"}
+                )
+            except Exception:
+                pass
+
+        return self.list_manifests()
 
     def start_download_job(self, req: SubsetCommandRequest, force_override: bool = False) -> DownloadJobInfo:
         """
