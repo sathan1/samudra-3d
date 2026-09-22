@@ -22,6 +22,7 @@ class CollocationSummary(BaseModel):
     bias: Optional[float] = Field(None, description="Mean error: sum(MODEL - OBSERVED) / N")
     mae: Optional[float] = Field(None, description="Mean absolute error: sum(|MODEL - OBSERVED|) / N")
     rmse: Optional[float] = Field(None, description="Root mean square error: sqrt(sum((MODEL - OBSERVED)^2) / N)")
+    correlation_r: Optional[float] = Field(None, description="Pearson product-moment correlation coefficient R between model and observed values. Computed only when n >= 3 valid pairs; None otherwise.")
     min_delta: Optional[float] = Field(None, description="Minimum residual delta")
     max_delta: Optional[float] = Field(None, description="Maximum residual delta")
     prediction_tendency: str = Field("neutral", description="under-prediction, over-prediction, or neutral")

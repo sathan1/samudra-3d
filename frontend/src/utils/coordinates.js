@@ -104,3 +104,50 @@ export function cartesianToGeo(x, y, z, options = {}) {
 
   return { lat, lon, depth, radius: r };
 }
+
+/**
+ * Computes the geographic bounding box of the currently-visible Earth window.
+ *
+ * The Four Points method: from the camera distance + FOV we compute the
+ * angular radius of the visible disc.  We then sample four points on the
+ * globe at the horizon and on the meridian cross-sections, convert them back
+ * to lat/lon, and derive a conservative lat/lon bbox.
+ *
+ * Used by the frontend so fetchOceanData ALWAYS carries explicit bounds
+ * (Master Prompt Section 18).  The full global grid can never be requested by accident.
+ */
+export function cameraVisibleBoundingBox(camera, globeRadius = DEFAULT_GLOBE_RADIUS, maxSpanDeg = 180) {
+  const dist = Math.max(0.001, camera.position.length());
+  const fov = camera.fov * (Math.PI / 180);
+  const halfFov = fov / 2;
+  const alpha = Math.atan2(globeRadius, dist);
+  const visibleHalfAngle = halfFov + Math.asin(Math.min(1, globeRadius / Math.max(1, dist)));
+  const edgeAngle = Math.min(Math.PI / 2, visibleHalfAngle + alpha);
+  const pts = [[edgeAngle, 0], [-edgeAngle, 0], [0, edgeAngle], [0, -edgeAngle]];
+  const corners = pts.map(([thLat, thLon]) => {
+    const local = new THREE.Vector3(
+      Math.cos(thLat) * Math.sin(thLon),
+      Math.sin(thLat),
+      Math.cos(thLat) * Math.cos(thLon)
+    ).multiplyScalar(globeRadius);
+    const world = local.applyQuaternion(camera.quaternion).normalize().multiplyScalar(globeRadius);
+    const g = cartesianToGeo(world.x, world.y, world.z, { globeRadius });
+    return { lat: g.lat, lon: g.lon };
+  });
+  let latMin = Math.min(...corners.map(p => p.lat));
+  let latMax = Math.max(...corners.map(p => p.lat));
+  let lonMin = Math.min(...corners.map(p => p.lon));
+  let lonMax = Math.max(...corners.map(p => p.lon));
+  if (lonMax - lonMin > 180) {
+    const mid = (lonMax + lonMin) / 2;
+    lonMin = mid - 120; lonMax = mid + 120;
+  }
+  const SAF = 5;
+  latMin = Math.max(-90 + SAF, Math.min(latMin, 90 - SAF));
+  latMax = Math.max(-89 + SAF, Math.min(latMax, 90 + SAF));
+  lonMin = Math.max(-180 + SAF, Math.min(lonMin, 180 - SAF));
+  lonMax = Math.max(-179 + SAF, Math.min(lonMax, 180 + SAF));
+  if (latMax - latMin < 1) latMax = Math.min(90, latMin + 10);
+  if (lonMax - lonMin < 1) lonMax = Math.min(180, lonMin + 10);
+  return { lat_min: latMin, lat_max: latMax, lon_min: lonMin, lon_max: lonMax };
+}

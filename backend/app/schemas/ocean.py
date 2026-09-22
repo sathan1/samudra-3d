@@ -113,3 +113,91 @@ class OceanTransectResponse(BaseModel):
     mld_profile: Optional[List[Optional[float]]] = None
     d20_profile: Optional[List[Optional[float]]] = None
     tchp_profile: Optional[List[Optional[float]]] = None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Coordinate-on-Demand Architecture (Section 6–13 of MASTER PROMPT)
+# Lightweight availability, point, profile, and region query schemas.
+# Every endpoint returns only the data actually requested — never the global field.
+# ──────────────────────────────────────────────────────────────────────────────
+
+class LocationAvailabilityResponse(BaseModel):
+    """Lightweight metadata returned after a user selects a lat/lon on the globe.
+
+    No scientific field values are included — only what variables, depths, and
+    times exist, plus observation platform availability.  This informs the UI
+    so the user can choose specific parameters before requesting data.
+    """
+    latitude: float
+    longitude: float
+    model: bool
+    dataset_id: Optional[str] = None
+    observations: Dict[str, bool] = Field(default_factory=lambda: {
+        "argo": False, "glider": False, "ctd": False, "bgc": False
+    })
+    variables: List[str] = Field(default_factory=list)
+    depths: List[float] = Field(default_factory=list)
+    times: List[str] = Field(default_factory=list)
+
+
+class PointValueResponse(BaseModel):
+    """Single model value at (lat, lon, depth, time)."""
+    lat: float
+    lon: float
+    depth: float
+    time: str
+    variable: str
+    value: Optional[float] = None
+    unit: str
+    nearest_depth: Optional[float] = None
+    interpolation_method: str = "trilinear"
+    source: Optional[str] = None
+    dataset_id: Optional[str] = None
+
+
+class ProfileResponse(BaseModel):
+    """Vertical profile returned only for the selected coordinate.
+
+    Much smaller than sending the global 2D horizontal field.
+    """
+    lat: float
+    lon: float
+    variable: str
+    unit: str
+    time_idx: int
+    timestamp: str
+    depths: List[float]
+    values: List[Optional[float]]
+    dataset_id: Optional[str] = None
+    source: Optional[str] = None
+    provenance: Optional[Dict[str, Any]] = None
+
+
+class RegionResponse(BaseModel):
+    """Bounded 3D region subset — the *detailed* local visualization volume.
+
+    Only returned when the user explicitly requests a local 3D view.
+    """
+    center_lat: float
+    center_lon: float
+    radius_km: float
+    variable: str
+    unit: str
+    time_idx: int
+    timestamp: str
+    depth_min: float
+    depth_max: float
+    lats: List[float]
+    lons: List[float]
+    depths: List[float]
+    # For each depth level, a 2D horizontal slice (list of lists)
+    slices: List[List[List[Optional[float]]]]
+    shape: List[int]  # [n_depths, n_lats, n_lons]
+    min_val: Optional[float] = None
+    max_val: Optional[float] = None
+    missing_count: int = 0
+    valid_count: int = 0
+    resolution: Optional[str] = None
+    source_mode: Optional[str] = None
+    dataset_id: Optional[str] = None
+    cached: Optional[bool] = False

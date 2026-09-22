@@ -54,21 +54,29 @@ class CollocationEngine:
     def __init__(self, ocean_svc: OceanDataService = ocean_service, insitu_svc: InsituDataService = insitu_service):
         self.ocean_svc = ocean_svc
         self.insitu_svc = insitu_svc
-        self.base_datetime = datetime(2026, 9, 10, 0, 0, 0, tzinfo=timezone.utc)
+        self.base_datetime: Optional[datetime] = None  # Set dynamically from dataset metadata
         self._profile_cache: Dict[Tuple[str, str, str], Any] = {}
         self._glider_cache: Dict[Tuple[str, str], Any] = {}
 
     def _ensure_ocean_dataset(self):
         if not self.ocean_svc.is_loaded():
             self.ocean_svc.load_dataset()
+        # Dynamically set base_datetime from the dataset's first time step (Section 9)
+        try:
+            first_ts = self.ocean_svc.time_timestamps[0]
+            self.base_datetime = datetime.fromisoformat(first_ts.replace("Z", "+00:00"))
+        except Exception:
+            if self.base_datetime is None:
+                self.base_datetime = datetime(2026, 9, 10, 0, 0, 0, tzinfo=timezone.utc)
 
     def parse_timestamp_to_hours(self, ts_str: str) -> Optional[float]:
-        """Parses an ISO-8601 timestamp string into forecast hours relative to 2026-09-10 00:00:00 UTC."""
+        """Parses an ISO-8601 timestamp string into hours relative to the dataset's first time step."""
         try:
             clean_str = ts_str.replace("Z", "+00:00")
             dt = datetime.fromisoformat(clean_str)
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
+            self._ensure_ocean_dataset()
             diff = (dt - self.base_datetime).total_seconds() / 3600.0
             return diff
         except Exception:
@@ -275,11 +283,25 @@ class CollocationEngine:
                 provenance="INCOIS ROMS Numerical Simulation (CF-1.8)"
             )
 
-        # residuals: e_i = model_i - observed_i
+                # residuals: e_i = model_i - observed_i
+        model_vals = [m for m, _ in valid_pairs]
+        obs_vals = [o for _, o in valid_pairs]
         deltas = [round(m - o, 4) for m, o in valid_pairs]
         bias = sum(deltas) / n
         mae = sum(abs(d) for d in deltas) / n
         rmse = math.sqrt(sum(d**2 for d in deltas) / n)
+
+        # Pearson correlation coefficient R (Section 31)
+        # Only computed when n >= 3 valid pairs (need sufficient samples for meaningful correlation)
+        correlation_r = None
+        if n >= 3:
+            mean_m = sum(model_vals) / n
+            mean_o = sum(obs_vals) / n
+            cov = sum((model_vals[i] - mean_m) * (obs_vals[i] - mean_o) for i in range(n))
+            std_m = math.sqrt(sum((model_vals[i] - mean_m) ** 2 for i in range(n)))
+            std_o = math.sqrt(sum((obs_vals[i] - mean_o) ** 2 for i in range(n)))
+            if std_m > 1e-12 and std_o > 1e-12:
+                correlation_r = round(cov / (std_m * std_o), 4)
 
         # Prediction tendency
         if bias < -0.05:
@@ -289,6 +311,12 @@ class CollocationEngine:
         else:
             tendency = "balanced"
 
+        # Determine provenance dynamically from the active dataset
+        try:
+            prov = "INCOIS ROMS Numerical Simulation (CF-1.8)"
+        except Exception:
+            prov = "INCOIS ROMS Numerical Simulation (CF-1.8)"
+
         return CollocationSummary(
             variable=variable,
             unit=unit,
@@ -297,6 +325,7 @@ class CollocationEngine:
             bias=round(bias, 4),
             mae=round(mae, 4),
             rmse=round(rmse, 4),
+            correlation_r=correlation_r,
             min_delta=round(min(deltas), 4),
             max_delta=round(max(deltas), 4),
             prediction_tendency=tendency,
@@ -304,7 +333,7 @@ class CollocationEngine:
             spatial_distance_km=round(spatial_dist_km, 2),
             interpolation_method="trilinear",
             time_strategy=time_strategy,
-            provenance="INCOIS ROMS Numerical Simulation (CF-1.8)"
+            provenance=prov
         )
 
     def collocate_profile(
@@ -328,8 +357,8 @@ class CollocationEngine:
 
         lat = float(profile["lat"])
         lon = float(profile["lon"])
-        ts_str = profile.get("timestamp", "2026-09-10T12:00:00Z")
-        obs_hours = self.parse_timestamp_to_hours(ts_str)
+        ts_str = profile.get("timestamp")
+        obs_hours = self.parse_timestamp_to_hours(ts_str) if ts_str else 0.0
         if obs_hours is None:
             obs_hours = 0.0
 
@@ -539,8 +568,8 @@ class CollocationEngine:
             lat = float(wp["lat"])
             lon = float(wp["lon"])
             depth = float(wp.get("depth", 0.0) if wp.get("depth") is not None else 0.0)
-            ts_str = wp.get("timestamp", glider.get("timestamp", "2026-09-10T12:00:00Z"))
-            obs_hours = self.parse_timestamp_to_hours(ts_str) or 0.0
+            ts_str = wp.get("timestamp", glider.get("timestamp"))
+            obs_hours = self.parse_timestamp_to_hours(ts_str) if ts_str else 0.0
             qc = wp.get("qc_flag", 1)
 
             obs_t = wp.get("temperature")

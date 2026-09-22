@@ -1,6 +1,11 @@
 /**
  * SAMUDRA-3D API Client Service
  * Connects frontend to the FastAPI backend service layer.
+ *
+ * Architecture note (Master Prompt §1–§13, §39, §40):
+ *   The 3D Earth is a spatial index.  Every scientific request is coordinate- and/or
+ *   bounding-box-driven, and a client-side LRU cache + AbortController request-ID guard
+ *   prevent redundant traffic and stale-response races.
  */
 
 const API_BASE = (
@@ -8,6 +13,95 @@ const API_BASE = (
     ? '/api'
     : (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api')
 );
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Client-side LRU cache (Master Prompt §39)
+ * Key = dataset + lat + lon + variable + depth + time + bounding box + resolution
+ * Repeated identical requests resolve instantly without touching the network.
+ * ──────────────────────────────────────────────────────────────────────────── */
+const CLIENT_CACHE_MAX_ENTRIES = 240;
+const clientCache = new Map();
+export const clientCacheStats = { hits: 0, misses: 0 };
+
+function cacheGet(key) {
+  if (!clientCache.has(key)) {
+    clientCacheStats.misses += 1;
+    return null;
+  }
+  const value = clientCache.get(key);
+  // Refresh recency (LRU)
+  clientCache.delete(key);
+  clientCache.set(key, value);
+  clientCacheStats.hits += 1;
+  return value;
+}
+
+function cacheSet(key, value) {
+  if (clientCache.size >= CLIENT_CACHE_MAX_ENTRIES) {
+    const oldest = clientCache.keys().next().value;
+    clientCache.delete(oldest);
+  }
+  clientCache.set(key, value);
+}
+
+export function clearClientCache() {
+  clientCache.clear();
+  clientCacheStats.hits = 0;
+  clientCacheStats.misses = 0;
+}
+
+function makeCacheKey(parts) {
+  return Object.entries(parts)
+    .filter(([, v]) => v !== null && v !== undefined)
+    .map(([k, v]) => `${k}=${typeof v === 'number' ? Number(v).toFixed(4) : v}`)
+    .sort()
+    .join('|');
+}
+
+/**
+ * Shared fetch + bounded-JSON-error helper used by all scientific endpoints.
+ */
+async function requestJson(url, { signal = null, cacheKey = null, timeoutMs = 30000 } = {}) {
+  if (cacheKey) {
+    const cached = cacheGet(cacheKey);
+    if (cached) return cached;
+  }
+
+  let timeoutId = null;
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) throw Object.assign(new Error('Aborted'), { name: 'AbortError' });
+    signal.addEventListener('abort', onAbort);
+  }
+  if (timeoutMs) {
+    timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  }
+
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try {
+        const errJson = await res.json();
+        if (errJson && errJson.detail) {
+          detail = typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson.detail);
+        }
+      } catch {
+        /* response body was not JSON */
+      }
+      throw new Error(detail);
+    }
+    const json = await res.json();
+    if (cacheKey) cacheSet(cacheKey, json);
+    return json;
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
+    if (signal) signal.removeEventListener('abort', onAbort);
+  }
+}
+
+export { API_BASE };
 
 /**
  * Checks backend health and dataset readiness.
@@ -21,7 +115,8 @@ export async function fetchHealth(signal = null) {
 }
 
 /**
- * Retrieves CF metadata, available variables, depth levels, and forecast time steps.
+ * Retrieves CF metadata, available variables, ACTUAL dataset depth levels,
+ * and ACTUAL dataset timestamps.  The frontend must never hardcode these.
  */
 export async function fetchMetadata(signal = null) {
   const res = await fetch(`${API_BASE}/metadata`, { signal });
@@ -31,41 +126,116 @@ export async function fetchMetadata(signal = null) {
   return res.json();
 }
 
+
 /**
- * Slices 2D ocean field by variable, time index, depth, and optional bounding box.
+ * Slices 2D ocean field by variable, time index, depth, and a REQUIRED bounding box.
+ *
+ * IMPORTANT (Master Prompt §18, §68): the backend rejects requests without spatial
+ * bounds with HTTP 422/400.  This client sends the currently visible window so the
+ * full global grid can never be transferred by accident.
  */
 export async function fetchOceanData({
   variable = 'temperature',
   time_idx = 0,
   depth = 0,
-  lat_min = null,
-  lat_max = null,
-  lon_min = null,
-  lon_max = null,
-  signal = null
+  lat_min,
+  lat_max,
+  lon_min,
+  lon_max,
+  resolution = null,
+  signal = null,
+  useCache = true
 } = {}) {
   const params = new URLSearchParams();
   params.set('variable', variable);
   params.set('time_idx', String(time_idx));
   params.set('depth', String(depth));
+  params.set('lat_min', String(lat_min));
+  params.set('lat_max', String(lat_max));
+  params.set('lon_min', String(lon_min));
+  params.set('lon_max', String(lon_max));
 
-  if (lat_min !== null) params.set('lat_min', String(lat_min));
-  if (lat_max !== null) params.set('lat_max', String(lat_max));
-  if (lon_min !== null) params.set('lon_min', String(lon_min));
-  if (lon_max !== null) params.set('lon_max', String(lon_max));
+  const cacheKey = useCache
+    ? makeCacheKey({ ep: 'ocean-data', variable, time_idx, depth, lat_min, lat_max, lon_min, lon_max, resolution })
+    : null;
 
-  const res = await fetch(`${API_BASE}/ocean-data?${params.toString()}`, { signal });
-  if (!res.ok) {
-    let errorDetail = `HTTP ${res.status}`;
-    try {
-      const errJson = await res.json();
-      if (errJson.detail) errorDetail = errJson.detail;
-    } catch {
-      // ignore json parse error on response
-    }
-    throw new Error(errorDetail);
-  }
-  return res.json();
+  return requestJson(`${API_BASE}/ocean-data?${params.toString()}`, { signal, cacheKey });
+}
+
+/**
+ * Availability query (Master Prompt §6): lightweight metadata only, never field values.
+ * This is the FIRST request after the user selects a coordinate on the globe.
+ */
+export async function fetchLocationAvailability({ lat, lon, signal = null, useCache = true } = {}) {
+  const params = new URLSearchParams({ lat: String(lat), lon: String(lon) });
+  const cacheKey = useCache ? makeCacheKey({ ep: 'availability', lat, lon }) : null;
+  return requestJson(`${API_BASE}/location/availability?${params.toString()}`, { signal, cacheKey });
+}
+
+/**
+ * Single-value point query (Master Prompt §11).  Payload target < 10 KB.
+ */
+export async function fetchOceanPoint({
+  lat, lon, variable = 'temperature', depth = 0, time_idx = 0, signal = null, useCache = true
+} = {}) {
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lon: String(lon),
+    variable,
+    depth: String(depth),
+    time_idx: String(time_idx)
+  });
+  const cacheKey = useCache
+    ? makeCacheKey({ ep: 'point', lat, lon, variable, depth, time_idx })
+    : null;
+  return requestJson(`${API_BASE}/ocean/point?${params.toString()}`, { signal, cacheKey });
+}
+
+/**
+ * Vertical profile query (Master Prompt §12): returns only depth[] and value[]
+ * for the selected coordinate — far smaller than the global horizontal field.
+ */
+export async function fetchOceanProfile({
+  lat, lon, variable = 'temperature', time_idx = 0, signal = null, useCache = true
+} = {}) {
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lon: String(lon),
+    variable,
+    time_idx: String(time_idx)
+  });
+  const cacheKey = useCache ? makeCacheKey({ ep: 'profile', lat, lon, variable, time_idx }) : null;
+  return requestJson(`${API_BASE}/ocean/profile?${params.toString()}`, { signal, cacheKey });
+}
+
+/**
+ * Bounded local 3D region query (Master Prompt §13, §45) — the *detailed* local
+ * ocean model.  Only called when the user explicitly requests a local 3D view.
+ */
+export async function fetchOceanRegion({
+  center_lat,
+  center_lon,
+  radius_km = 25,
+  variable = 'temperature',
+  depth_min = 0,
+  depth_max = 100,
+  time_idx = 0,
+  signal = null,
+  useCache = true
+} = {}) {
+  const params = new URLSearchParams({
+    center_lat: String(center_lat),
+    center_lon: String(center_lon),
+    radius_km: String(radius_km),
+    variable,
+    depth_min: String(depth_min),
+    depth_max: String(depth_max),
+    time_idx: String(time_idx)
+  });
+  const cacheKey = useCache
+    ? makeCacheKey({ ep: 'region', center_lat, center_lon, radius_km, variable, depth_min, depth_max, time_idx })
+    : null;
+  return requestJson(`${API_BASE}/ocean/region?${params.toString()}`, { signal, cacheKey });
 }
 
 /**

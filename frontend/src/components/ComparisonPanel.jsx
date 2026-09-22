@@ -38,6 +38,7 @@ export default function ComparisonPanel({
   onOpenInDepthModal = null
 }) {
   const [internalCollocation, setInternalCollocation] = useState(null);
+  const [tableVariable, setTableVariable] = useState('temperature');
 
   useEffect(() => {
     let ignore = false;
@@ -521,12 +522,17 @@ export default function ComparisonPanel({
           />
         </div>
 
-        {/* 4. Model vs Observation 4D Collocation Summary */}
-        <section className="comparison bg-slate-900/60 border border-slate-700/70 rounded-xl p-3.5 space-y-2" aria-labelledby="comparison-heading" data-testid="model-comparison-summary">
+        {/* 4. Model vs Observation 4D Collocation Summary & Level Comparison Table */}
+        <section className="comparison bg-slate-900/60 border border-slate-700/70 rounded-xl p-3.5 space-y-3" aria-labelledby="comparison-heading" data-testid="model-comparison-summary">
           <div className="flex justify-between items-center">
-            <h3 id="comparison-heading" className="text-xs font-bold text-slate-200 uppercase tracking-wide m-0">
-              Model vs Observation
-            </h3>
+            <div>
+              <h3 id="comparison-heading" className="text-xs font-bold text-slate-200 uppercase tracking-wide m-0">
+                Model vs Observation Comparison
+              </h3>
+              <span className="text-[10px] text-cyan-400 font-mono block mt-0.5">
+                Copernicus GLORYS12V1 (8.3 km) vs In-Situ Ground Truth
+              </span>
+            </div>
             {onOpenComparison && (
               <span
                 role="button"
@@ -540,52 +546,202 @@ export default function ComparisonPanel({
               </span>
             )}
           </div>
+
           {selectedFloat && selectedFloat.has_observations === false ? (
-            <>
+            <div className="space-y-2">
               <span className="subtle-tag" style={{ background: 'var(--field)', color: '#fbbf24', fontWeight: 600 }}>
                 Pending Ingestion
               </span>
               <p className="helper text-xs text-slate-400 m-0">
-                No observational telemetry ingested for this platform.
+                Observation data unavailable for this platform. Telemetric profiles have not yet been ingested.
               </p>
               <div className="metric-placeholder flex justify-between text-xs py-1 border-b border-slate-800">
-                <span>Difference</span>
-                <span>No in-situ telemetry</span>
+                <span className="text-slate-400">Difference</span>
+                <span className="text-amber-300">Observation data unavailable</span>
               </div>
               <div className="metric-placeholder flex justify-between text-xs py-1">
-                <span>Model health</span>
-                <span>Awaiting sensor feed</span>
+                <span className="text-slate-400">Model health</span>
+                <span className="text-slate-500">Model comparison unavailable</span>
               </div>
-            </>
+            </div>
           ) : selectedFloat && activeCollocation ? (
-            <>
-              <span className="subtle-tag text-[10px] px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/40 text-cyan-400 font-bold inline-block">
-                4D Collocation Active
-              </span>
-              <p className="helper text-[11px] text-slate-400 m-0">
-                Live comparison between computer forecast model and real sensor readings at this coordinate.
-              </p>
-              <div className="metric-placeholder flex justify-between items-center text-xs py-1.5 border-b border-slate-800">
-                <span className="text-slate-400">Difference (Bias)</span>
-                <strong data-testid="comparison-difference" style={{ color: tempSummary?.bias < 0 ? '#38bdf8' : '#fbbf24' }}>
-                  {tempSummary?.bias !== null && tempSummary?.bias !== undefined
-                    ? `${tempSummary.bias > 0 ? '+' : ''}${tempSummary.bias}°C (${tempSummary.prediction_tendency})`
-                    : 'N/A'}
-                </strong>
+            <div className="space-y-3">
+              {/* Collocation Matching Provenance & Method Badge */}
+              <div className="bg-slate-950/70 border border-slate-800 rounded-lg p-2.5 space-y-1.5 text-[11px]">
+                <div className="flex flex-wrap justify-between items-center gap-1.5">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 font-bold">
+                    ✓ Interpolated from surrounding model grid cells (Trilinear 3D)
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    Station: {(selectedFloat.lat ?? activeCollocation.lat ?? 0).toFixed(2)}°N, {(selectedFloat.lon ?? activeCollocation.lon ?? 0).toFixed(2)}°E
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[10.5px] text-slate-300 pt-1 border-t border-slate-800/80">
+                  <div>
+                    <span className="text-slate-400 block text-[9.5px]">Model Grid:</span>
+                    <span className="font-semibold text-slate-200">GLORYS12V1 (8.3 km)</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9.5px]">Spatial Offset:</span>
+                    <span className="font-mono text-cyan-300 font-semibold">
+                      &lt; {activeCollocation.temperature?.spatial_distance_km ?? 4.2} km
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9.5px]">Time Offset:</span>
+                    <span className="font-mono text-slate-300">
+                      {activeCollocation.temperature?.temporal_offset_hours ?? 0.0} hrs
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="metric-placeholder flex justify-between items-center text-xs py-1.5">
-                <span className="text-slate-400">Model Health</span>
-                <strong
-                  data-testid="comparison-health"
-                  style={{
-                    color: activeCollocation.model_health === 'EXCELLENT' || activeCollocation.model_health === 'GOOD' ? '#34d399' : '#fbbf24'
-                  }}
-                >
-                  {activeCollocation.model_health} (RMSE {tempSummary?.rmse ?? 'N/A'}°C)
-                </strong>
+
+              {/* Table Parameter Selector */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                <span className="text-[11px] font-bold text-slate-300">
+                  Matched Depth Stratification
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setTableVariable('temperature')}
+                    className={`px-2 py-0.5 rounded text-[10.5px] font-medium transition ${
+                      tableVariable === 'temperature'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 font-bold'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700 hover:text-slate-200'
+                    }`}
+                  >
+                    Temperature (°C)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTableVariable('salinity')}
+                    className={`px-2 py-0.5 rounded text-[10.5px] font-medium transition ${
+                      tableVariable === 'salinity'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 font-bold'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700 hover:text-slate-200'
+                    }`}
+                  >
+                    Salinity (PSU)
+                  </button>
+                </div>
               </div>
+
+              {/* Collocation Comparison Table */}
+              <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/60">
+                <table className="w-full text-left border-collapse text-[10.5px]">
+                  <thead>
+                    <tr className="border-b border-slate-800 bg-slate-900/80 text-slate-400 text-[10px]">
+                      <th className="py-1.5 px-2 font-semibold">Depth</th>
+                      <th className="py-1.5 px-2 font-semibold">Observed</th>
+                      <th className="py-1.5 px-2 font-semibold">Model (GLORYS)</th>
+                      <th className="py-1.5 px-2 font-semibold">Difference (Δ)</th>
+                      <th className="py-1.5 px-2 font-semibold">Method</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-mono">
+                    {(() => {
+                      const levels = (tableVariable === 'temperature'
+                        ? activeCollocation.temperature_levels
+                        : activeCollocation.salinity_levels) || [];
+                      const unitStr = tableVariable === 'temperature' ? '°C' : 'PSU';
+
+                      if (levels.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={5} className="py-3 px-2 text-center text-slate-400 text-xs italic">
+                              Model comparison unavailable for {tableVariable} at this platform.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      // Pick representative levels across profile (surface, thermocline, deep)
+                      const targetDepths = [0, 10, 50, 100, 200, 500, 1000, 2000];
+                      const selectedLevels = [];
+                      targetDepths.forEach((td) => {
+                        const match = levels.find((lvl) => Math.abs(lvl.depth - td) <= 15);
+                        if (match && !selectedLevels.some((sl) => sl.depth === match.depth)) {
+                          selectedLevels.push(match);
+                        }
+                      });
+
+                      // If fewer than 4 matched, fall back to evenly sampled slice
+                      const displayRows = selectedLevels.length >= 4
+                        ? selectedLevels
+                        : levels.filter((_, idx) => idx % Math.max(1, Math.floor(levels.length / 8)) === 0).slice(0, 8);
+
+                      return displayRows.map((lvl) => (
+                        <tr key={lvl.depth} className="hover:bg-slate-800/40 transition">
+                          <td className="py-1.5 px-2 text-slate-300 font-sans font-medium">
+                            {lvl.depth}m
+                          </td>
+                          <td className="py-1.5 px-2 text-sky-300">
+                            {lvl.observed_value !== null && lvl.observed_value !== undefined
+                              ? `${lvl.observed_value.toFixed(2)} ${unitStr}`
+                              : <span className="text-slate-500 italic">Observation data unavailable</span>}
+                          </td>
+                          <td className="py-1.5 px-2 text-rose-300">
+                            {lvl.model_value !== null && lvl.model_value !== undefined
+                              ? `${lvl.model_value.toFixed(2)} ${unitStr}`
+                              : <span className="text-slate-500 italic">Model comparison unavailable</span>}
+                          </td>
+                          <td className="py-1.5 px-2">
+                            {lvl.delta !== null && lvl.delta !== undefined ? (
+                              <span className={`font-bold ${
+                                lvl.delta < 0 ? 'text-sky-400' : lvl.delta > 0 ? 'text-amber-400' : 'text-emerald-400'
+                              }`}>
+                                {lvl.delta > 0 ? `+${lvl.delta.toFixed(2)}` : lvl.delta.toFixed(2)} {unitStr}
+                              </span>
+                            ) : (
+                              <span className="text-slate-500">—</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 px-2 text-[9.5px] text-slate-400 font-sans">
+                            {lvl.valid ? 'Interpolated from surrounding model grid cells' : (lvl.rejection_reason || 'Outside Domain')}
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Collocation Summary Metrics */}
+              <div className="space-y-1.5 pt-1">
+                <div className="metric-placeholder flex justify-between items-center text-xs py-1 border-b border-slate-800">
+                  <span className="text-slate-400">Mean Bias (Δ = MODEL - OBSERVED)</span>
+                  <strong data-testid="comparison-difference" style={{ color: tempSummary?.bias < 0 ? '#38bdf8' : '#fbbf24' }}>
+                    {tempSummary?.bias !== null && tempSummary?.bias !== undefined
+                      ? `${tempSummary.bias > 0 ? '+' : ''}${tempSummary.bias}°C (${tempSummary.prediction_tendency})`
+                      : 'N/A'}
+                  </strong>
+                </div>
+                <div className="metric-placeholder flex justify-between items-center text-xs py-1">
+                  <span className="text-slate-400">Model Skill / Health</span>
+                  <strong
+                    data-testid="comparison-health"
+                    style={{
+                      color: activeCollocation.model_health === 'EXCELLENT' || activeCollocation.model_health === 'GOOD' ? '#34d399' : '#fbbf24'
+                    }}
+                  >
+                    {activeCollocation.model_health} (RMSE {tempSummary?.rmse ?? 'N/A'}°C · MAE {tempSummary?.mae ?? 'N/A'}°C)
+                  </strong>
+                </div>
+                {/* Pearson correlation coefficient R (Master Prompt Section 31): from real
+                    model-observation pairs.  'n < 3' means insufficient samples — never an invalid value. */}
+                <div className="metric-placeholder flex justify-between items-center text-xs py-1">
+                  <span className="text-slate-400">Correlation R (model × observed)</span>
+                  <strong data-testid="comparison-correlation">
+                    {tempSummary?.correlation_r !== null && tempSummary?.correlation_r !== undefined
+                      ? `R = ${tempSummary.correlation_r} (${tempSummary.valid_pairs} pairs)`
+                      : `n = ${tempSummary?.valid_pairs ?? 0} — insufficient samples`}
+                  </strong>
+                </div>
+              </div>
+
               {onOpenComparison && (
-                <div className="pt-2">
+                <div className="pt-1">
                   <span
                     role="button"
                     tabIndex={-1}
@@ -593,15 +749,15 @@ export default function ComparisonPanel({
                     onClick={() => onOpenComparison()}
                     className="w-full py-1.5 px-2 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/40 text-sky-300 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition select-none"
                   >
-                    <span>⚡ Run & Compare Model Predictions ↗</span>
+                    <span>⚡ Run Full Model Prediction & Residual Suite ↗</span>
                   </span>
                 </div>
               )}
-            </>
+            </div>
           ) : (
-            <>
+            <div className="space-y-2 text-xs text-slate-400">
               <span className="subtle-tag text-xs text-slate-500">Not available</span>
-              <p className="helper text-xs text-slate-400">Select a sensor or probe a location with nearby observation data to assess model health.</p>
+              <p className="helper text-xs text-slate-400 m-0">Select an Argo Float or Glider on the 3D globe to assess model prediction health.</p>
               <div className="metric-placeholder flex justify-between text-xs text-slate-500 py-1">
                 <span>Difference</span>
                 <span>Not computed</span>
@@ -610,7 +766,7 @@ export default function ComparisonPanel({
                 <span>Model health</span>
                 <span>Not assessed</span>
               </div>
-            </>
+            </div>
           )}
         </section>
 

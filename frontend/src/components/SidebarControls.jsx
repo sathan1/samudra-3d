@@ -3,18 +3,27 @@ import {
   formatTimeLabel,
   SPEED_PRESETS,
   getIntervalForSpeed,
-  TOTAL_FORECAST_STEPS
+  getTotalForecastSteps
 } from '../utils/timeAnimation.js';
 
-export const DISCRETE_DEPTH_CHIPS = [
-  { depth: 0, label: '0m Surface' },
-  { depth: 50, label: '50m Mixed Layer' },
-  { depth: 100, label: '100m Thermocline' },
-  { depth: 500, label: '500m Intermediate' },
-  { depth: 1000, label: '1000m Deep' },
-  { depth: 2000, label: '2000m Abyssal' },
-  { depth: 4000, label: '4000m Seabed' }
-];
+/**
+ * Builds depth chips from the ACTUAL dataset depth coordinate values
+ * (Master Prompt Section 7-8).  Never fabricate depth options — if metadata
+ * has not loaded yet, return an empty list and let the caller show a
+ * "loading depths from dataset" placeholder instead of hardcoded values.
+ */
+export function buildDepthChips(availableDepths) {
+  if (!Array.isArray(availableDepths) || availableDepths.length === 0) return [];
+  const labelFor = (d) => {
+    if (d < 1) return `${d.toFixed(3)}m Surface`;
+    if (d < 10) return `${d.toFixed(2)}m`;
+    if (d < 100) return `${d.toFixed(1)}m Thermocline`;
+    if (d < 500) return `${d.toFixed(1)}m Intermediate`;
+    if (d < 1000) return `${d.toFixed(1)}m Deep`;
+    return `${d.toFixed(1)}m`;
+  };
+  return availableDepths.map((d) => ({ depth: d, label: labelFor(d) }));
+}
 
 /**
  * SidebarControls - Modern Left Floating HUD Controls
@@ -37,8 +46,11 @@ export default function SidebarControls({
   onChangeSpeed = null,
   isLooping = true,
   onToggleLoop = null,
-  totalTimeSteps = TOTAL_FORECAST_STEPS,
+  totalTimeSteps = getTotalForecastSteps(),
   currentTimeTimestamp = null,
+  availableDepths = [],
+  availableTimes = [],
+  availableVariables = [],
   isBuffering = false,
   showCurrents = false,
   onToggleCurrents = null,
@@ -178,12 +190,24 @@ export default function SidebarControls({
                 aria-describedby="variable-help"
                 className="w-full text-xs p-1.5 rounded bg-slate-950 border border-slate-700 text-slate-100"
               >
-                <option value="temperature">Potential Temperature (°C)</option>
-                <option value="salinity">Practical Salinity (PSU)</option>
-                <option value="currents">Ocean Currents (m/s)</option>
+                {/* Variables come from the ACTIVE dataset metadata, never hardcoded (Master Prompt Section 10) */}
+                {(availableVariables.length > 0 ? availableVariables : ['temperature', 'salinity', 'currents']).map((v) => {
+                  const labels = {
+                    temperature: 'Potential Temperature (°C)',
+                    salinity: 'Practical Salinity (PSU)',
+                    currents: 'Ocean Currents (m/s)',
+                    u_current: 'Eastward Current u (m/s)',
+                    v_current: 'Northward Current v (m/s)'
+                  };
+                  return (
+                    <option key={v} value={v}>{labels[v] || v}</option>
+                  );
+                })}
               </select>
               <p id="variable-help" className="helper text-[11px] text-slate-400 mt-1 mb-0">
-                Select temperature or salinity for scalar contours, or currents for vector streamlines.
+                {availableVariables.length > 0
+                  ? `${availableVariables.length} variables available in the active dataset.`
+                  : 'Loading variables from dataset metadata…'}
               </p>
             </div>
           </div>
@@ -199,11 +223,21 @@ export default function SidebarControls({
               </span>
             </div>
 
-            {/* Discrete Depth Chips Requirement */}
-            <div className="depth-chips-grid grid grid-cols-2 gap-1.5 mb-1.5">
-              {DISCRETE_DEPTH_CHIPS.map((chip) => {
-                const isSelected = Math.abs(requestedDepth - chip.depth) < 25;
+            {/* Depth Chips — built from ACTUAL dataset metadata (Master Prompt Section 7-8) */}
+            {(() => {
+              const depthChips = buildDepthChips(availableDepths);
+              if (depthChips.length === 0) {
                 return (
+                  <div className="text-[10px] text-slate-500 font-mono px-1 py-1.5" data-testid="depth-loading-placeholder">
+                    Loading depth levels from dataset metadata…
+                  </div>
+                );
+              }
+              return (
+                <div className="depth-chips-grid grid grid-cols-2 gap-1.5 mb-1.5 max-h-40 overflow-y-auto">
+                  {depthChips.map((chip) => {
+                    const isSelected = Math.abs(requestedDepth - chip.depth) < Math.max(1, chip.depth * 0.15);
+                    return (
                   <span
                     key={chip.depth}
                     role="button"
@@ -220,15 +254,21 @@ export default function SidebarControls({
                   </span>
                 );
               })}
-            </div>
+                </div>
+              );
+            })()}
 
-            {/* Fine Depth Range Slider */}
+            {/* Fine Depth Range Slider — bounds from ACTUAL dataset metadata (Master Prompt Section 7) */}
+            {(() => {
+              const maxDepth = availableDepths.length > 0 ? Math.max(...availableDepths) : 100;
+              return (
+                <>
             <input
               id="depth"
               type="range"
-              min="0"
-              max="4000"
-              step="5"
+              min={availableDepths.length > 0 ? availableDepths[0] : 0}
+              max={maxDepth}
+              step="any"
               value={requestedDepth}
               onChange={(e) => onSelectDepth?.(parseFloat(e.target.value))}
               aria-describedby="depth-help"
@@ -236,15 +276,13 @@ export default function SidebarControls({
               className="w-full accent-sky-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
             />
             <datalist id="depth-levels">
-              <option value="0" label="Surface"></option>
-              <option value="50"></option>
-              <option value="100" label="Thermocline"></option>
-              <option value="200"></option>
-              <option value="500"></option>
-              <option value="1000"></option>
-              <option value="2000"></option>
-              <option value="4000" label="Abyss"></option>
+              {availableDepths.map((d) => (
+                <option key={d} value={d} label={d < 100 ? `${d.toFixed(2)}m` : `${Math.round(d)}m`}></option>
+              ))}
             </datalist>
+                </>
+              );
+            })()}
             <div className="range-labels flex justify-between text-[10px] text-slate-400 mt-1 font-mono">
               <span>0m (Surface)</span>
               <span>100m (Thermocline)</span>

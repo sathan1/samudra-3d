@@ -154,8 +154,8 @@ export function createGliderTransectMesh(gliderDetail, options = {}) {
     group.add(line);
   });
 
-  // 2. Surfacing GPS Transmission Beacons (Sea surface z=0)
-  const surfaceGeo = new THREE.SphereGeometry(isSelected ? 0.5 : 0.4, 12, 12);
+  // 2. Surfacing GPS Transmission Beacons (Sea surface z=0) - Diamond Glyphs (◆)
+  const surfaceGeo = new THREE.OctahedronGeometry(isSelected ? 0.55 : 0.45, 0);
   const surfaceMat = new THREE.MeshBasicMaterial({
     color: isSelected ? GLIDER_COLORS.selectedTrack : GLIDER_COLORS.surfacing
   });
@@ -164,6 +164,7 @@ export function createGliderTransectMesh(gliderDetail, options = {}) {
     const pos = waypointToCartesian(wp.lat, wp.lon, 0, { globeRadius, verticalExaggeration });
     const mesh = new THREE.Mesh(surfaceGeo, surfaceMat);
     mesh.position.copy(pos);
+    mesh.rotation.y = Math.PI / 4; // Distinct diamond orientation
     mesh.name = `glider-surface-${sIdx}`;
     mesh.userData = {
       type: 'glider_surface',
@@ -173,8 +174,8 @@ export function createGliderTransectMesh(gliderDetail, options = {}) {
     group.add(mesh);
   });
 
-  // 3. Dive Bottom Inflection Anchors (Deepest turnaround points)
-  const bottomGeo = new THREE.OctahedronGeometry(isSelected ? 0.45 : 0.35, 0);
+  // 3. Dive Bottom Inflection Anchors (Deepest turnaround points) - Inverted Diamond Inflections
+  const bottomGeo = new THREE.OctahedronGeometry(isSelected ? 0.5 : 0.38, 0);
   const bottomMat = new THREE.MeshBasicMaterial({
     color: GLIDER_COLORS.diveBottom,
     wireframe: false
@@ -212,7 +213,7 @@ export function createGliderTransectMesh(gliderDetail, options = {}) {
     });
   }
 
-  // 5. Glider Head Beacon (Current / latest position)
+  // 5. Glider Fuselage & Diamond Head Beacon (◆) - Distinct from circular Argo Floats
   if (waypoints.length > 0) {
     const latestWp = waypoints[waypoints.length - 1];
     const headPos = waypointToCartesian(
@@ -222,17 +223,67 @@ export function createGliderTransectMesh(gliderDetail, options = {}) {
       { globeRadius, verticalExaggeration }
     );
 
-    const headGeo = new THREE.SphereGeometry(0.7, 16, 16);
-    const headMat = new THREE.MeshBasicMaterial({ color: GLIDER_COLORS.head });
-    const headMesh = new THREE.Mesh(headGeo, headMat);
-    headMesh.position.copy(headPos);
-    headMesh.name = `glider-head-${gliderDetail.id}`;
-    headMesh.userData = {
+    const headGroup = new THREE.Group();
+    headGroup.position.copy(headPos);
+    headGroup.name = `glider-head-${gliderDetail.id}`;
+
+    // 5a. Aerodynamic Diamond Fuselage Body
+    const fuselageGeo = new THREE.OctahedronGeometry(0.9, 0);
+    fuselageGeo.scale(1.5, 0.65, 0.85); // Streamlined glider hull
+    const fuselageMat = new THREE.MeshStandardMaterial({
+      color: isSelected ? GLIDER_COLORS.selectedTrack : GLIDER_COLORS.head,
+      emissive: isSelected ? GLIDER_COLORS.selectedTrack : GLIDER_COLORS.head,
+      emissiveIntensity: isSelected ? 1.0 : 0.6,
+      roughness: 0.3,
+      metalness: 0.2
+    });
+    const fuselageMesh = new THREE.Mesh(fuselageGeo, fuselageMat);
+    fuselageMesh.name = 'glider-fuselage';
+    headGroup.add(fuselageMesh);
+
+    // 5b. Swept Delta Wings (Lateral Glide Planes)
+    const wingsGeo = new THREE.BoxGeometry(2.2, 0.08, 0.65);
+    const wingsMat = new THREE.MeshStandardMaterial({
+      color: isSelected ? 0x38bdf8 : 0xd97706,
+      roughness: 0.4
+    });
+    const wingsMesh = new THREE.Mesh(wingsGeo, wingsMat);
+    wingsMesh.name = 'glider-wings';
+    headGroup.add(wingsMesh);
+
+    // 5c. Vertical Stabilizer Rudder Fin
+    const finGeo = new THREE.BoxGeometry(0.08, 0.6, 0.45);
+    const finMat = new THREE.MeshStandardMaterial({
+      color: isSelected ? 0x38bdf8 : 0xb45309,
+      roughness: 0.4
+    });
+    const finMesh = new THREE.Mesh(finGeo, finMat);
+    finMesh.position.set(0, 0.35, -0.4);
+    finMesh.name = 'glider-fin';
+    headGroup.add(finMesh);
+
+    // 5d. Diamond Selection Halo Ring (◆)
+    const diamondRingGeo = new THREE.RingGeometry(1.6, 2.1, 4); // 4 sides = diamond
+    const diamondRingMat = new THREE.MeshBasicMaterial({
+      color: GLIDER_COLORS.selectedTrack,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: isSelected ? 0.9 : 0.0
+    });
+    const diamondRingMesh = new THREE.Mesh(diamondRingGeo, diamondRingMat);
+    diamondRingMesh.name = 'glider-selection-diamond';
+    diamondRingMesh.rotation.x = Math.PI / 2;
+    diamondRingMesh.rotation.z = Math.PI / 4; // Rotate into diamond shape ◆
+    diamondRingMesh.visible = isSelected;
+    headGroup.add(diamondRingMesh);
+
+    headGroup.userData = {
       type: 'glider_head',
       gliderId: gliderDetail.id,
+      detail: gliderDetail,
       waypoint: latestWp
     };
-    group.add(headMesh);
+    group.add(headGroup);
   }
 
   group.userData = {
@@ -336,13 +387,26 @@ export function updateGliderSelectionVisuals(gliderGroup, selectedId) {
     const isSelected = child.userData?.id === selectedId;
     const trackColor = isSelected ? GLIDER_COLORS.selectedTrack : GLIDER_COLORS.defaultTrack;
 
-    child.children.forEach((node) => {
+    child.traverse((node) => {
       if (node.name && node.name.startsWith('glider-track-seg') && node.material) {
         node.material.color.setHex(trackColor);
         node.material.opacity = isSelected ? 0.95 : 0.8;
       }
       if (node.name && node.name.startsWith('glider-surface') && node.material) {
         node.material.color.setHex(isSelected ? GLIDER_COLORS.selectedTrack : GLIDER_COLORS.surfacing);
+      }
+      if (node.name === 'glider-selection-diamond') {
+        node.visible = isSelected;
+        if (node.material) {
+          node.material.opacity = isSelected ? 0.9 : 0.0;
+        }
+      }
+      if (node.name === 'glider-fuselage' && node.material) {
+        node.material.color.setHex(isSelected ? GLIDER_COLORS.selectedTrack : GLIDER_COLORS.head);
+        if (node.material.emissive) {
+          node.material.emissive.setHex(isSelected ? GLIDER_COLORS.selectedTrack : GLIDER_COLORS.head);
+          node.material.emissiveIntensity = isSelected ? 1.0 : 0.6;
+        }
       }
     });
   });

@@ -6,7 +6,11 @@ from backend.app.schemas.ocean import (
     OceanMetadataResponse,
     OceanDataSliceResponse,
     OceanProbeResponse,
-    OceanTransectResponse
+    OceanTransectResponse,
+    LocationAvailabilityResponse,
+    PointValueResponse,
+    ProfileResponse,
+    RegionResponse
 )
 from backend.app.services.ocean_service import ocean_service
 
@@ -49,18 +53,23 @@ def get_metadata():
             detail=f"Error reading dataset metadata: {str(e)}"
         )
 
-@router.get("/ocean-data", response_model=OceanDataSliceResponse, summary="Slice 2D ocean field by depth, time, and bounds")
+@router.get("/ocean-data", response_model=OceanDataSliceResponse, summary="Slice 2D ocean field — spatial bounds REQUIRED")
 def get_ocean_data(
     variable: str = Query("temperature", description="Target variable (temperature, salinity, currents, u_current, v_current)"),
-    time_idx: int = Query(0, ge=0, description="Time index (0 to 7)"),
-    depth: float = Query(0.0, ge=0.0, description="Requested depth in meters (0 to 4000)"),
-    lat_min: Optional[float] = Query(None, description="Minimum latitude bounding filter"),
-    lat_max: Optional[float] = Query(None, description="Maximum latitude bounding filter"),
-    lon_min: Optional[float] = Query(None, description="Minimum longitude bounding filter"),
-    lon_max: Optional[float] = Query(None, description="Maximum longitude bounding filter")
+    time_idx: int = Query(0, ge=0, description="Time index (0 to N-1, from dataset metadata)"),
+    depth: float = Query(0.0, ge=0.0, description="Requested depth in meters (from dataset metadata depth_levels_m)"),
+    lat_min: float = Query(..., description="REQUIRED minimum latitude bounding filter"),
+    lat_max: float = Query(..., description="REQUIRED maximum latitude bounding filter"),
+    lon_min: float = Query(..., description="REQUIRED minimum longitude bounding filter"),
+    lon_max: float = Query(..., description="REQUIRED maximum longitude bounding filter")
 ):
     """
     Slices precomputed numerical ocean model outputs on the backend.
+
+    IMPORTANT: Spatial bounds are MANDATORY.  The globe is a coordinate index, not a
+    giant container for the entire ocean dataset.  Requests without bounds return HTTP 400
+    so that the frontend can never accidentally pull the full 301x601 global grid.
+
     Returns 2D horizontal field with land points and missing values serialized as JSON null.
     """
     try:
@@ -72,6 +81,21 @@ def get_ocean_data(
             lat_max=lat_max,
             lon_min=lon_min,
             lon_max=lon_max
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Dataset file missing: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error slicing ocean data: {str(e)}"
         )
     except ValueError as e:
         raise HTTPException(
@@ -228,3 +252,120 @@ def get_in_depth_analysis(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error evaluating in-depth ocean analysis: {str(e)}"
         )
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Coordinate-on-Demand API (Master Prompt §6–13, §66)
+# The 3D Earth is a spatial index.  The user clicks a coordinate; these endpoints
+# return ONLY the small subset of scientific data that was requested.
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/location/availability", response_model=LocationAvailabilityResponse,
+            summary="Lightweight data availability at a selected coordinate (no field values)")
+def get_location_availability(
+    lat: float = Query(..., ge=-90.0, le=90.0, description="Latitude in degrees"),
+    lon: float = Query(..., ge=-180.0, le=180.0, description="Longitude in degrees")
+):
+    """
+    Returns lightweight metadata about what is available at this coordinate:
+    model presence, observation platform availability, variables, depths, and times.
+
+    IMPORTANT: This endpoint NEVER returns the scientific field itself.
+    It is the first request after the user selects a point on the globe.
+    """
+    try:
+        return ocean_service.get_availability(lat=lat, lon=lon)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail=f"Dataset file missing: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Error querying availability: {str(e)}")
+
+
+@router.get("/ocean/point", response_model=PointValueResponse,
+            summary="Single model value at (lat, lon, depth, time)")
+def get_ocean_point(
+    lat: float = Query(..., ge=-90.0, le=90.0, description="Latitude in degrees"),
+    lon: float = Query(..., ge=-180.0, le=180.0, description="Longitude in degrees"),
+    variable: str = Query("temperature", description="Variable name"),
+    depth: float = Query(0.0, ge=0.0, description="Depth in metres (use /api/metadata depth_levels_m)"),
+    time_idx: int = Query(0, ge=0, description="Time index from dataset metadata")
+):
+    """
+    Returns only the required value and provenance metadata for a single coordinate.
+    Payload target: < 10 KB.
+    """
+    try:
+        return ocean_service.get_point(lat=lat, lon=lon, variable=variable, depth=depth, time_idx=time_idx)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail=f"Dataset file missing: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Error querying point value: {str(e)}")
+
+
+@router.get("/ocean/profile", response_model=ProfileResponse,
+            summary="Vertical profile (depth[], value[]) at a selected coordinate")
+def get_ocean_profile(
+    lat: float = Query(..., ge=-90.0, le=90.0, description="Latitude in degrees"),
+    lon: float = Query(..., ge=-180.0, le=180.0, description="Longitude in degrees"),
+    variable: str = Query("temperature", description="Variable name"),
+    time_idx: int = Query(0, ge=0, description="Time index from dataset metadata")
+):
+    """
+    Returns only the depth[] and value[] arrays for the selected coordinate.
+    This is far smaller than sending the global horizontal field.
+    """
+    try:
+        return ocean_service.get_profile(lat=lat, lon=lon, variable=variable, time_idx=time_idx)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail=f"Dataset file missing: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Error querying profile: {str(e)}")
+
+
+@router.get("/ocean/region", response_model=RegionResponse,
+            summary="Bounded local 3D region subset for detailed visualization")
+def get_ocean_region(
+    center_lat: float = Query(..., ge=-90.0, le=90.0, description="Region centre latitude"),
+    center_lon: float = Query(..., ge=-180.0, le=180.0, description="Region centre longitude"),
+    radius_km: float = Query(25.0, gt=0.0, le=500.0, description="Region radius in kilometres (LOD-based)"),
+    variable: str = Query("temperature", description="Variable name"),
+    depth_min: float = Query(0.0, ge=0.0, description="Minimum depth in metres"),
+    depth_max: float = Query(100.0, ge=0.0, description="Maximum depth in metres"),
+    time_idx: int = Query(0, ge=0, description="Time index from dataset metadata")
+):
+    """
+    Returns a bounded 3D region subset — the *detailed* local ocean model.
+
+    This is only called when the user explicitly requests a local 3D view.
+    The backend selects the dataset's actual native resolution; it does not invent resolutions.
+    """
+    try:
+        return ocean_service.get_region(
+            center_lat=center_lat,
+            center_lon=center_lon,
+            radius_km=radius_km,
+            variable=variable,
+            depth_min=depth_min,
+            depth_max=depth_max,
+            time_idx=time_idx
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail=f"Dataset file missing: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Error querying region: {str(e)}")
+

@@ -192,6 +192,45 @@ class OceanDataService:
             time_idx=time_idx
         )
 
+    # ── Coordinate-on-Demand methods (Master Prompt §6–13) ──────────────────
+
+    def get_availability(self, lat: float, lon: float):
+        """Lightweight availability query. Returns metadata only, never field values."""
+        return self.get_active_adapter().get_availability(lat=lat, lon=lon)
+
+    def get_point(self, lat: float, lon: float, variable: str, depth: float, time_idx: int = 0):
+        """Single-value query at (lat, lon, depth, time)."""
+        return self.get_active_adapter().get_point(
+            lat=lat, lon=lon, variable=variable, depth=depth, time_idx=time_idx
+        )
+
+    def get_profile(self, lat: float, lon: float, variable: str, time_idx: int = 0):
+        """Vertical profile query at (lat, lon) for one variable."""
+        return self.get_active_adapter().get_profile(
+            lat=lat, lon=lon, variable=variable, time_idx=time_idx
+        )
+
+    def get_region(
+        self,
+        center_lat: float,
+        center_lon: float,
+        radius_km: float,
+        variable: str,
+        depth_min: float,
+        depth_max: float,
+        time_idx: int = 0
+    ):
+        """Bounded 3D region subset for local visualization."""
+        return self.get_active_adapter().get_region(
+            center_lat=center_lat,
+            center_lon=center_lon,
+            radius_km=radius_km,
+            variable=variable,
+            depth_min=depth_min,
+            depth_max=depth_max,
+            time_idx=time_idx
+        )
+
     @staticmethod
     def calculate_derived_metrics(depths: Any, temps: Any) -> Dict[str, Any]:
         return calculate_derived_ocean_metrics(depths, temps)

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { loadEarthTextures, createAtmosphereMaterial } from '../utils/earthTexture.js';
-import { geoToCartesian, cartesianToGeo, DEFAULT_GLOBE_RADIUS } from '../utils/coordinates.js';
+import { geoToCartesian, cartesianToGeo, cameraVisibleBoundingBox, DEFAULT_GLOBE_RADIUS } from '../utils/coordinates.js';
 import { buildScalarFieldGeometry, createScalarFieldMaterial } from '../utils/scalarField.js';
 import { fetchOceanData } from '../services/api.js';
 import ColorBarLegend from './ColorBarLegend.jsx';
@@ -229,8 +229,8 @@ export default function OceanCanvas({
       } else {
         cameraRef.current.position.set(INITIAL_CAM_POS.x, INITIAL_CAM_POS.y, INITIAL_CAM_POS.z);
         controlsRef.current.target.set(0, 0, 0);
-        controlsRef.current.minDistance = 103.5;
-        controlsRef.current.maxDistance = 420;
+        controlsRef.current.minDistance = 102;
+        controlsRef.current.maxDistance = 500;
       }
       controlsRef.current.update();
     }
@@ -271,7 +271,11 @@ export default function OceanCanvas({
   const handleZoomIn = () => {
     if (!cameraRef.current || !controlsRef.current) return;
     const len = cameraRef.current.position.length();
-    const newLen = Math.max(controlsRef.current.minDistance + 0.5, len * 0.85);
+    let factor;
+    if (len > 250)      factor = 0.72;   // large zoom from global basin
+    else if (len > 130) factor = 0.85;   // medium zoom from regional
+    else                factor = 0.95;   // fine zoom at close range (Master Prompt §35)
+    const newLen = Math.max(controlsRef.current.minDistance, len * factor);
     cameraRef.current.position.setLength(newLen);
     controlsRef.current.update();
   };
@@ -279,7 +283,11 @@ export default function OceanCanvas({
   const handleZoomOut = () => {
     if (!cameraRef.current || !controlsRef.current) return;
     const len = cameraRef.current.position.length();
-    const newLen = Math.min(controlsRef.current.maxDistance - 5, len * 1.18);
+    let factor;
+    if (len < 120)      factor = 1.06;
+    else if (len < 250) factor = 1.14;
+    else                factor = 1.28;
+    const newLen = Math.min(controlsRef.current.maxDistance, len * factor);
     cameraRef.current.position.setLength(newLen);
     controlsRef.current.update();
   };
@@ -300,10 +308,18 @@ export default function OceanCanvas({
       onBufferingChange?.(true);
       setFieldState((prev) => ({ ...prev, loading: true, error: null }));
 
+      const cam = cameraRef.current;
+      const bounds = cam
+        ? cameraVisibleBoundingBox(cam, DEFAULT_GLOBE_RADIUS)
+        : { lat_min: 0, lat_max: 25, lon_min: 65, lon_max: 95 };  // safe default (full Indian Ocean domain)
       fetchOceanData({
         variable: selectedVariable,
         time_idx: timeIndex,
         depth: requestedDepth,
+        lat_min: bounds.lat_min,
+        lat_max: bounds.lat_max,
+        lon_min: bounds.lon_min,
+        lon_max: bounds.lon_max,
         signal: controller.signal
       })
         .then((data) => {
@@ -314,7 +330,7 @@ export default function OceanCanvas({
               sliceData: data
             });
             onBufferingChange?.(false);
-            onDepthResolved?.(data.selected_depth);
+            onDepthResolved?.(data.selected_depth != null ? data.selected_depth : data.requested_depth);
             onTimeResolved?.(data.timestamp);
           }
         })
@@ -366,10 +382,20 @@ export default function OceanCanvas({
       return;
     }
 
+    // Fallback fetch uses the same visible-window bounds as the main field fetch
+    // so the backend's mandatory-bounds contract is never violated.
+    const currCam = cameraRef.current;
+    const currBounds = currCam
+      ? cameraVisibleBoundingBox(currCam, DEFAULT_GLOBE_RADIUS)
+      : { lat_min: 0, lat_max: 25, lon_min: 65, lon_max: 95 };
     fetchOceanData({
       variable: 'currents',
       time_idx: timeIndex,
       depth: requestedDepth,
+      lat_min: currBounds.lat_min,
+      lat_max: currBounds.lat_max,
+      lon_min: currBounds.lon_min,
+      lon_max: currBounds.lon_max,
       signal: controller.signal
     })
       .then((data) => {
@@ -564,7 +590,7 @@ export default function OceanCanvas({
     sceneRef.current = scene;
 
     // Camera setup
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1200);
     camera.position.set(INITIAL_CAM_POS.x, INITIAL_CAM_POS.y, INITIAL_CAM_POS.z);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
@@ -594,8 +620,8 @@ export default function OceanCanvas({
     controls.dampingFactor = 0.06;
     controls.rotateSpeed = 0.75;
     controls.zoomSpeed = 0.85;
-    controls.minDistance = 103.5;
-    controls.maxDistance = 420;
+    controls.minDistance = 102;
+    controls.maxDistance = 500;
     controls.target.set(0, 0, 0);
     controlsRef.current = controls;
 
@@ -1496,6 +1522,20 @@ export default function OceanCanvas({
         rangeMode={rangeMode}
         onToggleRangeMode={() => setRangeMode((m) => (m === 'dynamic' ? 'fixed' : 'dynamic'))}
       />
+
+      {/* Developer-only performance panel (Master Prompt Section 43).
+          Enabled with ?perf=1 — never displayed for normal users. */}
+      {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('perf') === '1' && (
+        <div
+          className="perf-panel absolute top-3 right-3 z-30 bg-slate-950/90 backdrop-blur border border-slate-700 rounded-lg px-3 py-2 text-[10px] font-mono text-slate-300 space-y-0.5"
+          data-testid="perf-panel"
+        >
+          <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Perf (dev only)</div>
+          <div>Render FPS: {rendererStats.fps}</div>
+          <div>Draw Calls: {rendererStats.drawCalls}</div>
+          <div>Field: {fieldState.loading ? 'loading…' : fieldState.error ? `error: ${String(fieldState.error).slice(0, 60)}` : `${fieldState.sliceData?.variable ?? '—'} @ ${fieldState.sliceData?.selected_depth ?? fieldState.sliceData?.requested_depth ?? '—'}m · ${fieldState.sliceData?.shape ? `${fieldState.sliceData.shape[0]}x${fieldState.sliceData.shape[1]}` : '—'} cells`}</div>
+        </div>
+      )}
     </section>
   );
 }

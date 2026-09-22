@@ -59,7 +59,7 @@ def test_api_suite():
         # -------------------------------------------------------------
         # Surface temperature slice at t=0, depth=0
         t0 = time.perf_counter()
-        r_data = client.get("/api/ocean-data?variable=temperature&time_idx=0&depth=0")
+        r_data = client.get("/api/ocean-data?variable=temperature&time_idx=0&depth=0&lat_min=0.0&lat_max=25.0&lon_min=65.0&lon_max=95.0")
         latency_ms = (time.perf_counter() - t0) * 1000.0
         payload_bytes = len(r_data.content)
 
@@ -95,7 +95,7 @@ def test_api_suite():
         # -------------------------------------------------------------
         # 4. Test Temporal Slicing (First and Last Forecast Time Steps)
         # -------------------------------------------------------------
-        r_t_last = client.get("/api/ocean-data?variable=temperature&time_idx=7&depth=0")
+        r_t_last = client.get("/api/ocean-data?variable=temperature&time_idx=7&depth=0&lat_min=0.0&lat_max=25.0&lon_min=65.0&lon_max=95.0")
         assert r_t_last.status_code == 200
         assert r_t_last.json()["time_idx"] == 7
         assert r_t_last.json()["timestamp"] == meta["time_timestamps"][7]
@@ -107,7 +107,7 @@ def test_api_suite():
         # Surface slice (0m)
         t_surface = slice_res["max_val"]
         # Abyssal slice (4000m)
-        r_deep = client.get("/api/ocean-data?variable=temperature&time_idx=0&depth=4000")
+        r_deep = client.get("/api/ocean-data?variable=temperature&time_idx=0&depth=4000&lat_min=0.0&lat_max=25.0&lon_min=65.0&lon_max=95.0")
         assert r_deep.status_code == 200
         deep_res = r_deep.json()
         assert deep_res["selected_depth"] == 4000.0
@@ -118,7 +118,7 @@ def test_api_suite():
         print(f"[OK] Vertical depth slicing verified: Surface max={t_surface:.2f}°C vs Abyssal max={t_abyss:.2f}°C")
 
         # Nearest depth selection disclosure
-        r_nearest = client.get("/api/ocean-data?variable=temperature&depth=75")
+        r_nearest = client.get("/api/ocean-data?variable=temperature&depth=75&lat_min=0.0&lat_max=25.0&lon_min=65.0&lon_max=95.0")
         assert r_nearest.status_code == 200
         near_res = r_nearest.json()
         assert near_res["requested_depth"] == 75.0
@@ -139,7 +139,7 @@ def test_api_suite():
         # -------------------------------------------------------------
         # 7. Test Currents and Vector Fields
         # -------------------------------------------------------------
-        r_curr = client.get("/api/ocean-data?variable=currents&time_idx=0&depth=0")
+        r_curr = client.get("/api/ocean-data?variable=currents&time_idx=0&depth=0&lat_min=0.0&lat_max=25.0&lon_min=65.0&lon_max=95.0")
         assert r_curr.status_code == 200
         curr_res = r_curr.json()
         assert curr_res["variable"] == "currents"
@@ -156,19 +156,19 @@ def test_api_suite():
         # 8. Test Error Handling and Input Validation
         # -------------------------------------------------------------
         # (A) Unsupported variable
-        r_bad_var = client.get("/api/ocean-data?variable=chlorophyll_a")
+        r_bad_var = client.get("/api/ocean-data?variable=chlorophyll_a&lat_min=0.0&lat_max=25.0&lon_min=65.0&lon_max=95.0")
         assert r_bad_var.status_code == 400
         assert "Unsupported variable" in r_bad_var.json()["detail"]
         print("[OK] Error check: Unsupported variable returns HTTP 400")
 
         # (B) Out-of-bounds time index
-        r_bad_time = client.get("/api/ocean-data?time_idx=99")
+        r_bad_time = client.get("/api/ocean-data?time_idx=99&lat_min=0.0&lat_max=25.0&lon_min=65.0&lon_max=95.0")
         assert r_bad_time.status_code == 400
         assert "out of range" in r_bad_time.json()["detail"]
         print("[OK] Error check: Out-of-bounds time_idx returns HTTP 400")
 
         # (C) Inverted bounding box
-        r_bad_bbox = client.get("/api/ocean-data?lat_min=20.0&lat_max=5.0")
+        r_bad_bbox = client.get("/api/ocean-data?lat_min=20.0&lat_max=5.0&lon_min=65.0&lon_max=95.0")
         assert r_bad_bbox.status_code == 400
         assert "Invalid latitude range" in r_bad_bbox.json()["detail"]
         print("[OK] Error check: Inverted lat bounds return HTTP 400")
@@ -190,7 +190,7 @@ def test_api_suite():
         latencies = []
         for _ in range(10):
             t_start = time.perf_counter()
-            res = client.get("/api/ocean-data?variable=temperature&time_idx=2&depth=100")
+            res = client.get("/api/ocean-data?variable=temperature&time_idx=2&depth=100&lat_min=0.0&lat_max=25.0&lon_min=65.0&lon_max=95.0")
             latencies.append((time.perf_counter() - t_start) * 1000.0)
             assert res.status_code == 200
 

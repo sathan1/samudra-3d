@@ -22,7 +22,11 @@ from backend.app.schemas.ocean import (
     OceanDataSliceResponse,
     OceanProbeResponse,
     OceanTransectResponse,
-    NearestObservationSummary
+    NearestObservationSummary,
+    LocationAvailabilityResponse,
+    PointValueResponse,
+    ProfileResponse,
+    RegionResponse
 )
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -47,6 +51,15 @@ def sanitize_value(val: Any) -> Optional[float]:
         return round(fval, 4)
     except (ValueError, TypeError):
         return None
+
+
+# Hard safety limit: maximum grid cells returned by a single /ocean-data request.
+# The real GLORYS grid is 301 x 601 = 180,901 cells.  We reject larger requests
+# with HTTP 400 to prevent browser overload.  (Master Prompt �19)
+MAX_GRID_CELLS = 100_000
+
+# Maximum payload size in bytes for any single field response
+MAX_PAYLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 
 def calculate_derived_ocean_metrics(depths_in: Any, temps_in: Any) -> Dict[str, Any]:
     """
@@ -264,6 +277,35 @@ class BaseOceanAdapter(ABC):
         variable: str = "temperature",
         time_idx: int = 0
     ) -> OceanTransectResponse:
+        pass
+
+    @abstractmethod
+    def get_availability(self, lat: float, lon: float) -> Any:
+        """Returns lightweight metadata: which variables/depths/times/observations are available at (lat, lon)."""
+        pass
+
+    @abstractmethod
+    def get_point(self, lat: float, lon: float, variable: str, depth: float, time_idx: int = 0) -> Any:
+        """Returns a single interpolated value at (lat, lon, depth, time)."""
+        pass
+
+    @abstractmethod
+    def get_profile(self, lat: float, lon: float, variable: str, time_idx: int = 0) -> Any:
+        """Returns a vertical profile (depth[], value[]) at (lat, lon) for one variable."""
+        pass
+
+    @abstractmethod
+    def get_region(
+        self,
+        center_lat: float,
+        center_lon: float,
+        radius_km: float,
+        variable: str,
+        depth_min: float,
+        depth_max: float,
+        time_idx: int = 0
+    ) -> Any:
+        """Returns a bounded 3D region subset for local visualization."""
         pass
 
 
@@ -714,6 +756,126 @@ class SyntheticRomsAdapter(BaseOceanAdapter):
             tchp_profile=tchp_profile
         )
 
+    def get_availability(self, lat: float, lon: float) -> LocationAvailabilityResponse:
+        """Returns lightweight metadata about data availability at (lat, lon). No field values."""
+        if not self.is_loaded():
+            self.load_dataset()
+        if lat < float(self.lats[0]) or lat > float(self.lats[-1]) or lon < float(self.lons[0]) or lon > float(self.lons[-1]):
+            return LocationAvailabilityResponse(latitude=lat, longitude=lon, model=False)
+        j_near = int(np.argmin(np.abs(self.lats - lat)))
+        i_near = int(np.argmin(np.abs(self.lons - lon)))
+        surface_mask = np.ma.getmaskarray(self.dataset.variables["temperature"][0, 0, :, :])
+        is_land = bool(surface_mask[j_near, i_near])
+        return LocationAvailabilityResponse(
+            latitude=lat,
+            longitude=lon,
+            model=not is_land,
+            dataset_id="incois_roms_synthetic",
+            observations={"argo": True, "glider": True, "ctd": False, "bgc": False},
+            variables=["temperature", "salinity", "currents", "u_current", "v_current"],
+            depths=[float(d) for d in self.depths],
+            times=self.time_timestamps
+        )
+
+    def get_point(self, lat: float, lon: float, variable: str, depth: float, time_idx: int = 0) -> PointValueResponse:
+        """Returns a single interpolated model value at (lat, lon, depth, time)."""
+        if not self.is_loaded():
+            self.load_dataset()
+        if time_idx < 0 or time_idx >= len(self.times):
+            raise ValueError(f"time_idx {time_idx} out of range [0..{len(self.times)-1}]")
+        if lat < float(self.lats[0]) or lat > float(self.lats[-1]) or lon < float(self.lons[0]) or lon > float(self.lons[-1]):
+            raise ValueError(f"Coordinates ({lat}, {lon}) outside domain bounds.")
+        copernicus_var = {"temperature": "temperature", "salinity": "salinity",
+                          "u_current": "u_current", "v_current": "v_current"}.get(variable)
+        if copernicus_var is None and variable == "currents":
+            copernicus_var = "u_current"
+        if copernicus_var is None:
+            raise ValueError(f"Unsupported variable '{variable}'")
+        rgi = self._get_interpolator(copernicus_var, time_idx)
+        pts = np.array([[depth, lat, lon]])
+        val = sanitize_value(rgi(pts)[0])
+        depth_idx = int(np.argmin(np.abs(self.depths - depth)))
+        selected_depth = float(self.depths[depth_idx])
+        units_map = {"temperature": "degC", "salinity": "PSU", "u_current": "m/s", "v_current": "m/s"}
+        return PointValueResponse(
+            lat=lat, lon=lon, depth=depth, time=self.time_timestamps[time_idx],
+            variable=variable, value=val, unit=units_map.get(variable, "degC"),
+            nearest_depth=selected_depth, interpolation_method="trilinear",
+            source="INCOIS ROMS Synthetic Model (CF-1.8)", dataset_id="incois_roms_synthetic"
+        )
+
+    def get_profile(self, lat: float, lon: float, variable: str, time_idx: int = 0) -> ProfileResponse:
+        """Returns a vertical profile at (lat, lon) for one variable across all depth levels."""
+        probe = self.probe_water_column(lat=lat, lon=lon, time_idx=time_idx)
+        var_map = {"temperature": probe.temperature, "salinity": probe.salinity,
+                   "u_current": probe.u_current, "v_current": probe.v_current}
+        values = var_map.get(variable, probe.temperature)
+        unit_map = {"temperature": "degC", "salinity": "PSU", "u_current": "m/s", "v_current": "m/s"}
+        return ProfileResponse(
+            lat=lat, lon=lon, variable=variable, unit=unit_map.get(variable, "degC"),
+            time_idx=time_idx, timestamp=probe.timestamp,
+            depths=[float(d) for d in probe.depths],
+            values=values,
+            dataset_id="incois_roms_synthetic",
+            source="INCOIS ROMS Synthetic Model (CF-1.8)",
+            provenance={"interpolation_method": "RegularGridInterpolator (linear)"}
+        )
+
+    def get_region(
+        self,
+        center_lat: float,
+        center_lon: float,
+        radius_km: float,
+        variable: str,
+        depth_min: float,
+        depth_max: float,
+        time_idx: int = 0
+    ) -> RegionResponse:
+        """Returns a bounded 3D region subset around (center_lat, center_lon)."""
+        if not self.is_loaded():
+            self.load_dataset()
+        lat_span = radius_km / 111.0
+        lon_span = radius_km / (111.0 * max(0.01, abs(math.cos(math.radians(center_lat)))))
+        lat_min = max(float(self.lats[0]), center_lat - lat_span)
+        lat_max = min(float(self.lats[-1]), center_lat + lat_span)
+        lon_min = max(float(self.lons[0]), center_lon - lon_span)
+        lon_max = min(float(self.lons[-1]), center_lon + lon_span)
+        depth_min_idx = int(np.argmin(np.abs(self.depths - depth_min)))
+        depth_max_idx = int(np.argmin(np.abs(self.depths - depth_max)))
+        if depth_min_idx > depth_max_idx:
+            depth_min_idx, depth_max_idx = depth_max_idx, depth_min_idx
+        slices = []
+        all_vals = []
+        last_slice = None
+        for k in range(depth_min_idx, depth_max_idx + 1):
+            d = float(self.depths[k])
+            sl = self.slice_data(variable=variable, time_idx=time_idx, depth=d,
+                                 lat_min=lat_min, lat_max=lat_max, lon_min=lon_min, lon_max=lon_max)
+            slices.append(sl.values)
+            last_slice = sl
+            for row in sl.values:
+                for v in row:
+                    if v is not None:
+                        all_vals.append(v)
+        sub_depths = [float(self.depths[k]) for k in range(depth_min_idx, depth_max_idx + 1)]
+        unit = "degC" if variable == "temperature" else ("PSU" if variable == "salinity" else "m/s")
+        return RegionResponse(
+            center_lat=center_lat, center_lon=center_lon, radius_km=radius_km,
+            variable=variable, unit=unit,
+            time_idx=time_idx, timestamp=self.time_timestamps[time_idx],
+            depth_min=float(self.depths[depth_min_idx]), depth_max=float(self.depths[depth_max_idx]),
+            lats=last_slice.lats if last_slice else [],
+            lons=last_slice.lons if last_slice else [],
+            depths=sub_depths, slices=slices,
+            shape=[len(sub_depths), len(last_slice.lats) if last_slice else 0, len(last_slice.lons) if last_slice else 0],
+            min_val=min(all_vals) if all_vals else None,
+            max_val=max(all_vals) if all_vals else None,
+            valid_count=len(all_vals),
+            resolution="regional subset",
+            source_mode=SourceMode.SYNTHETIC,
+            dataset_id="incois_roms_synthetic"
+        )
+
 
 class GlorysLocalAdapter(BaseOceanAdapter):
     """
@@ -886,6 +1048,16 @@ class GlorysLocalAdapter(BaseOceanAdapter):
         if time_idx < 0 or time_idx >= len(self.times):
             raise ValueError(f"time_idx {time_idx} out of range [0..{len(self.times)-1}]")
 
+        # Master Prompt §18 & §19: Spatial bounds are REQUIRED for the real dataset
+        # to prevent accidental full-grid retrieval (301x601 = 180,901 cells).
+        # The globe is a coordinate index, not a data container.
+        if lat_min is None or lat_max is None or lon_min is None or lon_max is None:
+            raise ValueError(
+                "Spatial bounds (lat_min, lat_max, lon_min, lon_max) are required. "
+                "The globe is a coordinate index, not a data container. "
+                "Request a bounded region instead of the full global grid."
+            )
+
         depth_idx = int(np.argmin(np.abs(self.depths - depth)))
         selected_depth = float(self.depths[depth_idx])
 
@@ -920,8 +1092,32 @@ class GlorysLocalAdapter(BaseOceanAdapter):
         if i_min > i_max:
             raise ValueError(f"Invalid longitude range: min ({lon_min}) > max ({lon_max})")
 
-        is_subdomain = (lat_min is not None or lat_max is not None or lon_min is not None or lon_max is not None)
-        step = 1 if is_subdomain else 2
+        # Master Prompt §19: Hard server-side safety limit on grid cells.
+        # Progressive-detail (LOD) auto-decimation: the backend chooses the coarsest
+        # integer decimation step that keeps the response within the payload budget.
+        # This is a REAL LOD system derived from the dataset's native resolution —
+        # no invented resolutions are created (Master Prompt §16).
+        n_lat = j_max - j_min + 1
+        n_lon = i_max - i_min + 1
+        step = 1
+        while ((n_lat // step) + (1 if n_lat % step else 0)) * ((n_lon // step) + (1 if n_lon % step else 0)) > MAX_GRID_CELLS and step < 32:
+            step += 1
+        eff_lat = (n_lat // step) + (1 if n_lat % step else 0)
+        eff_lon = (n_lon // step) + (1 if n_lon % step else 0)
+        n_cells = eff_lat * eff_lon
+        if n_cells > MAX_GRID_CELLS:
+            raise ValueError(
+                f"Requested spatial extent yields {n_cells:,} grid cells, exceeding the "
+                f"hard safety limit of {MAX_GRID_CELLS:,} cells even after decimation. "
+                f"Please reduce geographic area, depth range, or time range."
+            )
+
+        effective_resolution_km = 8.33 * step
+        resolution_label = (
+            "~8.3 km (Copernicus GLORYS12V1)"
+            if step == 1
+            else f"~{effective_resolution_km:.1f} km LOD decimation (step={step}, macro view)"
+        )
 
         sub_lats = self.lats[j_min:j_max+1:step]
         sub_lons = self.lons[i_min:i_max+1:step]
@@ -992,7 +1188,7 @@ class GlorysLocalAdapter(BaseOceanAdapter):
             selected_depth=selected_depth,
             source_mode=SourceMode.REAL_LOCAL,
             dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m",
-            resolution="~8.3 km (Copernicus GLORYS12V1)" if step == 1 else "~16.6 km decimation (macro view)",
+            resolution=resolution_label,
             cached=False,
             shape=[len(sub_lats), len(sub_lons)],
             lats=[float(la) for la in sub_lats],
@@ -1192,3 +1388,143 @@ class GlorysLocalAdapter(BaseOceanAdapter):
             d20_profile=d20_profile,
             tchp_profile=tchp_profile
         )
+
+    def get_availability(self, lat: float, lon: float) -> LocationAvailabilityResponse:
+        """Returns lightweight metadata about data availability at (lat, lon). No field values."""
+        if not self.is_loaded():
+            self.load_dataset()
+        if lat < float(self.lats[0]) or lat > float(self.lats[-1]) or lon < float(self.lons[0]) or lon > float(self.lons[-1]):
+            return LocationAvailabilityResponse(latitude=lat, longitude=lon, model=False,
+                                                dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m")
+        j_near = int(np.argmin(np.abs(self.lats - lat)))
+        i_near = int(np.argmin(np.abs(self.lons - lon)))
+        surface_mask = np.ma.getmaskarray(self.dataset.variables["thetao"][0, 0, :, :])
+        is_land = bool(surface_mask[j_near, i_near])
+        obs = {"argo": False, "glider": False, "ctd": False, "bgc": False}
+        try:
+            from backend.app.services.insitu_service import insitu_service
+            for prof in insitu_service.get_all_profiles(source_mode="ALL"):
+                p_lat, p_lon = prof.get("lat"), prof.get("lon")
+                if p_lat is None or p_lon is None:
+                    continue
+                if haversine_km(lat, lon, float(p_lat), float(p_lon)) <= 200.0:
+                    ptype = (prof.get("platform_type") or "argo").lower()
+                    if ptype in obs:
+                        obs[ptype] = True
+        except Exception:
+            pass
+        return LocationAvailabilityResponse(
+            latitude=lat,
+            longitude=lon,
+            model=not is_land,
+            dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m",
+            observations=obs,
+            variables=["temperature", "salinity", "currents", "u_current", "v_current"],
+            depths=[float(d) for d in self.depths],
+            times=self.time_timestamps
+        )
+
+    def get_point(self, lat: float, lon: float, variable: str, depth: float, time_idx: int = 0) -> PointValueResponse:
+        """Returns a single interpolated model value at (lat, lon, depth, time)."""
+        if not self.is_loaded():
+            self.load_dataset()
+        if time_idx < 0 or time_idx >= len(self.times):
+            raise ValueError(f"time_idx {time_idx} out of range [0..{len(self.times)-1}]")
+        if lat < float(self.lats[0]) or lat > float(self.lats[-1]) or lon < float(self.lons[0]) or lon > float(self.lons[-1]):
+            raise ValueError(f"Coordinates ({lat}, {lon}) outside domain bounds.")
+        cvar = {"temperature": "thetao", "salinity": "so",
+                "u_current": "uo", "v_current": "vo", "currents": "uo"}.get(variable)
+        if cvar is None:
+            raise ValueError(f"Unsupported variable '{variable}'")
+        rgi = self._get_interpolator(cvar, time_idx)
+        pts = np.array([[depth, lat, lon]])
+        val = sanitize_value(rgi(pts)[0])
+        depth_idx = int(np.argmin(np.abs(self.depths - depth)))
+        selected_depth = float(self.depths[depth_idx])
+        units_map = {"temperature": "degC", "salinity": "PSU", "u_current": "m/s",
+                     "v_current": "m/s", "currents": "m/s"}
+        return PointValueResponse(
+            lat=lat, lon=lon, depth=depth, time=self.time_timestamps[time_idx],
+            variable=variable, value=val, unit=units_map.get(variable, "degC"),
+            nearest_depth=selected_depth, interpolation_method="trilinear",
+            source="Copernicus GLORYS12V1 Reanalysis", dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m"
+        )
+    def get_profile(self, lat: float, lon: float, variable: str, time_idx: int = 0) -> ProfileResponse:
+        """Returns a vertical profile at (lat, lon) for one variable across all dataset depths."""
+        probe = self.probe_water_column(lat=lat, lon=lon, time_idx=time_idx)
+        var_map = {"temperature": probe.temperature, "salinity": probe.salinity,
+                   "u_current": probe.u_current, "v_current": probe.v_current,
+                   "currents": probe.current_speed}
+        values = var_map.get(variable, probe.temperature)
+        unit_map = {"temperature": "degC", "salinity": "PSU", "u_current": "m/s",
+                    "v_current": "m/s", "currents": "m/s"}
+        return ProfileResponse(
+            lat=lat, lon=lon, variable=variable, unit=unit_map.get(variable, "degC"),
+            time_idx=time_idx, timestamp=probe.timestamp,
+            depths=[float(d) for d in probe.depths],
+            values=values,
+            dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m",
+            source="Copernicus GLORYS12V1 Reanalysis",
+            provenance={
+                "interpolation_method": "RegularGridInterpolator (linear)",
+                "product_id": "GLOBAL_MULTIYEAR_PHY_001_030",
+                "citation": "E.U. Copernicus Marine Service Information"
+            }
+        )
+
+    def get_region(
+        self,
+        center_lat: float,
+        center_lon: float,
+        radius_km: float,
+        variable: str,
+        depth_min: float,
+        depth_max: float,
+        time_idx: int = 0
+    ) -> RegionResponse:
+        """Returns a bounded 3D region subset around (center_lat, center_lon) for local visualization."""
+        if not self.is_loaded():
+            self.load_dataset()
+        lat_span = radius_km / 111.0
+        lon_span = radius_km / (111.0 * max(0.01, abs(math.cos(math.radians(center_lat)))))
+        lat_min = max(float(self.lats[0]), center_lat - lat_span)
+        lat_max = min(float(self.lats[-1]), center_lat + lat_span)
+        lon_min = max(float(self.lons[0]), center_lon - lon_span)
+        lon_max = min(float(self.lons[-1]), center_lon + lon_span)
+        depth_min_idx = int(np.argmin(np.abs(self.depths - depth_min)))
+        depth_max_idx = int(np.argmin(np.abs(self.depths - depth_max)))
+        if depth_min_idx > depth_max_idx:
+            depth_min_idx, depth_max_idx = depth_max_idx, depth_min_idx
+        slices = []
+        all_vals = []
+        last_slice = None
+        for k in range(depth_min_idx, depth_max_idx + 1):
+            d = float(self.depths[k])
+            sl = self.slice_data(variable=variable, time_idx=time_idx, depth=d,
+                                 lat_min=lat_min, lat_max=lat_max, lon_min=lon_min, lon_max=lon_max)
+            slices.append(sl.values)
+            last_slice = sl
+            for row in sl.values:
+                for v in row:
+                    if v is not None:
+                        all_vals.append(v)
+        sub_depths = [float(self.depths[k]) for k in range(depth_min_idx, depth_max_idx + 1)]
+        unit = "degC" if variable == "temperature" else ("PSU" if variable == "salinity" else "m/s")
+        return RegionResponse(
+            center_lat=center_lat, center_lon=center_lon, radius_km=radius_km,
+            variable=variable, unit=unit,
+            time_idx=time_idx, timestamp=self.time_timestamps[time_idx],
+            depth_min=float(self.depths[depth_min_idx]), depth_max=float(self.depths[depth_max_idx]),
+            lats=last_slice.lats if last_slice else [],
+            lons=last_slice.lons if last_slice else [],
+            depths=sub_depths, slices=slices,
+            shape=[len(sub_depths), len(last_slice.lats) if last_slice else 0, len(last_slice.lons) if last_slice else 0],
+            min_val=min(all_vals) if all_vals else None,
+            max_val=max(all_vals) if all_vals else None,
+            valid_count=len(all_vals),
+            resolution=f"Copernicus GLORYS12V1 (~8.3 km) bounded region, radius {radius_km} km",
+            source_mode=SourceMode.REAL_LOCAL,
+            dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m"
+        )
+
+

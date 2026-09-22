@@ -28,6 +28,8 @@ import {
   fetchOceanProbe,
   fetchOceanTransect,
   fetchDatasets,
+
+  fetchMetadata,
   selectActiveDataset
 } from './services/api.js';
 import {
@@ -35,8 +37,9 @@ import {
   computePrevStep,
   isFinalStep,
   getIntervalForSpeed,
-  TOTAL_FORECAST_STEPS,
-  FORECAST_TIMESTAMPS
+  getTotalForecastSteps,
+  setForecastTimestamps,
+  getForecastTimestamps
 } from './utils/timeAnimation.js';
 
 export default function App() {
@@ -49,7 +52,12 @@ export default function App() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const [isLooping, setIsLooping] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
-  const [currentTimeTimestamp, setCurrentTimeTimestamp] = useState(FORECAST_TIMESTAMPS[0]);
+  const [currentTimeTimestamp, setCurrentTimeTimestamp] = useState(getForecastTimestamps()[0]);
+  // Dynamic dataset-driven controls (Master Prompt Section 7-10):
+  // depths/times/variables come from /api/metadata, never hardcoded.
+  const [availableDepths, setAvailableDepths] = useState([]);
+  const [availableTimes, setAvailableTimes] = useState([]);
+  const [availableVariables, setAvailableVariables] = useState([]);
   const [showCurrents, setShowCurrents] = useState(false);
   const [showArgo, setShowArgo] = useState(false);
   const [insituSourceMode, setInsituSourceMode] = useState('REAL_LOCAL');
@@ -199,6 +207,17 @@ export default function App() {
           }
           const found = data.datasets.find((d) => d.dataset_id === data.active_dataset_id);
           setActiveDataset(found || glorys || data.datasets[0]);
+
+         // Fetch actual metadata so the UI uses real timestamps, depths, and variables (Master Prompt Section 9)
+         try {
+           const meta = await fetchMetadata();
+           if (meta?.time_timestamps) setForecastTimestamps(meta.time_timestamps);
+           if (isMounted) {
+             setAvailableDepths(meta?.depth_levels_m || []);
+             setAvailableTimes(meta?.time_timestamps || []);
+             setAvailableVariables(meta?.variables ? Object.keys(meta.variables) : []);
+           }
+         } catch {}
         }
       })
       .catch(() => {});
@@ -531,11 +550,11 @@ export default function App() {
       if (isBufferingRef.current) return;
 
       setTimeIndex((prevIdx) => {
-        if (!isLooping && isFinalStep(prevIdx, TOTAL_FORECAST_STEPS)) {
+        if (!isLooping && isFinalStep(prevIdx, getTotalForecastSteps())) {
           setIsPlaying(false);
           return prevIdx;
         }
-        return computeNextStep(prevIdx, TOTAL_FORECAST_STEPS, isLooping);
+        return computeNextStep(prevIdx, getTotalForecastSteps(), isLooping);
       });
     }, intervalMs);
 
@@ -545,7 +564,7 @@ export default function App() {
   const handleTogglePlay = useCallback(() => {
     setIsPlaying((prev) => {
       const willPlay = !prev;
-      if (willPlay && !isLooping && isFinalStep(timeIndex, TOTAL_FORECAST_STEPS)) {
+      if (willPlay && !isLooping && isFinalStep(timeIndex, getTotalForecastSteps())) {
         setTimeIndex(0);
       }
       return willPlay;
@@ -554,12 +573,12 @@ export default function App() {
 
   const handleStepBack = useCallback(() => {
     setIsPlaying(false);
-    setTimeIndex((prev) => computePrevStep(prev, TOTAL_FORECAST_STEPS, isLooping));
+    setTimeIndex((prev) => computePrevStep(prev, getTotalForecastSteps(), isLooping));
   }, [isLooping]);
 
   const handleStepForward = useCallback(() => {
     setIsPlaying(false);
-    setTimeIndex((prev) => computeNextStep(prev, TOTAL_FORECAST_STEPS, isLooping));
+    setTimeIndex((prev) => computeNextStep(prev, getTotalForecastSteps(), isLooping));
   }, [isLooping]);
 
   const handleSelectTime = useCallback((newIdx) => {
@@ -577,58 +596,12 @@ export default function App() {
     setProbedPoint(geo);
     setIsProbeLoading(true);
 
-    // Immediate calibrated sounding data pre-population (0ms latency fallback)
-    const latFactor = Math.max(0, Math.min(25, geo.lat));
-    const lonFactor = Math.max(65, Math.min(95, geo.lon));
-    const sstCalc = Number((28.8 - (latFactor / 25) * 1.6 + ((lonFactor - 65) / 30) * 0.4).toFixed(1));
-    const sssCalc = Number((34.5 + ((lonFactor - 65) / 30) * 0.8 - (latFactor / 25) * 0.5).toFixed(2));
-    const mldCalc = Math.round(35 + Math.sin((latFactor / 25) * Math.PI) * 18);
-    const d20Calc = Math.round(110 + Math.cos((lonFactor / 95) * Math.PI) * 22);
-
-    const initialSounding = {
-      lat: geo.lat,
-      lon: geo.lon,
-      time_idx: timeIndex,
-      sst: sstCalc,
-      sss: sssCalc,
-      surface_current_speed: 0.38,
-      mld: mldCalc,
-      d20: d20Calc,
-      d26: 48,
-      tchp: Number((65 + Math.cos(latFactor * 0.1) * 15).toFixed(1)),
-      depths: [0, 10, 25, 50, 100, 200, 500, 1000, 2000],
-      temperature_profile: [
-        sstCalc,
-        Number((sstCalc - 0.12).toFixed(1)),
-        Number((sstCalc - 0.35).toFixed(1)),
-        Number((sstCalc - 0.85).toFixed(1)),
-        20.4,
-        14.6,
-        9.3,
-        6.2,
-        2.8
-      ],
-      salinity_profile: [
-        sssCalc,
-        sssCalc,
-        Number((sssCalc + 0.1).toFixed(2)),
-        Number((sssCalc + 0.25).toFixed(2)),
-        35.15,
-        35.05,
-        34.85,
-        34.75,
-        34.72
-      ],
-      collocated_observation: null
-    };
-
-    setProbeData(initialSounding);
-
+    // REAL DATA ONLY (Master Prompt Section 21): never fabricate a scientific
+    // profile as a fallback.  If the real probe fails, surface a clear error state.
     fetchOceanProbe({
       lat: geo.lat,
       lon: geo.lon,
-      time_idx: timeIndex,
-      variable: selectedVariable
+      time_idx: timeIndex
     })
       .then((data) => {
         if (data) {
@@ -637,7 +610,14 @@ export default function App() {
         setIsProbeLoading(false);
       })
       .catch((err) => {
-        console.warn('Probe fetch note (using calibrated in-situ profile):', err.message);
+        // DATA UNAVAILABLE — no synthetic fallback is ever used (Master Prompt Section 21, 75)
+        console.warn('Probe fetch failed:', err.message);
+        setProbeData({
+          lat: geo.lat,
+          lon: geo.lon,
+          error: err.message || 'Data unavailable',
+          unavailable: true
+        });
         setIsProbeLoading(false);
       });
   }, [timeIndex, selectedVariable]);
@@ -790,8 +770,11 @@ export default function App() {
             onChangeSpeed={setPlaybackSpeed}
             isLooping={isLooping}
             onToggleLoop={setIsLooping}
-            totalTimeSteps={TOTAL_FORECAST_STEPS}
+            totalTimeSteps={getTotalForecastSteps()}
             currentTimeTimestamp={currentTimeTimestamp}
+            availableDepths={availableDepths}
+            availableTimes={availableTimes}
+            availableVariables={availableVariables}
             isBuffering={isBuffering}
             showCurrents={showCurrents}
             onToggleCurrents={setShowCurrents}
@@ -874,9 +857,9 @@ export default function App() {
           />
         </div>
         <footer className="workspace-footer flex flex-wrap justify-between gap-3">
-          <span>Ministry of Earth Sciences (MoES) <span aria-hidden="true">·</span> INCOIS Ocean Information Services</span>
+          <span>Ministry of Earth Sciences (MoES) <span aria-hidden="true">Â·</span> INCOIS Ocean Information Services</span>
           <button type="button" className="footer-source-link" onClick={() => setIsSourcesOpen(true)}>
-            Operational ROMS 3D Model · Data Sources & Specifications
+            Operational ROMS 3D Model Â· Data Sources & Specifications
           </button>
         </footer>
         <AIAssistantModal

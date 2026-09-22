@@ -18,7 +18,7 @@ import { fetchProfileCollocation } from '../services/api.js';
 export default function ProfileModal({ selectedFloat = null, onSelectFloat = null, collocation = null }) {
   const [activeTab, setActiveTab] = useState('temperature'); // 'temperature' | 'salinity' | 'ts'
   const [hoveredPoint, setHoveredPoint] = useState(null);
-  const [showModelOverlay, setShowModelOverlay] = useState(false);
+  const [showModelOverlay, setShowModelOverlay] = useState(true);
   const [fetchedCollocation, setFetchedCollocation] = useState(null);
   const closeBtnRef = useRef(null);
 
@@ -349,7 +349,26 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
         </button>
       </div>
 
-      {/* 4. Chart Visualization Viewport */}
+      {/* 4. Chart Visualization Viewport with Clear Comparison Legend */}
+      {activeTab !== 'ts' && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', background: 'rgba(15, 23, 42, 0.75)', borderRadius: '4px', border: '1px solid var(--border)', marginBottom: '4px', fontSize: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: activeTab === 'salinity' ? '#34d399' : '#38bdf8' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: activeTab === 'salinity' ? '#34d399' : '#38bdf8', display: 'inline-block' }} />
+              <strong>● Observed (In-Situ)</strong>
+            </span>
+            {showModelOverlay && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ec4899' }}>
+                <span style={{ width: '8px', height: '8px', background: '#ec4899', display: 'inline-block' }} />
+                <strong>■ Model (Copernicus GLORYS12V1)</strong>
+              </span>
+            )}
+          </div>
+          <span style={{ color: 'var(--muted)', fontSize: '9px', fontStyle: 'italic' }}>
+            {showModelOverlay ? 'Interpolated from surrounding model grid cells' : ''}
+          </span>
+        </div>
+      )}
       <div
         style={{
           position: 'relative',
@@ -511,6 +530,13 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
             </span>
             <span>
               RMSE: <strong>{currentSummary.rmse}{currentSummary.unit}</strong>
+            </span>
+            <span>
+              Correlation: <strong data-testid="metric-correlation-r-val">{
+                currentSummary.correlation_r !== null && currentSummary.correlation_r !== undefined
+                  ? `R = ${currentSummary.correlation_r}`
+                  : 'R = n/a (n < 3)'
+              }</strong>
             </span>
             <span style={{ color: 'var(--muted)' }}>
               ({currentSummary.valid_pairs}/{currentSummary.total_levels} levels matched)

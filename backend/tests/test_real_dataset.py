@@ -89,8 +89,10 @@ class TestRealDataset(unittest.TestCase):
         self.assertEqual(len(meta["depth_levels_m"]), 22)
         self.assertIn("~8.3 km", meta["spatial_resolution"])
 
-        # 3. Macro 2D slice (decimated step=2 for high-speed 60fps rendering)
-        r_slice = client.get("/api/ocean-data?variable=temperature&depth=0.49&time_idx=0")
+        # 3. Macro 2D slice (auto LOD decimation for high-speed 60fps rendering).
+        #    Bounds are now REQUIRED — the backend auto-decimates to stay within the
+        #    payload budget instead of ever streaming the full 301x601 native grid.
+        r_slice = client.get("/api/ocean-data?variable=temperature&depth=0.49&time_idx=0&lat_min=0.0&lat_max=25.0&lon_min=50.0&lon_max=100.0")
         self.assertEqual(r_slice.status_code, 200)
         sl = r_slice.json()
         self.assertEqual(sl["source_mode"], "REAL_LOCAL")
