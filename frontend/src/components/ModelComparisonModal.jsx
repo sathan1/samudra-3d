@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { fetchProfileCollocation, fetchGliderCollocation } from '../services/api.js';
 
 /**
@@ -37,8 +37,7 @@ export default function ModelComparisonModal({
   onToggleAnomalyField = null,
   onFocusFloat = null
 }) {
-  const [platformList, setPlatformList] = useState([]);
-  const [selectedPlatformId, setSelectedPlatformId] = useState('');
+  const [selectedPlatformId, setSelectedPlatformId] = useState(() => selectedFloat?.id || '');
   const [parameter, setParameter] = useState('temperature'); // 'temperature' | 'salinity'
   const [timeStrategy, setTimeStrategy] = useState('linear');
   const [isRunningJob, setIsRunningJob] = useState(false);
@@ -52,8 +51,8 @@ export default function ModelComparisonModal({
   const [isCompactScorecard, setIsCompactScorecard] = useState(false);
   const [depthZoom, setDepthZoom] = useState('all'); // 'all' | 'thermocline' (0-250m)
 
-  // Synchronize available in-situ platforms
-  useEffect(() => {
+  // Synchronize available in-situ platforms via useMemo
+  const platformList = useMemo(() => {
     let list = [];
     if (argoFloats && argoFloats.length > 0) {
       list = [...argoFloats.map(f => ({
@@ -79,7 +78,6 @@ export default function ModelComparisonModal({
       ];
     }
 
-    // Default reference platforms if list empty
     if (list.length === 0) {
       list = [
         { id: 'ARGO_2902145', name: 'Argo 2902145 (Central Arabian Sea)', type: 'argo', lat: 15.2, lon: 68.4, group: 'Argo Floats' },
@@ -88,19 +86,13 @@ export default function ModelComparisonModal({
         { id: 'GLIDER_BOB_SG01', name: 'INCOIS Seaglider SG01 (Bay of Bengal)', type: 'glider', lat: 14.2, lon: 88.6, group: 'Gliders' }
       ];
     }
+    return list;
+  }, [argoFloats, gliderTransects]);
 
-    setPlatformList(list);
-
-    // Initial platform selection
-    if (selectedFloat && selectedFloat.id) {
-      setSelectedPlatformId(selectedFloat.id);
-    } else if (list.length > 0 && !selectedPlatformId) {
-      setSelectedPlatformId(list[0].id);
-    }
-  }, [argoFloats, gliderTransects, selectedFloat]);
+  const _activePlatformId = selectedPlatformId || selectedFloat?.id || platformList[0]?.id || '';
 
   // Execute collocation prediction job
-  const runPredictionJob = async (platformId = selectedPlatformId, strat = timeStrategy) => {
+  const runPredictionJob = useCallback(async (platformId = selectedPlatformId, strat = timeStrategy) => {
     if (!platformId) return;
     setIsRunningJob(true);
     setJobStatusMsg('Simulating 4D numerical model grid & computing trilinear collocation...');
@@ -132,14 +124,17 @@ export default function ModelComparisonModal({
     } finally {
       setIsRunningJob(false);
     }
-  };
+  }, [platformList, selectedPlatformId, timeStrategy]);
 
   // Run job automatically when modal opens or platform changes
   useEffect(() => {
     if (isOpen && selectedPlatformId) {
-      runPredictionJob(selectedPlatformId);
+      const timer = setTimeout(() => {
+        runPredictionJob(selectedPlatformId);
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [isOpen, selectedPlatformId]);
+  }, [isOpen, selectedPlatformId, runPredictionJob]);
 
   // Escape key handler
   useEffect(() => {

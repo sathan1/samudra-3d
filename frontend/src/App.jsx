@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Header from './components/Header.jsx';
-import SidebarControls from './components/SidebarControls.jsx';
 import OceanCanvas from './components/OceanCanvas.jsx';
-import ComparisonPanel from './components/ComparisonPanel.jsx';
+import LocationInspector from './components/LocationInspector.jsx';
+import ObservationDrawer from './components/ObservationDrawer.jsx';
+import BottomControlBar from './components/BottomControlBar.jsx';
+import VerticalDepthBar from './components/VerticalDepthBar.jsx';
+import ProfileModal from './components/ProfileModal.jsx';
 import ModelComparisonModal from './components/ModelComparisonModal.jsx';
 import AIAssistantModal from './components/AIAssistantModal.jsx';
 import LoginModal from './components/LoginModal.jsx';
@@ -50,17 +53,17 @@ export default function App() {
   const [timeIndex, setTimeIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
-  const [isLooping, setIsLooping] = useState(true);
+  const [isLooping, _setIsLooping] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
   const [currentTimeTimestamp, setCurrentTimeTimestamp] = useState(getForecastTimestamps()[0]);
   // Dynamic dataset-driven controls (Master Prompt Section 7-10):
   // depths/times/variables come from /api/metadata, never hardcoded.
   const [availableDepths, setAvailableDepths] = useState([]);
   const [availableTimes, setAvailableTimes] = useState([]);
-  const [availableVariables, setAvailableVariables] = useState([]);
+  const [_availableVariables, setAvailableVariables] = useState([]);
   const [showCurrents, setShowCurrents] = useState(false);
   const [showArgo, setShowArgo] = useState(false);
-  const [insituSourceMode, setInsituSourceMode] = useState('REAL_LOCAL');
+  const [insituSourceMode, _setInsituSourceMode] = useState('REAL_LOCAL');
   const [argoFloats, setArgoFloats] = useState([]);
   const [selectedFloat, setSelectedFloat] = useState(null);
   const [showGliders, setShowGliders] = useState(false);
@@ -69,8 +72,8 @@ export default function App() {
 
   // Phase 14: 3D Difference Field & Anomaly Heatmap state
   const [showAnomalyField, setShowAnomalyField] = useState(false);
-  const [anomalyVariable, setAnomalyVariable] = useState('temperature');
-  const [anomalyThreshold, setAnomalyThreshold] = useState(0.5);
+  const [anomalyVariable, _setAnomalyVariable] = useState('temperature');
+  const [anomalyThreshold, _setAnomalyThreshold] = useState(0.5);
   const [anomalyData, setAnomalyData] = useState(null);
 
   // Modern Dual View Modes, Click-to-Probe & ODV Transect state
@@ -79,9 +82,11 @@ export default function App() {
   const [probeData, setProbeData] = useState(null);
   const [isProbeLoading, setIsProbeLoading] = useState(false);
   const [activeTransect, setActiveTransect] = useState(null);
-  const [isClickToProbeActive, setIsClickToProbeActive] = useState(true);
+  const [_isClickToProbeActive, _setIsClickToProbeActive] = useState(true);
   const [isFullView, setIsFullView] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+  const [isObservationDrawerOpen, setIsObservationDrawerOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Real Dataset Architecture, Fisherman & Cyclone Modes, Precision Navigation
   const [activeDataset, setActiveDataset] = useState(null);
@@ -312,14 +317,14 @@ export default function App() {
     isBufferingRef.current = isBuffering;
   }, [isBuffering]);
 
-  const handleToggleArgo = useCallback((checked) => {
+  const _handleToggleArgo = useCallback((checked) => {
     setShowArgo(checked);
     if (!checked && selectedFloat?.platform_type === 'argo') {
       setSelectedFloat(null);
     }
   }, [selectedFloat]);
 
-  const handleToggleGliders = useCallback((checked) => {
+  const _handleToggleGliders = useCallback((checked) => {
     setShowGliders(checked);
     if (!checked) {
       setSelectedGlider(null);
@@ -492,7 +497,7 @@ export default function App() {
     []
   );
 
-  const handleSelectFloatId = useCallback(
+  const _handleSelectFloatId = useCallback(
     (id) => {
       if (!id) {
         setSelectedFloat(null);
@@ -527,7 +532,7 @@ export default function App() {
       });
   }, []);
 
-  const handleSelectGliderId = useCallback(
+  const _handleSelectGliderId = useCallback(
     (id) => {
       if (!id) {
         setSelectedGlider(null);
@@ -620,7 +625,7 @@ export default function App() {
         });
         setIsProbeLoading(false);
       });
-  }, [timeIndex, selectedVariable]);
+  }, [timeIndex]);
 
   // Operational Preset Scenarios Handler
   const handleApplyPreset = useCallback((preset) => {
@@ -650,7 +655,7 @@ export default function App() {
   }, [handleProbePoint]);
 
   // ODV Vertical Transect Handler
-  const handleTriggerSampleTransect = useCallback(() => {
+  const _handleTriggerSampleTransect = useCallback(() => {
     setViewMode('block');
     fetchOceanTransect({
       lat1: 5.0,
@@ -669,7 +674,7 @@ export default function App() {
   }, [timeIndex, selectedVariable]);
 
   // Close Inspector Drawer
-  const handleCloseDrawer = useCallback(() => {
+  const _handleCloseDrawer = useCallback(() => {
     setSelectedFloat(null);
     setSelectedGlider(null);
     setProbedPoint(null);
@@ -710,7 +715,7 @@ export default function App() {
     );
   }
 
-  const isDrawerOpen = Boolean(selectedFloat || probedPoint || activeTransect);
+  const _isDrawerOpen = Boolean(selectedFloat || probedPoint || activeTransect);
 
   return (
     <div className="app min-h-screen" data-theme={theme}>
@@ -729,6 +734,11 @@ export default function App() {
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         onApplyPreset={handleApplyPreset}
+        onOpenObservationDrawer={() => {
+          setIsObservationDrawerOpen((prev) => !prev);
+          setShowArgo(true);
+          setShowGliders(true);
+        }}
         onOpenComparison={() => setIsComparisonOpen(true)}
         activeDataset={activeDataset}
         onOpenDatasetsModal={() => setIsDatasetsModalOpen(true)}
@@ -738,124 +748,129 @@ export default function App() {
         onSelectRegion={handleSelectRegion}
         selectedSectorId={selectedSectorId}
       />
-      <main id="workspace" tabIndex={-1} className="workspace">
-        <div className="workspace-heading flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="eyebrow text-ocean">OCEAN EXPLORATION</p>
-            <h1>Indian Ocean workspace</h1>
-            <p className="muted">Explore numerical model forecasts, in-situ robot sensors, and real-time anomaly detection.</p>
-          </div>
-          <span className="phase-label">OPERATIONAL PLATFORM // MOES-INCOIS</span>
-        </div>
-        <div className="notice" role="status">
-          <span className="status-dot" aria-hidden="true" />
-          <p>
-            <strong>3D Earth Globe active.</strong> Start with a variable, depth and time, then switch on Argo floats or gliders to inspect in-situ observation profiles.
-          </p>
-        </div>
-        <div className={`dashboard ${isDrawerOpen ? 'has-open-drawer' : 'drawer-closed'} ${isFullView ? 'full-view-mode' : ''}`}>
-          <SidebarControls
-            selectedVariable={selectedVariable}
-            onSelectVariable={setSelectedVariable}
-            requestedDepth={requestedDepth}
-            onSelectDepth={setRequestedDepth}
-            resolvedDepth={resolvedDepth}
-            timeIndex={timeIndex}
-            onSelectTime={handleSelectTime}
-            isPlaying={isPlaying}
-            onTogglePlay={handleTogglePlay}
-            onStepBack={handleStepBack}
-            onStepForward={handleStepForward}
-            playbackSpeed={playbackSpeed}
-            onChangeSpeed={setPlaybackSpeed}
-            isLooping={isLooping}
-            onToggleLoop={setIsLooping}
-            totalTimeSteps={getTotalForecastSteps()}
-            currentTimeTimestamp={currentTimeTimestamp}
-            availableDepths={availableDepths}
-            availableTimes={availableTimes}
-            availableVariables={availableVariables}
-            isBuffering={isBuffering}
-            showCurrents={showCurrents}
-            onToggleCurrents={setShowCurrents}
-            showArgo={showArgo}
-            onToggleArgo={handleToggleArgo}
-            insituSourceMode={insituSourceMode}
-            onInsituSourceModeChange={setInsituSourceMode}
-            argoFloats={argoFloats}
-            selectedFloatId={selectedFloat?.id || null}
-            onSelectFloatId={handleSelectFloatId}
-            showGliders={showGliders}
-            onToggleGliders={handleToggleGliders}
-            gliderTransects={gliderTransects}
-            selectedGliderId={selectedGlider?.id || null}
-            onSelectGliderId={handleSelectGliderId}
-            isClickToProbeActive={isClickToProbeActive}
-            onToggleClickToProbe={setIsClickToProbeActive}
-            onTriggerSampleTransect={handleTriggerSampleTransect}
-            onOpenComparison={() => setIsComparisonOpen(true)}
-          />
-          <OceanCanvas
-            selectedVariable={selectedVariable}
-            onSelectVariable={setSelectedVariable}
-            requestedDepth={requestedDepth}
-            onDepthResolved={setResolvedDepth}
-            timeIndex={timeIndex}
-            onTimeResolved={setCurrentTimeTimestamp}
-            isPlaying={isPlaying}
-            isBuffering={isBuffering}
-            onBufferingChange={setIsBuffering}
-            showCurrents={showCurrents}
-            showArgo={showArgo}
-            argoFloats={argoFloats}
-            selectedFloat={selectedFloat}
-            onSelectFloat={handleSelectFloat}
-            showGliders={showGliders}
-            gliderTransects={gliderTransects}
-            selectedGlider={selectedGlider}
-            onSelectGlider={handleSelectGlider}
-            showAnomalyField={showAnomalyField}
-            anomalyPoints={anomalyData?.points || []}
-            onSelectAnomalyPoint={handleSelectAnomalyPoint}
-            viewMode={viewMode}
+      <main id="workspace" tabIndex={-1} className="scientific-workstation relative">
+        {/* Full 3D Ocean Globe Workspace */}
+        <OceanCanvas
+          selectedVariable={selectedVariable}
+          onSelectVariable={setSelectedVariable}
+          requestedDepth={requestedDepth}
+          onDepthResolved={setResolvedDepth}
+          timeIndex={timeIndex}
+          onTimeResolved={setCurrentTimeTimestamp}
+          isPlaying={isPlaying}
+          isBuffering={isBuffering}
+          onBufferingChange={setIsBuffering}
+          showCurrents={showCurrents}
+          showArgo={showArgo}
+          argoFloats={argoFloats}
+          selectedFloat={selectedFloat}
+          onSelectFloat={handleSelectFloat}
+          showGliders={showGliders}
+          gliderTransects={gliderTransects}
+          selectedGlider={selectedGlider}
+          onSelectGlider={handleSelectGlider}
+          showAnomalyField={showAnomalyField}
+          anomalyPoints={anomalyData?.points || []}
+          onSelectAnomalyPoint={handleSelectAnomalyPoint}
+          viewMode={viewMode}
+          probedPoint={probedPoint}
+          probeData={probeData}
+          isProbeLoading={isProbeLoading}
+          onProbePoint={handleProbePoint}
+          activeTransect={activeTransect}
+          isFullView={isFullView}
+          onToggleFullView={() => setIsFullView((v) => !v)}
+          targetRegion={targetRegion}
+          onSelectRegion={handleSelectRegion}
+          activeDataset={activeDataset}
+        />
+
+        {/* Minimalist Vertical Depth Selector */}
+        <VerticalDepthBar
+          availableDepths={availableDepths}
+          requestedDepth={requestedDepth}
+          resolvedDepth={resolvedDepth}
+          onSelectDepth={setRequestedDepth}
+        />
+
+        {/* Bottom Variable and Continuous Timeline Dock */}
+        <BottomControlBar
+          selectedVariable={selectedVariable}
+          onSelectVariable={setSelectedVariable}
+          timeIndex={timeIndex}
+          onSelectTime={handleSelectTime}
+          isPlaying={isPlaying}
+          onTogglePlay={handleTogglePlay}
+          onStepBack={handleStepBack}
+          onStepForward={handleStepForward}
+          playbackSpeed={playbackSpeed}
+          onChangeSpeed={setPlaybackSpeed}
+          availableTimes={availableTimes}
+          currentTimeTimestamp={currentTimeTimestamp}
+          showCurrents={showCurrents}
+          onToggleCurrents={setShowCurrents}
+          showObservations={showArgo || showGliders || isObservationDrawerOpen}
+          onToggleObservations={() => {
+            const next = !isObservationDrawerOpen;
+            setIsObservationDrawerOpen(next);
+            setShowArgo(true);
+            setShowGliders(true);
+          }}
+          showAnomalies={showAnomalyField}
+          onToggleAnomalies={() => setShowAnomalyField((prev) => !prev)}
+        />
+
+        {/* Floating Location Inspector (appears on ocean click) */}
+        {probedPoint && (
+          <LocationInspector
             probedPoint={probedPoint}
             probeData={probeData}
-            isProbeLoading={isProbeLoading}
-            onProbePoint={handleProbePoint}
-            activeTransect={activeTransect}
-            isFullView={isFullView}
-            onToggleFullView={() => setIsFullView((v) => !v)}
-            targetRegion={targetRegion}
-            onSelectRegion={handleSelectRegion}
-          />
-          <ComparisonPanel
-            selectedFloat={selectedFloat}
-            onSelectFloat={handleSelectFloat}
-            showAnomalyField={showAnomalyField}
-            onToggleAnomalyField={setShowAnomalyField}
-            anomalyVariable={anomalyVariable}
-            onChangeAnomalyVariable={(v) => {
-              setAnomalyVariable(v);
-              setAnomalyThreshold(v === 'temperature' ? 0.5 : 0.1);
-            }}
-            anomalyThreshold={anomalyThreshold}
-            onChangeAnomalyThreshold={setAnomalyThreshold}
-            anomalyData={anomalyData}
-            onSelectAnomalyPoint={handleSelectAnomalyPoint}
-            probedPoint={probedPoint}
-            probeData={probeData}
-            isProbeLoading={isProbeLoading}
-            onProbePoint={handleProbePoint}
-            activeTransect={activeTransect}
-            onClearTransect={() => setActiveTransect(null)}
-            onCloseDrawer={handleCloseDrawer}
+            isLoading={isProbeLoading}
+            currentTime={currentTimeTimestamp}
+            activeDatasetName={activeDataset?.name}
+            onClose={() => setProbedPoint(null)}
+            onOpenProfile={() => setIsProfileModalOpen(true)}
             onOpenComparison={() => setIsComparisonOpen(true)}
-            onOpenInDepthModal={(pt) => {
+            onOpenInDepthAnalysis={(pt) => {
               if (pt) setProbedPoint(pt);
               setIsInDepthModalOpen(true);
             }}
           />
-        </div>
+        )}
+
+        {/* Slide-out Observation Fleet Drawer (Argo, Gliders, Buoys) */}
+        <ObservationDrawer
+          isOpen={isObservationDrawerOpen}
+          onClose={() => setIsObservationDrawerOpen(false)}
+          argoFloats={argoFloats}
+          gliderTransects={gliderTransects}
+          selectedPlatform={selectedFloat}
+          onSelectPlatform={handleSelectFloat}
+          onOpenProfile={(p) => {
+            setSelectedFloat(p);
+            setIsProfileModalOpen(true);
+          }}
+          onOpenComparison={(p) => {
+            setSelectedFloat(p);
+            setIsComparisonOpen(true);
+          }}
+          onFocusCoordinates={(lat, lon) => handleSelectRegion({ lat, lon, dist: 120 })}
+        />
+
+        {/* Dedicated Scientific Profile Modal */}
+        {isProfileModalOpen && selectedFloat && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur p-4">
+            <div className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <ProfileModal
+                selectedFloat={selectedFloat}
+                onSelectFloat={(f) => {
+                  setSelectedFloat(f);
+                  if (!f) setIsProfileModalOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        )}
         <footer className="workspace-footer flex flex-wrap justify-between gap-3">
           <span>Ministry of Earth Sciences (MoES) <span aria-hidden="true">Â·</span> INCOIS Ocean Information Services</span>
           <button type="button" className="footer-source-link" onClick={() => setIsSourcesOpen(true)}>

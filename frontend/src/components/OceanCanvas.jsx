@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { loadEarthTextures, createAtmosphereMaterial } from '../utils/earthTexture.js';
 import { geoToCartesian, cartesianToGeo, cameraVisibleBoundingBox, DEFAULT_GLOBE_RADIUS } from '../utils/coordinates.js';
 import { buildScalarFieldGeometry, createScalarFieldMaterial } from '../utils/scalarField.js';
-import { fetchOceanData } from '../services/api.js';
+import { fetchOceanData, fetchOceanVolume } from '../services/api.js';
 import ColorBarLegend from './ColorBarLegend.jsx';
 import { formatTimeLabel } from '../utils/timeAnimation.js';
+import { calculateLOD } from '../utils/lodManager.js';
 import { ParticleSystem, PARTICLE_COUNT } from '../utils/particleStreamlines.js';
 import {
   createArgoMarker,
@@ -33,12 +34,12 @@ import {
   disposeOceanVolumeBlock,
   createProbePinMesh,
   createTransectCurtainMesh,
-  blockToGeo
+  blockToGeo,
+  fitVolumeCamera
 } from '../utils/oceanVolumeBlock.js';
 import {
   createGraticuleMesh,
   createHierarchicalPlaceMeshGroup,
-  createBasinLabelsGroup,
   updatePlaceLabelsLOD,
   raycastPlaceMarker,
   disposeGraticuleGroup
@@ -112,7 +113,8 @@ export default function OceanCanvas({
   isFullView = false,
   onToggleFullView = null,
   targetRegion = null,
-  onSelectRegion = null
+  onSelectRegion = null,
+  activeDataset = null
 }) {
   const containerRef = useRef(null);
   const rendererRef = useRef(null);
@@ -133,8 +135,22 @@ export default function OceanCanvas({
   const [showGraticules, setShowGraticules] = useState(true);
   const [showBasinLabels, setShowBasinLabels] = useState(true);
 
+  // 3D Ocean Volume Block state
+  const [volumeData, setVolumeData] = useState(null);
+  const [volumeLoading, setVolumeLoading] = useState(false);
+  const [volumeError, setVolumeError] = useState(null);
+  const [depthSliceMode, setDepthSliceMode] = useState('full'); // 'full' | 'slice' | 'surface'
+  const [selectedDepthIdx, setSelectedDepthIdx] = useState(0);
+
   const graticulesGroupRef = useRef(null);
   const basinLabelsGroupRef = useRef(null);
+
+  const showGraticulesRef = useRef(showGraticules);
+  useEffect(() => {
+    showGraticulesRef.current = showGraticules;
+  }, [showGraticules]);
+
+  const [currentLOD, setCurrentLOD] = useState(() => calculateLOD(220));
 
   const showBasinLabelsRef = useRef(showBasinLabels);
   useEffect(() => {
@@ -222,22 +238,27 @@ export default function OceanCanvas({
   const handleResetCamera = () => {
     if (cameraRef.current && controlsRef.current) {
       if (viewMode === 'block') {
-        cameraRef.current.position.set(65, 55, 75);
-        controlsRef.current.target.set(0, -15, 0);
-        controlsRef.current.minDistance = 20;
-        controlsRef.current.maxDistance = 350;
+        if (oceanBlockGroupRef.current && oceanBlockGroupRef.current.children.length > 0) {
+          fitVolumeCamera(cameraRef.current, controlsRef.current, oceanBlockGroupRef.current);
+        } else {
+          cameraRef.current.position.set(65, 55, 75);
+          controlsRef.current.target.set(0, -15, 0);
+          controlsRef.current.minDistance = 20;
+          controlsRef.current.maxDistance = 350;
+          controlsRef.current.update();
+        }
       } else {
         cameraRef.current.position.set(INITIAL_CAM_POS.x, INITIAL_CAM_POS.y, INITIAL_CAM_POS.z);
         controlsRef.current.target.set(0, 0, 0);
         controlsRef.current.minDistance = 102;
         controlsRef.current.maxDistance = 500;
+        controlsRef.current.update();
       }
-      controlsRef.current.update();
     }
   };
 
   // Smooth camera basin zoom navigation
-  const handleZoomBasin = (preset) => {
+  const handleZoomBasin = useCallback((preset) => {
     if (!cameraRef.current || !controlsRef.current || viewMode !== 'globe') return;
     const targetPos = geoToCartesian(preset.lat, preset.lon, 0, {
       globeRadius: Math.max(105, preset.dist || 120)
@@ -260,13 +281,49 @@ export default function OceanCanvas({
       }
     };
     window.requestAnimationFrame(animateCam);
-  };
+  }, [viewMode]);
+
+  // Smooth zoom to exact coordinate
+  const handleZoomToCoordinate = useCallback((lat, lon, targetDist = 120) => {
+    if (!cameraRef.current || !controlsRef.current || viewMode !== 'globe') return;
+    const targetPos = geoToCartesian(lat, lon, 0, {
+      globeRadius: Math.max(105, targetDist)
+    });
+    const startPos = cameraRef.current.position.clone();
+    const startTime = window.performance.now();
+    const duration = 750;
+
+    const animateCam = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1.0, elapsed / duration);
+      const ease = 1 - Math.pow(1 - progress, 3);
+
+      cameraRef.current.position.lerpVectors(startPos, targetPos, ease);
+      controlsRef.current.target.set(0, 0, 0);
+      controlsRef.current.update();
+
+      if (progress < 1.0) {
+        window.requestAnimationFrame(animateCam);
+      }
+    };
+    window.requestAnimationFrame(animateCam);
+  }, [viewMode]);
+
+  const handleZoomBasinRef = useRef(handleZoomBasin);
+  useEffect(() => {
+    handleZoomBasinRef.current = handleZoomBasin;
+  }, [handleZoomBasin]);
+
+  const handleZoomToCoordinateRef = useRef(handleZoomToCoordinate);
+  useEffect(() => {
+    handleZoomToCoordinateRef.current = handleZoomToCoordinate;
+  }, [handleZoomToCoordinate]);
 
   useEffect(() => {
     if (targetRegion) {
       handleZoomBasin(targetRegion);
     }
-  }, [targetRegion]);
+  }, [targetRegion, handleZoomBasin]);
 
   const handleZoomIn = () => {
     if (!cameraRef.current || !controlsRef.current) return;
@@ -464,21 +521,66 @@ export default function OceanCanvas({
     }
   }, [fieldState.sliceData, rangeMode]);
 
-  // 4. Regional 3D Ocean Volume Block Update Effect
+  // 4a. Fetch Volume Data for 3D Block View Mode
+  const fetchVolumeData = useCallback(() => {
+    if (viewMode !== 'block') return;
+    setVolumeLoading(true);
+    setVolumeError(null);
+
+    const controller = new AbortController();
+    fetchOceanVolume({
+      dataset_id: activeDataset?.dataset_id,
+      variable: selectedVariable,
+      time_idx: timeIndex,
+      min_lon: 65.0,
+      max_lon: 95.0,
+      min_lat: 0.0,
+      max_lat: 25.0,
+      max_lon_samples: 48,
+      max_lat_samples: 48,
+      max_depth_samples: 24,
+      signal: controller.signal
+    })
+      .then((data) => {
+        setVolumeData(data);
+        setVolumeLoading(false);
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.error('Volume fetch error:', err);
+          setVolumeError(err.message || 'Failed to load 3D ocean volume');
+          setVolumeLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [viewMode, activeDataset?.dataset_id, selectedVariable, timeIndex]);
+
+  useEffect(() => {
+    const cancel = fetchVolumeData();
+    return () => cancel?.();
+  }, [fetchVolumeData]);
+
+  // 4b. Regional 3D Ocean Volume Block Update Effect
   useEffect(() => {
     const group = oceanBlockGroupRef.current;
     if (!group) return;
     disposeOceanVolumeBlock(group);
-    if (fieldState.sliceData) {
-      const blockMesh = createOceanVolumeBlock(fieldState.sliceData, {
+    if (volumeData && viewMode === 'block') {
+      const blockMesh = createOceanVolumeBlock(volumeData, {
         variable: selectedVariable,
-        rangeMode
+        rangeMode,
+        depthSliceMode,
+        selectedDepthIdx
       });
       if (blockMesh) {
         group.add(blockMesh);
+        if (cameraRef.current && controlsRef.current) {
+          fitVolumeCamera(cameraRef.current, controlsRef.current, blockMesh);
+        }
       }
     }
-  }, [fieldState.sliceData, selectedVariable, rangeMode]);
+  }, [volumeData, viewMode, selectedVariable, rangeMode, depthSliceMode, selectedDepthIdx]);
 
   // 5. 3D Probe Pin Beacon Update Effect
   useEffect(() => {
@@ -521,7 +623,7 @@ export default function OceanCanvas({
     }
   }, [activeTransect, viewMode, selectedVariable]);
 
-  // 7. View Mode Switching Effect (Globe vs Block)
+  // 7. View Mode Switching Effect (Globe vs Block) with Smooth Camera Fly
   useEffect(() => {
     const isBlock = viewMode === 'block';
     if (earthMeshRef.current) earthMeshRef.current.visible = !isBlock;
@@ -532,18 +634,51 @@ export default function OceanCanvas({
     if (transectGroupRef.current) transectGroupRef.current.visible = isBlock;
 
     if (cameraRef.current && controlsRef.current) {
-      if (isBlock) {
-        cameraRef.current.position.set(65, 55, 75);
-        controlsRef.current.target.set(0, -15, 0);
-        controlsRef.current.minDistance = 20;
-        controlsRef.current.maxDistance = 350;
-      } else {
-        cameraRef.current.position.set(INITIAL_CAM_POS.x, INITIAL_CAM_POS.y, INITIAL_CAM_POS.z);
-        controlsRef.current.target.set(0, 0, 0);
-        controlsRef.current.minDistance = 108;
-        controlsRef.current.maxDistance = 420;
-      }
-      controlsRef.current.update();
+      const cam = cameraRef.current;
+      const ctrl = controlsRef.current;
+
+      const targetCamPos = isBlock
+        ? new THREE.Vector3(65, 55, 75)
+        : new THREE.Vector3(INITIAL_CAM_POS.x, INITIAL_CAM_POS.y, INITIAL_CAM_POS.z);
+      const targetLookAt = isBlock
+        ? new THREE.Vector3(0, -15, 0)
+        : new THREE.Vector3(0, 0, 0);
+
+      const startCamPos = cam.position.clone();
+      const startLookAt = ctrl.target.clone();
+      const startTime = performance.now();
+      const duration = 800; // ms
+
+      let animId;
+      const animateTransition = (now) => {
+        const elapsed = now - startTime;
+        const progress = Math.min(1, elapsed / duration);
+        const ease = progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+        cam.position.lerpVectors(startCamPos, targetCamPos, ease);
+        ctrl.target.lerpVectors(startLookAt, targetLookAt, ease);
+        ctrl.update();
+
+        if (progress < 1) {
+          animId = requestAnimationFrame(animateTransition);
+        } else {
+          if (isBlock) {
+            ctrl.minDistance = 20;
+            ctrl.maxDistance = 350;
+          } else {
+            ctrl.minDistance = 108;
+            ctrl.maxDistance = 420;
+          }
+          ctrl.update();
+        }
+      };
+      animId = requestAnimationFrame(animateTransition);
+
+      return () => {
+        if (animId) cancelAnimationFrame(animId);
+      };
     }
   }, [viewMode]);
 
@@ -763,13 +898,13 @@ export default function OceanCanvas({
 
     // 3D Spherical Coordinate Graticules (Parallels & Meridians)
     const graticulesMesh = createGraticuleMesh({ globeRadius: DEFAULT_GLOBE_RADIUS });
-    graticulesMesh.visible = showGraticules && viewModeRef.current === 'globe';
+    graticulesMesh.visible = showGraticulesRef.current && viewModeRef.current === 'globe';
     scene.add(graticulesMesh);
     graticulesGroupRef.current = graticulesMesh;
 
     // 3D Ocean Geographic Feature & Basin Labels (Google Maps-Style Multi-Scale LOD)
     const placeLabelsGroup = createHierarchicalPlaceMeshGroup({ globeRadius: DEFAULT_GLOBE_RADIUS });
-    placeLabelsGroup.visible = showBasinLabels && viewModeRef.current === 'globe';
+    placeLabelsGroup.visible = showBasinLabelsRef.current && viewModeRef.current === 'globe';
     scene.add(placeLabelsGroup);
     basinLabelsGroupRef.current = placeLabelsGroup;
 
@@ -833,7 +968,7 @@ export default function OceanCanvas({
       if (showBasinLabelsRef.current && basinLabelsGroupRef.current && viewModeRef.current === 'globe') {
         const hitPlace = raycastPlaceMarker(raycaster, basinLabelsGroupRef.current);
         if (hitPlace) {
-          handleZoomBasin({
+          handleZoomBasinRef.current?.({
             lat: hitPlace.lat,
             lon: hitPlace.lon,
             dist: Math.min(hitPlace.peakDist || 114, 114)
@@ -856,6 +991,15 @@ export default function OceanCanvas({
         const hits = raycaster.intersectObjects(oceanBlockGroupRef.current.children, true);
         if (hits.length > 0) {
           const hit = hits[0];
+          if (hit.object?.userData?.instances && hit.instanceId !== undefined) {
+            const inst = hit.object.userData.instances[hit.instanceId];
+            if (inst) {
+              const lat = Math.round(inst.lat * 100) / 100;
+              const lon = Math.round(inst.lon * 100) / 100;
+              onProbePointRef.current?.({ lat, lon, depth: inst.depth, value: inst.value });
+              return;
+            }
+          }
           const geo = blockToGeo(hit.point.x, hit.point.z);
           const lat = Math.round(geo.lat * 100) / 100;
           const lon = Math.round(geo.lon * 100) / 100;
@@ -908,10 +1052,22 @@ export default function OceanCanvas({
       if (viewModeRef.current === 'block' && oceanBlockGroupRef.current) {
         const hits = raycaster.intersectObjects(oceanBlockGroupRef.current.children, true);
         if (hits.length > 0) {
-          const geo = blockToGeo(hits[0].point.x, hits[0].point.z);
+          const hit = hits[0];
+          let voxelInfo = null;
+          if (hit.object?.userData?.instances && hit.instanceId !== undefined) {
+            voxelInfo = hit.object.userData.instances[hit.instanceId];
+          }
+          const geo = blockToGeo(hit.point.x, hit.point.z);
           setHoveredCoord({
-            lat: Math.round(geo.lat * 100) / 100,
-            lon: Math.round(geo.lon * 100) / 100
+            lat: voxelInfo?.lat != null ? voxelInfo.lat : Math.round(geo.lat * 100) / 100,
+            lon: voxelInfo?.lon != null ? voxelInfo.lon : Math.round(geo.lon * 100) / 100,
+            depth: voxelInfo?.depth,
+            value: voxelInfo?.value,
+            variable: voxelInfo?.variable,
+            units: voxelInfo?.units,
+            dataset: voxelInfo?.dataset,
+            source: voxelInfo?.source,
+            time: voxelInfo?.time
           });
           return;
         }
@@ -934,10 +1090,38 @@ export default function OceanCanvas({
       setHoveredCoord(null);
     };
 
+    const handleDblClick = (e) => {
+      if (!camera || !renderer || viewModeRef.current !== 'globe') return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+      const targetMeshes = [scalarMeshRef.current, earthMeshRef.current].filter(Boolean);
+      const hits = raycaster.intersectObjects(targetMeshes, false);
+      if (hits.length > 0) {
+        const hit = hits[0];
+        const geo = cartesianToGeo(hit.point.x, hit.point.y, hit.point.z);
+        const currentDist = camera.position.length();
+        const nextDist = Math.max(105, currentDist * 0.7);
+        handleZoomToCoordinateRef.current?.(geo.lat, geo.lon, nextDist);
+      }
+    };
+
+    const handleControlsChange = () => {
+      if (camera) {
+        setCurrentLOD(calculateLOD(camera.position.length()));
+      }
+    };
+    controls.addEventListener('change', handleControlsChange);
+
     renderer.domElement.addEventListener('pointerdown', handlePointerDown);
     renderer.domElement.addEventListener('pointerup', handlePointerUp);
     renderer.domElement.addEventListener('pointermove', handlePointerMove);
     renderer.domElement.addEventListener('pointerleave', handlePointerLeave);
+    renderer.domElement.addEventListener('dblclick', handleDblClick);
 
     // Animation & Performance Loop
     let animationFrameId;
@@ -1031,10 +1215,12 @@ export default function OceanCanvas({
         resizeObserver.disconnect();
       }
 
+      controls.removeEventListener('change', handleControlsChange);
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('pointerup', handlePointerUp);
       renderer.domElement.removeEventListener('pointermove', handlePointerMove);
       renderer.domElement.removeEventListener('pointerleave', handlePointerLeave);
+      renderer.domElement.removeEventListener('dblclick', handleDblClick);
 
       if (argoMarkersGroupRef.current) {
         disposeArgoMarkers(argoMarkersGroupRef.current);
@@ -1257,6 +1443,30 @@ export default function OceanCanvas({
             className="globe-canvas-wrapper absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"
             data-testid="three-canvas-container"
           />
+          {viewMode === 'block' && volumeLoading && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/70 backdrop-blur-sm pointer-events-none">
+              <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mb-3" />
+              <div className="text-cyan-300 font-mono text-xs font-semibold">
+                Loading 3D Ocean Volume ({activeDataset?.name || 'Copernicus GLORYS12V1'})...
+              </div>
+              <div className="text-slate-400 text-[10px] mt-1 font-mono">
+                Downsampling 3D spatial field · 0.49m to 92.33m depth
+              </div>
+            </div>
+          )}
+
+          {viewMode === 'block' && volumeError && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 bg-rose-950/90 border border-rose-500/80 rounded-lg p-3 text-rose-200 text-xs shadow-2xl flex items-center gap-3">
+              <span>⚠️ {volumeError}</span>
+              <button
+                type="button"
+                onClick={fetchVolumeData}
+                className="px-2.5 py-1 rounded bg-rose-800 hover:bg-rose-700 text-white font-mono text-[11px] transition pointer-events-auto"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {showAnomalyField && (
             <div
               className="sr-only"
@@ -1268,17 +1478,115 @@ export default function OceanCanvas({
           {/* Viewport Floating HUD */}
           <div className="viewport-hud pointer-events-none absolute top-2 left-2 right-2 flex flex-wrap justify-between items-start gap-1.5 text-xs">
             <div className="flex flex-col gap-1 pointer-events-auto max-w-full">
-              {hoveredCoord && (
+              {hoveredCoord && hoveredCoord.value !== undefined && hoveredCoord.value !== null ? (
+                <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10.5px] text-cyan-200 shadow-xl bg-slate-950/95 border border-cyan-400/90 max-w-full flex items-center gap-2 flex-wrap" data-testid="hud-voxel-inspector">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse inline-block" />
+                  <span className="text-cyan-300 font-bold">VOXEL INSPECTOR:</span>
+                  <span className="text-amber-300 font-bold">
+                    {hoveredCoord.value} {hoveredCoord.units || (selectedVariable === 'salinity' ? 'PSU' : (selectedVariable === 'currents' ? 'm/s' : '°C'))}
+                  </span>
+                  <span className="border-l border-slate-700 pl-2 text-sky-300">
+                    Depth: {hoveredCoord.depth != null ? `${Number(hoveredCoord.depth).toFixed(2)}m` : 'Surface'}
+                  </span>
+                  <span className="border-l border-slate-700 pl-2 text-slate-300">
+                    {hoveredCoord.lat >= 0 ? `${Number(hoveredCoord.lat).toFixed(2)}°N` : `${Math.abs(Number(hoveredCoord.lat)).toFixed(2)}°S`},{' '}
+                    {hoveredCoord.lon >= 0 ? `${Number(hoveredCoord.lon).toFixed(2)}°E` : `${Math.abs(Number(hoveredCoord.lon)).toFixed(2)}°W`}
+                  </span>
+                  {hoveredCoord.dataset && (
+                    <span className="border-l border-slate-700 pl-2 text-emerald-400 text-[10px]">
+                      {hoveredCoord.dataset}
+                    </span>
+                  )}
+                </div>
+              ) : hoveredCoord ? (
                 <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-cyan-300 shadow bg-slate-900/90 border border-cyan-500/60 max-w-full">
                   <span className="text-cyan-400 font-bold">📍 CURSOR:</span>{' '}
                   {hoveredCoord.lat >= 0 ? `${hoveredCoord.lat.toFixed(2)}°N` : `${Math.abs(hoveredCoord.lat).toFixed(2)}°S`},{' '}
                   {hoveredCoord.lon >= 0 ? `${hoveredCoord.lon.toFixed(2)}°E` : `${Math.abs(hoveredCoord.lon).toFixed(2)}°W`}{' '}
                   · <span className="text-slate-300">Click to probe data</span>
                 </div>
-              )}
+              ) : null}
               {viewMode === 'block' && (
-                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-cyan-300 shadow bg-slate-900/90 border border-cyan-700 max-w-full">
-                  <span className="text-cyan-400 font-semibold">VIEW:</span> Regional 3D Ocean Volume Block (0-25°N, 65-95°E)
+                <div className="hud-volume-controls flex flex-col gap-1 pointer-events-auto" data-testid="hud-block-controls">
+                  <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10px] text-cyan-300 shadow bg-slate-900/95 border border-cyan-500/70 max-w-full flex items-center gap-2 flex-wrap">
+                    <span className="text-cyan-400 font-bold">📦 3D VOLUME BLOCK:</span>
+                    <span>65°E–95°E, 0°N–25°N</span>
+                    {volumeData && (
+                      <>
+                        <span className="border-l border-slate-700 pl-1.5 text-amber-300">
+                          {volumeData.bounds?.min_depth?.toFixed(1)}m — {volumeData.bounds?.max_depth?.toFixed(1)}m
+                        </span>
+                        <span className="border-l border-slate-700 pl-1.5 text-emerald-400 font-semibold">
+                          {(volumeData.provenance?.source_mode === 'REAL_LOCAL' || volumeData.dataset?.source_mode === 'REAL_LOCAL')
+                            ? 'REAL • COPERNICUS GLORYS12V1 (~8.3 km)'
+                            : (volumeData.provenance_badge || 'SYNTHETIC • DEVELOPMENT')}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Volume Slice Mode Selector */}
+                  <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-700/80 rounded-lg p-1 text-[11px] shadow max-w-fit flex-wrap">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                      Mode:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDepthSliceMode('full')}
+                      className={`px-2 py-0.5 rounded text-[10.5px] font-mono transition ${
+                        depthSliceMode === 'full'
+                          ? 'bg-cyan-900/90 text-cyan-200 border border-cyan-500 font-bold'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
+                      }`}
+                    >
+                      Full Volume
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDepthSliceMode('slice')}
+                      className={`px-2 py-0.5 rounded text-[10.5px] font-mono transition ${
+                        depthSliceMode === 'slice'
+                          ? 'bg-cyan-900/90 text-cyan-200 border border-cyan-500 font-bold'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
+                      }`}
+                    >
+                      Depth Slice
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDepthSliceMode('surface')}
+                      className={`px-2 py-0.5 rounded text-[10.5px] font-mono transition ${
+                        depthSliceMode === 'surface'
+                          ? 'bg-cyan-900/90 text-cyan-200 border border-cyan-500 font-bold'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
+                      }`}
+                    >
+                      Surface Only
+                    </button>
+
+                    {depthSliceMode === 'slice' && (volumeData?.coordinates?.depth || volumeData?.depth) && (
+                      <div className="flex items-center gap-1.5 border-l border-slate-700 pl-1.5 ml-1 flex-wrap">
+                        <label htmlFor="volume-depth-select" className="text-[10px] text-slate-400 font-mono">
+                          Depth:
+                        </label>
+                        <select
+                          id="volume-depth-select"
+                          value={selectedDepthIdx}
+                          onChange={(e) => setSelectedDepthIdx(Number(e.target.value))}
+                          className="bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10.5px] text-cyan-300 font-mono outline-none"
+                        >
+                          {(volumeData.coordinates?.depth || volumeData.depth).map((d, idx) => (
+                            <option key={idx} value={idx}>
+                              {d.toFixed(1)}m
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-[10px] font-mono text-emerald-400">
+                          REQUESTED: {requestedDepth}m | RESOLVED: {((volumeData.coordinates?.depth || volumeData.depth)[selectedDepthIdx] ?? requestedDepth).toFixed(2)}m
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               {probedPoint && (
@@ -1366,6 +1674,15 @@ export default function OceanCanvas({
                   >
                     Retry
                   </button>
+                </div>
+              )}
+              {viewMode === 'globe' && (
+                <div className="lod-status-pill hud-badge rounded px-2.5 py-0.5 font-mono text-[10px] shadow bg-slate-900/90 border border-slate-700 flex items-center gap-1.5" data-testid="lod-status-pill">
+                  <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: currentLOD.color }} />
+                  <span className="font-bold text-slate-200">{currentLOD.code}</span>
+                  <span className="text-slate-500">•</span>
+                  <span className="text-slate-300">{currentLOD.label}</span>
+                  <span className="text-slate-500">({currentLOD.resolution})</span>
                 </div>
               )}
             </div>

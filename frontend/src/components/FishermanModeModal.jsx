@@ -17,12 +17,6 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
   const [loadingFronts, setLoadingFronts] = useState(false);
   const [frontsBadge, setFrontsBadge] = useState('[REAL • COPERNICUS]');
 
-  useEffect(() => {
-    if (isOpen && activeTab === 'fronts') {
-      loadFronts();
-    }
-  }, [isOpen, activeTab]);
-
   const loadFronts = async () => {
     setLoadingFronts(true);
     try {
@@ -35,6 +29,12 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
       setLoadingFronts(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'fronts') {
+      loadFronts();
+    }
+  }, [isOpen, activeTab]);
 
   if (!isOpen) return null;
 

@@ -1,4 +1,4 @@
-/* global performance, requestAnimationFrame, navigator, HTMLCanvasElement, CanvasRenderingContext2D */
+/* global HTMLCanvasElement, CanvasRenderingContext2D */
 import { test, expect } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';

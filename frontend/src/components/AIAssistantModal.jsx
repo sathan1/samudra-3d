@@ -11,8 +11,32 @@ export default function AIAssistantModal({
   const [presets, setPresets] = useState([]);
   const [inputQuery, setInputQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const [_error, setError] = useState(null);
+  const [messages, setMessages] = useState(() => [{
+    id: 'msg-init',
+    role: 'assistant',
+    content: (
+      "### 🤖 SAMUDRA-3D AI Ocean Copilot\n\n" +
+      "I am your interactive oceanographic assistant with **complete conceptual knowledge of this webpage and its underlying data**:\n\n" +
+      "- **Active Context Awareness:** I continuously observe your active variable, depth slice, forecast timestamp, and selected platform.\n" +
+      "- **Interactive Webpage Navigation:** Ask me to *\"switch to salinity\"*, *\"go to 100m depth\"*, *\"open model comparison\"*, or *\"inspect ARGO_2902145\"* and I will navigate for you!\n" +
+      "- **Rigorous Scientific Grounding:** Queries are validated directly against the 4D ROMS numerical model and INCOIS in-situ sensor records (Argo CTD & gliders).\n\n" +
+      "> **Tip:** Click **⚙️ AI Settings** above to connect your free Google Gemini API key or OpenAI key for unrestricted frontier reasoning."
+    ),
+    metrics: [
+      { label: "Status", value: "Copilot Active" },
+      { label: "Grounding", value: "ROMS + In-situ CTD" },
+      { label: "Basin", value: "Indian Ocean" }
+    ],
+    suggestions: [
+      "What is on my screen?",
+      "What is the largest model-observation discrepancy?",
+      "Summarize observation coverage",
+      "What are the simulated domain extremes?"
+    ],
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    engineMode: 'Built-in Copilot'
+  }]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('samudra_ai_key') || '');
   const [apiProvider, setApiProvider] = useState(() => localStorage.getItem('samudra_ai_provider') || 'gemini');
@@ -22,36 +46,6 @@ export default function AIAssistantModal({
 
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
-
-  // Initialize greeting message on first mount
-  useEffect(() => {
-    const initialGreeting = {
-      id: 'msg-init',
-      role: 'assistant',
-      content: (
-        "### 🤖 SAMUDRA-3D AI Ocean Copilot\n\n" +
-        "I am your interactive oceanographic assistant with **complete conceptual knowledge of this webpage and its underlying data**:\n\n" +
-        "- **Active Context Awareness:** I continuously observe your active variable, depth slice, forecast timestamp, and selected platform.\n" +
-        "- **Interactive Webpage Navigation:** Ask me to *\"switch to salinity\"*, *\"go to 100m depth\"*, *\"open model comparison\"*, or *\"inspect ARGO_2902145\"* and I will navigate for you!\n" +
-        "- **Rigorous Scientific Grounding:** Queries are validated directly against the 4D ROMS numerical model and INCOIS in-situ sensor records (Argo CTD & gliders).\n\n" +
-        "> **Tip:** Click **⚙️ AI Settings** above to connect your free Google Gemini API key or OpenAI key for unrestricted frontier reasoning."
-      ),
-      metrics: [
-        { label: "Status", value: "Copilot Active" },
-        { label: "Grounding", value: "ROMS + In-situ CTD" },
-        { label: "Basin", value: "Indian Ocean" }
-      ],
-      suggestions: [
-        "What is on my screen?",
-        "What is the largest model-observation discrepancy?",
-        "Summarize observation coverage",
-        "What are the simulated domain extremes?"
-      ],
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      engineMode: apiKey ? (apiProvider === 'openai' ? 'OpenAI GPT-4o' : 'Gemini 1.5 Flash') : 'Built-in Copilot'
-    };
-    setMessages([initialGreeting]);
-  }, []);
 
   // Load preset queries on mount
   useEffect(() => {

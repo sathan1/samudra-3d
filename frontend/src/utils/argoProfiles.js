@@ -98,9 +98,7 @@ export function createArgoMarker(floatData, isSelected = false) {
   group.userData.baseSize = baseSize;
 
   // 1b removed: the 2000m world-unit profiling stem is gone (it visually
-  // dominated the globe).  See the profile/analysis view for depth data.
-  const markerDepths = [];
-  const tickMesh = null; // kept for API shape; no world-space depth ticks are rendered.
+  // dominated the globe). See the profile/analysis view for depth data.
 
   // Screen-space marker sprites (Master Prompt Section 33, 37-38): the beacon
   // and halo keep a constant pixel footprint (sizeAttenuation: false), so a

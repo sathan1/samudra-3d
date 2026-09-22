@@ -19,7 +19,8 @@ from backend.app.schemas.ocean import (
     OceanMetadataResponse,
     OceanDataSliceResponse,
     OceanProbeResponse,
-    OceanTransectResponse
+    OceanTransectResponse,
+    OceanVolumeResponse
 )
 
 
@@ -229,6 +230,52 @@ class OceanDataService:
             depth_min=depth_min,
             depth_max=depth_max,
             time_idx=time_idx
+        )
+
+    def get_volume_data(
+        self,
+        dataset_id: Optional[str] = None,
+        variable: str = "temperature",
+        time_idx: int = 0,
+        center_lat: Optional[float] = None,
+        center_lon: Optional[float] = None,
+        radius_km: Optional[float] = None,
+        min_lon: Optional[float] = None,
+        max_lon: Optional[float] = None,
+        min_lat: Optional[float] = None,
+        max_lat: Optional[float] = None,
+        depth_min: Optional[float] = None,
+        depth_max: Optional[float] = None,
+        min_depth: Optional[float] = None,
+        max_depth: Optional[float] = None,
+        max_lat_samples: int = 48,
+        max_lon_samples: int = 48,
+        max_depth_samples: int = 24,
+    ) -> OceanVolumeResponse:
+        """Returns 3D spatial volume data for volumetric block visualization."""
+        if dataset_id and dataset_id in self.adapters:
+            adapter = self.adapters[dataset_id]
+        else:
+            adapter = self.get_active_adapter()
+        
+        eff_depth_min = depth_min if depth_min is not None else min_depth
+        eff_depth_max = depth_max if depth_max is not None else max_depth
+
+        return adapter.get_volume_data(
+            variable=variable,
+            time_idx=time_idx,
+            center_lat=center_lat,
+            center_lon=center_lon,
+            radius_km=radius_km,
+            min_lon=min_lon,
+            max_lon=max_lon,
+            min_lat=min_lat,
+            max_lat=max_lat,
+            depth_min=eff_depth_min,
+            depth_max=eff_depth_max,
+            max_lat_samples=max_lat_samples,
+            max_lon_samples=max_lon_samples,
+            max_depth_samples=max_depth_samples,
         )
 
     @staticmethod

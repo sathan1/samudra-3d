@@ -1,7 +1,6 @@
 """
-SAMUDRA-3D Persistent SQLite Database & Security Module
-Provides cryptographic storage, session persistence, platform sensor registry,
-data source tracking, and security audit logging.
+SAMUDRA-3D SQLite Compatibility Layer
+Maintains backward compatibility for legacy SQLite queries while PostgreSQL is the primary engine.
 """
 import os
 import json
@@ -57,7 +56,6 @@ def init_db():
     );
     """)
 
-    # Safe migration: ensure status and last_login exist if table already existed
     cursor.execute("PRAGMA table_info(users)")
     existing_cols = [col["name"] for col in cursor.fetchall()]
     if "status" not in existing_cols:
@@ -117,7 +115,6 @@ def init_db():
     );
     """)
 
-    # Backward compatibility custom_sensors table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS custom_sensors (
         id TEXT PRIMARY KEY,
@@ -155,7 +152,6 @@ def init_db():
     );
     """)
 
-    # Seed official data sources if not present
     now_iso = datetime.now(timezone.utc).isoformat()
     official_sources = [
         (
@@ -206,22 +202,13 @@ def init_db():
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, official_sources)
 
-    # Check admin account
     admin_username = settings.ADMIN_INITIAL_USERNAME or "admin"
     cursor.execute("SELECT id, password_hash, salt FROM users WHERE username = ?", (admin_username,))
     admin_row = cursor.fetchone()
 
     if not admin_row:
-        # Check if environment password provided or generate bootstrap password
         salt = secrets.token_hex(16)
-        if settings.ADMIN_INITIAL_PASSWORD:
-            admin_pw = settings.ADMIN_INITIAL_PASSWORD
-        else:
-            # Generate a secure one-time bootstrap password
-            admin_pw = secrets.token_urlsafe(16)
-            print(f"[SECURITY] Generated initial admin password: {admin_pw}")
-            print(f"[SECURITY] Set SAMUDRA_ADMIN_PASSWORD in environment to configure custom password.")
-
+        admin_pw = settings.ADMIN_INITIAL_PASSWORD or secrets.token_urlsafe(16)
         pw_hash = hash_password(admin_pw, salt)
         cursor.execute("""
         INSERT INTO users (
@@ -246,22 +233,8 @@ def init_db():
             now_iso
         ))
 
-    # Scrub all demo accounts, test personas, and temporary test accounts
-    demo_usernames = [
-        "chief.oceanographer",
-        "cmdr.varma",
-        "priya.nair",
-        "test.commander",
-        "test_admin",
-        "standard_viewer_01"
-    ]
-    cursor.execute(
-        f"DELETE FROM users WHERE username IN ({','.join(['?']*len(demo_usernames))}) OR username LIKE 'operator_temp_%'",
-        demo_usernames
-    )
-
     conn.commit()
     conn.close()
 
-# Safe initialization
+# Auto-init sqlite
 init_db()

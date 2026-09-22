@@ -3,6 +3,24 @@
 # Ministry of Earth Sciences (MoES) / INCOIS
 
 services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: samudra-3d-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-samudra}
+      POSTGRES_USER: ${POSTGRES_USER:-samudra}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-samudra}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-samudra} -d ${POSTGRES_DB:-samudra}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -14,6 +32,13 @@ services:
       - PORT=8000
       - HOST=0.0.0.0
       - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-samudra}:${POSTGRES_PASSWORD:-samudra}@postgres:5432/${POSTGRES_DB:-samudra}
+      - SAMUDRA_DATA_ROOT=/app/SAMUDRA_DATA
+      - SAMUDRA_ADMIN_USERNAME=${SAMUDRA_ADMIN_USERNAME:-admin}
+      - SAMUDRA_ADMIN_PASSWORD=${SAMUDRA_ADMIN_PASSWORD:-Samudra#Admin2026!}
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 15s
@@ -34,3 +59,6 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  postgres_data:

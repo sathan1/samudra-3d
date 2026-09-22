@@ -1,361 +1,437 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { PRECISION_OCEAN_PLACES } from '../utils/graticules.js';
 
-export const PRECISION_OCEAN_SECTORS = [
-  {
-    group: 'Macro Basin (Level 1)',
-    options: PRECISION_OCEAN_PLACES.filter((p) => p.level === 1).map((p) => ({
-      id: p.id,
-      name: `${p.name} [${p.tag}]`,
-      lat: p.lat,
-      lon: p.lon,
-      dist: p.peakDist || 210,
-      level: 'Macro'
-    }))
-  },
-  {
-    group: 'Regional Sub-Basin (Level 2)',
-    options: PRECISION_OCEAN_PLACES.filter((p) => p.level === 2).map((p) => ({
-      id: p.id,
-      name: `${p.name} [${p.tag}]`,
-      lat: p.lat,
-      lon: p.lon,
-      dist: p.peakDist || 160,
-      level: 'Sub-Basin'
-    }))
-  },
-  {
-    group: 'Coastal Maritime Zone (Level 3)',
-    options: PRECISION_OCEAN_PLACES.filter((p) => p.level === 3).map((p) => ({
-      id: p.id,
-      name: `${p.name} [${p.tag}]`,
-      lat: p.lat,
-      lon: p.lon,
-      dist: p.peakDist || 130,
-      level: 'Coastal'
-    }))
-  },
-  {
-    group: 'Local Maritime Sector / Harbor / PFZ (Level 4)',
-    options: PRECISION_OCEAN_PLACES.filter((p) => p.level === 4).map((p) => ({
-      id: p.id,
-      name: `${p.name} [${p.tag}]`,
-      lat: p.lat,
-      lon: p.lon,
-      dist: p.peakDist || 114,
-      level: 'Local Sector'
-    }))
-  }
-];
-
+/**
+ * Header - Professional Scientific Workstation Top Bar
+ * Adheres to Master Prompt §2, §3, §24.
+ * 
+ * Top-left: SAMUDRA-3D / Ocean Intelligence Platform
+ * Center: Global Search Box + Clean Primary Navigation (EXPLORE, OBSERVATIONS, ANALYSIS, DATA, OPERATIONS)
+ * Right: User Session, Institutional Clearance, and Administration
+ */
 export default function Header({
-  theme,
-  onToggleTheme,
-  onOpenAssistant,
-  onOpenSources,
-  onOpenLogin,
-  onOpenRegisterSensor = null,
-  onOpenAdminUsers = null,
   currentUser = null,
-  onLogout = null,
-  onNavigate = null,
-  viewMode = 'globe',
-  onViewModeChange = null,
-  onApplyPreset = null,
-  onOpenComparison = null,
   activeDataset = null,
+  viewMode: _viewMode = 'globe',
+  onViewModeChange = null,
+  onOpenAssistant = null,
+  onOpenSources = null,
   onOpenDatasetsModal = null,
+  onOpenObservationDrawer = null,
+  onOpenComparison = null,
   onOpenFishermanModal = null,
   onOpenCycloneModal = null,
   onOpenInDepthAnalysis = null,
   onSelectRegion = null,
-  selectedSectorId = 'macro-nio'
+  onNavigate = null,
+  onLogout = null
 }) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeMenu, setActiveMenu] = useState(null); // 'EXPLORE' | 'OBSERVATIONS' | 'ANALYSIS' | 'DATA' | 'OPERATIONS' | 'USER' | null
+  const [searchResults, setSearchResults] = useState([]);
+  const menuRef = useRef(null);
+
   const isAdmin = currentUser?.role === 'ADMIN';
   const isReal = activeDataset?.source_mode === 'REAL_LOCAL';
 
+  // Close menus on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setActiveMenu(null);
+      }
+    };
+    window.document.addEventListener('mousedown', handleClickOutside);
+    return () => window.document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Global Search Handler (supports place name, lat/lon coords, and WMO ID)
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearchQuery(val);
+
+    if (!val.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const q = val.toLowerCase().trim();
+
+    // 1. Check if coordinate query (e.g. "13.25, 80.31" or "13.25 80.31")
+    const coordMatch = q.match(/^([-+]?\d*\.?\d+)[,\s]+([-+]?\d*\.?\d+)$/);
+    const results = [];
+
+    if (coordMatch) {
+      const lat = parseFloat(coordMatch[1]);
+      const lon = parseFloat(coordMatch[2]);
+      if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+        results.push({
+          id: `coord-${lat}-${lon}`,
+          name: `Coordinate: ${lat.toFixed(3)}°N, ${lon.toFixed(3)}°E`,
+          lat,
+          lon,
+          dist: 110,
+          type: 'coordinate'
+        });
+      }
+    }
+
+    // 2. Check places from graticules
+    for (const p of PRECISION_OCEAN_PLACES) {
+      if (p.name.toLowerCase().includes(q) || (p.tag && p.tag.toLowerCase().includes(q))) {
+        results.push({
+          id: p.id,
+          name: `${p.name} [${p.tag || 'Sector'}]`,
+          lat: p.lat,
+          lon: p.lon,
+          dist: p.peakDist || 140,
+          type: 'place'
+        });
+      }
+    }
+
+    setSearchResults(results.slice(0, 6));
+  };
+
+  const handleSelectSearchResult = (res) => {
+    if (onSelectRegion) {
+      onSelectRegion(res);
+    }
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const toggleMenu = (menuName) => {
+    setActiveMenu((prev) => (prev === menuName ? null : menuName));
+  };
+
   return (
-    <header className="header flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
-      
-      {/* Brand & Provenance Mode Badge */}
+    <header className="header scientific-header glassmorphic-panel" ref={menuRef}>
+      {/* 1. Left: Brand & Institution */}
       <div className="brand flex items-center gap-3">
-        <span className="brand-mark" aria-hidden="true">≈</span>
+        <span className="brand-mark text-ocean-bright font-mono text-xl" aria-hidden="true">≈</span>
         <div>
           <div className="flex items-center gap-2">
-            <span className="brand-name font-bold tracking-wide">SAMUDRA<span className="text-ocean">-3D</span></span>
-            {isReal ? (
-              <button
-                type="button"
-                onClick={onOpenDatasetsModal}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/90 border border-emerald-500/70 text-emerald-300 hover:bg-emerald-900 transition"
-                title="Active Source: Real Copernicus Marine GLORYS12V1 (~8.3 km grid). Click to manage datasets."
-                data-testid="dataset-badge-real"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span>REAL • COPERNICUS GLORYS (~8.3 km)</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onOpenDatasetsModal}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/90 border border-amber-500/70 text-amber-300 hover:bg-amber-900 transition"
-                title="Active Source: Synthetic ROMS Baseline. Click to switch to Real Copernicus GLORYS12V1."
-                data-testid="dataset-badge-synthetic"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                <span>SYNTHETIC • ROMS (~55 km)</span>
-              </button>
-            )}
-            <span
-              className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-sky-950/80 border border-sky-600/50 text-sky-300"
-              title="Real In-situ Fleet: 387 Authentic Argo GDAC Profiles, IMOS Ningaloo Underwater Glider, OceanSITES & INCOIS Moored Buoys"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-              <span>387 REAL ARGO • GLIDERS • BUOYS</span>
+            <span className="brand-name font-bold tracking-wider text-sm text-white">
+              SAMUDRA<span className="text-ocean-bright">-3D</span>
+            </span>
+            <span className="badge-platform-title text-[9px] font-mono uppercase bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">
+              Workstation
             </span>
           </div>
-          <p className="brand-subtitle text-[11px] text-slate-400 m-0">MoES / INCOIS Operational Ocean Digital Twin</p>
+          <p className="brand-subtitle text-[10px] text-slate-400 m-0 font-sans">
+            MoES / INCOIS Ocean Intelligence
+          </p>
         </div>
       </div>
 
-      {/* Middle Center: View Mode Toggle, Hierarchical Precision Sector Zoom & Presets */}
-      <div className="header-center flex flex-wrap items-center gap-2.5">
-        
-        {/* View Mode Toggle */}
-        <div className="view-mode-toggle flex items-center bg-slate-900 border border-slate-700 rounded p-0.5">
-          <button
-            type="button"
-            className={`px-3 py-1 text-xs font-semibold rounded transition flex items-center gap-1.5 ${viewMode === 'globe' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-            onClick={() => onViewModeChange?.('globe')}
-            title="Switch to Global 3D Earth Globe View"
-            data-testid="viewmode-globe-btn"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="2"/><path strokeWidth="2" d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-            <span>Global Globe</span>
-          </button>
-          <button
-            type="button"
-            className={`px-3 py-1 text-xs font-semibold rounded transition flex items-center gap-1.5 ${viewMode === 'block' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-            onClick={() => onViewModeChange?.('block')}
-            title="Switch to Regional 3D Ocean Volume Block (Northern Indian Ocean 0-25°N, 65-95°E)"
-            data-testid="viewmode-block-btn"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-            <span>3D Ocean Volume Block</span>
-          </button>
+      {/* 2. Global Search Box */}
+      <div className="search-container relative max-w-xs w-full hidden md:block">
+        <div className="flex items-center bg-slate-900/90 border border-slate-700/80 rounded-full px-3 py-1 text-xs text-white focus-within:border-sky-400 transition">
+          <span className="text-slate-400 mr-2" aria-hidden="true">🔍</span>
+          <input
+            type="search"
+            placeholder="Search location, lat,lon or WMO..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className="bg-transparent border-none outline-none text-xs w-full text-slate-200 placeholder-slate-500"
+            aria-label="Search ocean location or coordinates"
+          />
         </div>
 
-        {/* Hierarchical Precision Ocean Sector Dropdown */}
-        <div className="precision-zoom flex items-center bg-slate-900 border border-slate-700 rounded px-2 py-0.5">
-          <span className="text-[10px] text-slate-400 uppercase font-mono mr-1.5 hidden xl:inline">Precision Zoom:</span>
-          <select
-            value={selectedSectorId}
-            onChange={(e) => {
-              const found = PRECISION_OCEAN_SECTORS.flatMap(g => g.options).find(o => o.id === e.target.value);
-              if (found && onSelectRegion) onSelectRegion(found);
-            }}
-            className="bg-transparent text-xs text-slate-200 outline-none cursor-pointer py-1 max-w-[200px]"
-            title="Hierarchical Ocean Zoom: Macro Basin -> Sub-Basin -> Coastal Zone -> Local Maritime Sector / PFZ"
-            data-testid="precision-sector-dropdown"
-          >
-            {PRECISION_OCEAN_SECTORS.map(group => (
-              <optgroup key={group.group} label={group.group} className="bg-slate-900 text-slate-400">
-                {group.options.map(opt => (
-                  <option key={opt.id} value={opt.id} className="bg-slate-900 text-white">
-                    {opt.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-
-        {/* Operational Scenarios & Specialized Modals */}
-        <div className="operational-presets flex items-center gap-1 bg-slate-900 border border-slate-800 rounded px-2 py-1">
-          <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400 mr-1 hidden sm:inline">Scenarios:</span>
-          <button
-            type="button"
-            className="preset-btn px-2 py-0.5 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition"
-            onClick={() => {
-              onApplyPreset?.('cyclone');
-              if (onOpenCycloneModal) onOpenCycloneModal();
-            }}
-            title="Open Tropical Cyclone & Heat Potential (TCHP) Intelligence"
-            data-testid="preset-cyclone-btn"
-          >
-            🌀 Cyclone / TCHP
-          </button>
-          <button
-            type="button"
-            className="preset-btn px-2 py-0.5 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition"
-            onClick={() => onApplyPreset?.('sar')}
-            title="Search & Rescue Maritime Currents Drift Scenario"
-            data-testid="preset-sar-btn"
-          >
-            🚢 Search & Rescue
-          </button>
-          <button
-            type="button"
-            className="preset-btn px-2 py-0.5 text-xs font-medium rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition"
-            onClick={() => {
-              onApplyPreset?.('fishery');
-              if (onOpenFishermanModal) onOpenFishermanModal();
-            }}
-            title="Open Fisherman Mode & Potential Fishing Zone (PFZ) Advisory"
-            data-testid="preset-fishery-btn"
-          >
-            🐟 Fishery / PFZ
-          </button>
-        </div>
-      </div>
-
-      {/* Header Actions */}
-      <div className="header-actions flex flex-wrap items-center gap-2">
-        {isAdmin && (
-          <button
-            type="button"
-            data-testid="header-admin-portal-btn"
-            className="header-action-btn admin-portal-btn"
-            onClick={() => onNavigate ? onNavigate('/admin') : onOpenAdminUsers?.()}
-            title="Open SAMUDRA-3D Administration & User Directory"
-            style={{ backgroundColor: '#0284c7', color: '#ffffff', fontWeight: 600 }}
-          >
-            <span>Admin Portal</span>
-          </button>
-        )}
-
-        <button
-          type="button"
-          data-testid="header-datasets-btn"
-          className="header-action-btn datasets-btn"
-          onClick={onOpenDatasetsModal}
-          title="Open Ocean Dataset Manager & Download Volume Estimator"
-          style={{
-            backgroundColor: isReal ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-            border: isReal ? '1px solid #10b981' : '1px solid #f59e0b',
-            color: isReal ? '#34d399' : '#fbbf24',
-            fontWeight: 600
-          }}
-        >
-          <span>📁 Datasets</span>
-        </button>
-
-        <button
-          type="button"
-          data-testid="header-register-sensor-btn"
-          className="header-action-btn register-sensor-btn"
-          onClick={onOpenRegisterSensor}
-          title="Register a new ocean sensor platform (Argo float, Glider, Moored buoy)"
-        >
-          <span>Register Sensor</span>
-        </button>
-
-        <button
-          type="button"
-          data-testid="open-assistant-btn"
-          className="header-action-btn assistant-btn"
-          onClick={onOpenAssistant}
-          title="Open Grounded AI Ocean Assistant (Alt+A)"
-        >
-          <span>AI Ocean Assistant</span>
-        </button>
-
-        <button
-          type="button"
-          data-testid="header-compare-btn"
-          className="header-action-btn compare-btn"
-          onClick={onOpenComparison}
-          title="Open Model Prediction vs Observation Comparison Suite"
-          style={{
-            backgroundColor: 'rgba(2, 132, 199, 0.15)',
-            border: '1px solid #0284c7',
-            color: '#38bdf8',
-            fontWeight: 600
-          }}
-        >
-          <span>📊 Compare Prediction vs Obs</span>
-        </button>
-
-        <button
-          type="button"
-          data-testid="header-in-depth-btn"
-          className="header-action-btn in-depth-btn"
-          onClick={onOpenInDepthAnalysis}
-          title="Open In-Depth Ocean Physical & Acoustic Analysis Engine (EOS-80, Mackenzie SVP, SOFAR Channel Axis, N² Stability)"
-          style={{
-            backgroundColor: 'rgba(99, 102, 241, 0.15)',
-            border: '1px solid #6366f1',
-            color: '#a5b4fc',
-            fontWeight: 600
-          }}
-        >
-          <span>🌊 In-Depth Physics</span>
-        </button>
-
-        <button
-          type="button"
-          className="header-secondary-action"
-          onClick={onOpenSources}
-          title="Browse the official data sources used by SAMUDRA-3D"
-        >
-          Data sources
-        </button>
-
-        {currentUser ? (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              data-testid="open-login-btn"
-              className="officer-badge-btn"
-              onClick={onOpenLogin}
-              title="View Officer Profile & Active Clearance"
-            >
-              <span
-                className="avatar-chip"
-                style={{ backgroundColor: currentUser.badge_color || '#0284c7' }}
+        {searchResults.length > 0 && (
+          <div className="search-results-dropdown glassmorphic-panel absolute left-0 right-0 top-full mt-1.5 z-50 rounded-lg shadow-2xl p-1 max-h-60 overflow-y-auto">
+            {searchResults.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                className="w-full text-left px-3 py-1.5 rounded text-xs text-slate-200 hover:bg-sky-950/80 hover:text-sky-300 font-mono flex items-center justify-between transition"
+                onClick={() => handleSelectSearchResult(r)}
               >
-                {currentUser.avatar_initials || (currentUser.display_name ? currentUser.display_name.charAt(0) : 'IN')}
-              </span>
-              <span className="officer-name">{currentUser.display_name}</span>
-              <span
-                className="clearance-pill"
-                style={{
-                  color: '#38bdf8',
-                  borderColor: 'rgba(56, 189, 248, 0.4)'
+                <span>{r.name}</span>
+                <span className="text-[10px] text-slate-500">{r.lat.toFixed(1)}°, {r.lon.toFixed(1)}°</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Center: Primary Navigation */}
+      <nav className="primary-nav flex items-center gap-1" aria-label="Main Navigation">
+        {/* EXPLORE */}
+        <div className="nav-item relative">
+          <button
+            type="button"
+            className={`nav-link-btn ${activeMenu === 'EXPLORE' ? 'active' : ''}`}
+            onClick={() => toggleMenu('EXPLORE')}
+            aria-expanded={activeMenu === 'EXPLORE'}
+          >
+            EXPLORE ▾
+          </button>
+          {activeMenu === 'EXPLORE' && (
+            <div className="nav-dropdown-menu glassmorphic-panel">
+              <button
+                type="button"
+                className="dropdown-item"
+                onClick={() => {
+                  onViewModeChange?.('globe');
+                  setActiveMenu(null);
                 }}
               >
-                {currentUser.role}
-              </span>
-            </button>
-            <button
-              type="button"
-              data-testid="header-signout-btn"
-              className="signout-btn"
-              onClick={onLogout}
-              title="Sign Out to Public Viewer Mode"
-            >
-              Sign Out
-            </button>
-          </div>
-        ) : (
+                <span className="icon">🌍</span>
+                <div>
+                  <div className="title">Global 3D Earth Globe</div>
+                  <div className="desc">Photorealistic solid Earth with depth raycasting</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="dropdown-item"
+                onClick={() => {
+                  onViewModeChange?.('block');
+                  setActiveMenu(null);
+                }}
+              >
+                <span className="icon">📦</span>
+                <div>
+                  <div className="title">3D Ocean Volume Block</div>
+                  <div className="desc">Regional vertical depth curtains & ODV slices</div>
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* OBSERVATIONS */}
+        <div className="nav-item">
           <button
             type="button"
-            data-testid="open-login-btn"
-            className="officer-login-btn"
-            onClick={onOpenLogin}
-            title="Sign in with MoES/INCOIS Officer Credentials"
+            className="nav-link-btn"
+            onClick={() => {
+              onOpenObservationDrawer && onOpenObservationDrawer();
+              setActiveMenu(null);
+            }}
           >
-            <span>Sign In</span>
+            OBSERVATIONS
           </button>
-        )}
+        </div>
 
-        <span className="connection">
-          <span className="status-dot" aria-hidden="true" />
-          Connected
-        </span>
-        <button className="theme-button" type="button" aria-pressed={theme === 'light'} onClick={onToggleTheme}>
-          Light theme
+        {/* ANALYSIS */}
+        <div className="nav-item relative">
+          <button
+            type="button"
+            className={`nav-link-btn ${activeMenu === 'ANALYSIS' ? 'active' : ''}`}
+            onClick={() => toggleMenu('ANALYSIS')}
+            aria-expanded={activeMenu === 'ANALYSIS'}
+          >
+            ANALYSIS ▾
+          </button>
+          {activeMenu === 'ANALYSIS' && (
+            <div className="nav-dropdown-menu glassmorphic-panel">
+              <button
+                type="button"
+                className="dropdown-item"
+                onClick={() => {
+                  onOpenComparison && onOpenComparison();
+                  setActiveMenu(null);
+                }}
+              >
+                <span className="icon">⚖️</span>
+                <div>
+                  <div className="title">Model vs Observation</div>
+                  <div className="desc">Trilinear collocation, Bias, MAE, RMSE, Pearson R</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="dropdown-item"
+                onClick={() => {
+                  onOpenInDepthAnalysis && onOpenInDepthAnalysis();
+                  setActiveMenu(null);
+                }}
+              >
+                <span className="icon">🔬</span>
+                <div>
+                  <div className="title">Deep Ocean Physics & Acoustics</div>
+                  <div className="desc">EOS-80, SOFAR channel, Mackenzie sound speed</div>
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* DATA */}
+        <div className="nav-item relative">
+          <button
+            type="button"
+            className={`nav-link-btn ${activeMenu === 'DATA' ? 'active' : ''}`}
+            onClick={() => toggleMenu('DATA')}
+            aria-expanded={activeMenu === 'DATA'}
+          >
+            DATA ▾
+          </button>
+          {activeMenu === 'DATA' && (
+            <div className="nav-dropdown-menu glassmorphic-panel">
+              <button
+                type="button"
+                className="dropdown-item"
+                onClick={() => {
+                  onOpenDatasetsModal && onOpenDatasetsModal();
+                  setActiveMenu(null);
+                }}
+              >
+                <span className="icon">📁</span>
+                <div>
+                  <div className="title">Dataset Registry & Downloads</div>
+                  <div className="desc">Manage Copernicus GLORYS and subset volume estimator</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="dropdown-item"
+                onClick={() => {
+                  onOpenSources && onOpenSources();
+                  setActiveMenu(null);
+                }}
+              >
+                <span className="icon">📜</span>
+                <div>
+                  <div className="title">Data Sources & Provenance</div>
+                  <div className="desc">View official CF-1.8 NetCDF4 specifications</div>
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* OPERATIONS */}
+        <div className="nav-item relative">
+          <button
+            type="button"
+            className={`nav-link-btn ${activeMenu === 'OPERATIONS' ? 'active' : ''}`}
+            onClick={() => toggleMenu('OPERATIONS')}
+            aria-expanded={activeMenu === 'OPERATIONS'}
+          >
+            OPERATIONS ▾
+          </button>
+          {activeMenu === 'OPERATIONS' && (
+            <div className="nav-dropdown-menu glassmorphic-panel">
+              <button
+                type="button"
+                className="dropdown-item"
+                onClick={() => {
+                  onOpenFishermanModal && onOpenFishermanModal();
+                  setActiveMenu(null);
+                }}
+              >
+                <span className="icon">🐟</span>
+                <div>
+                  <div className="title">Fisherman View</div>
+                  <div className="desc">SST, currents, coastal harbors, and PFZ status</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                className="dropdown-item"
+                onClick={() => {
+                  onOpenCycloneModal && onOpenCycloneModal();
+                  setActiveMenu(null);
+                }}
+              >
+                <span className="icon">🌀</span>
+                <div>
+                  <div className="title">Cyclone & Marine Conditions</div>
+                  <div className="desc">TCHP, D26, MLD, and atmospheric track correlation</div>
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
+      </nav>
+
+      {/* 4. Right: AI Assistant Trigger & User Session */}
+      <div className="header-right flex items-center gap-3">
+        {/* Source Badge */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={onOpenDatasetsModal}
+          className={`source-badge-pill ${isReal ? 'real' : 'synthetic'} hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase cursor-pointer hover:opacity-90 transition`}
+          title={`Active dataset: ${activeDataset?.name || 'Copernicus GLORYS12V1'} (Click to manage datasets)`}
+        >
+          <span className="dot" aria-hidden="true" />
+          <span>{isReal ? 'REAL • COPERNICUS GLORYS12V1 (~8.3 km)' : 'SYNTHETIC • DEVELOPMENT'}</span>
+        </div>
+
+        {/* AI Assistant Button */}
+        <button
+          type="button"
+          className="ai-assistant-header-btn flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-950/80 border border-sky-600/60 text-sky-300 hover:bg-sky-900 transition"
+          onClick={onOpenAssistant}
+          title="Ask SAMUDRA Scientific AI Assistant (Alt+A)"
+        >
+          <span className="sparkle" aria-hidden="true">✦</span>
+          <span>Ask SAMUDRA</span>
         </button>
+
+        {/* User Session & Menu */}
+        <div className="user-menu relative">
+          <button
+            type="button"
+            className="user-profile-btn flex items-center gap-2 p-1 rounded-full hover:bg-slate-800/80 transition"
+            onClick={() => toggleMenu('USER')}
+            aria-label="User account and clearance"
+          >
+            <span
+              className="user-avatar-circle flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold text-white shadow"
+              style={{ backgroundColor: currentUser?.badge_color || '#0284c7' }}
+            >
+              {currentUser?.avatar_initials || (currentUser?.username ? currentUser.username.slice(0, 2).toUpperCase() : 'US')}
+            </span>
+          </button>
+
+          {activeMenu === 'USER' && (
+            <div className="user-dropdown-menu glassmorphic-panel absolute right-0 mt-2 w-56 rounded-lg p-2 shadow-2xl z-50">
+              <div className="user-info-card p-2 border-b border-slate-700/60 mb-2">
+                <div className="font-bold text-xs text-white">
+                  {currentUser?.full_name || currentUser?.username || 'Researcher'}
+                </div>
+                <div className="text-[10px] font-mono text-sky-400 mt-0.5">
+                  {currentUser?.clearance_level || 'LEVEL-1 RESEARCH'}
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  Role: {currentUser?.role || 'VIEWER'}
+                </div>
+              </div>
+
+              {isAdmin && (
+                <button
+                  type="button"
+                  className="dropdown-link-btn w-full text-left px-2 py-1.5 text-xs text-slate-200 hover:bg-sky-950/60 rounded flex items-center gap-2"
+                  onClick={() => {
+                    onNavigate?.('/admin');
+                    setActiveMenu(null);
+                  }}
+                >
+                  <span>⚙️</span>
+                  <span>Administration Portal</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="dropdown-link-btn w-full text-left px-2 py-1.5 text-xs text-rose-300 hover:bg-rose-950/60 rounded flex items-center gap-2 mt-1"
+                onClick={() => {
+                  onLogout && onLogout();
+                  setActiveMenu(null);
+                }}
+              >
+                <span>🚪</span>
+                <span>Sign Out</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

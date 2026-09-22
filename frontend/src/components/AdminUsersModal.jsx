@@ -12,7 +12,7 @@ export default function AdminUsersModal({
   isOpen = false,
   onClose = null,
   currentUser = null,
-  onLoginSuccess = null
+  onLoginSuccess: _onLoginSuccess = null
 }) {
   const [activeTab, setActiveTab] = useState('directory');
   const [users, setUsers] = useState([]);

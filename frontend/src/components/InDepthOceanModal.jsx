@@ -9,23 +9,14 @@ const SOUNDING_PRESETS = [
   { name: 'Equatorial Jet Current', lat: 0.0, lon: 80.5, desc: 'Wyrtki Jet - High Momentum Advection' }
 ];
 
-export default function InDepthOceanModal({ isOpen, onClose, initialCoords, currentActiveDatasetId }) {
+export default function InDepthOceanModal({ isOpen, onClose, initialCoords, currentActiveDatasetId: _currentActiveDatasetId }) {
   const [coords, setCoords] = useState(initialCoords || { lat: 15.0, lon: 85.0 });
   const [activeTab, setActiveTab] = useState('acoustics'); // 'acoustics' | 'stratification' | 'water_masses' | 'heatwave' | 'hierarchy'
   const [analysisData, setAnalysisData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      if (initialCoords) {
-        setCoords(initialCoords);
-      }
-      runAnalysis(initialCoords || coords);
-    }
-  }, [isOpen]);
-
-  const runAnalysis = async (targetCoords) => {
+  const runAnalysis = React.useCallback(async (targetCoords) => {
     setLoading(true);
     setError(null);
     try {
@@ -40,7 +31,20 @@ export default function InDepthOceanModal({ isOpen, onClose, initialCoords, curr
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      const target = initialCoords || coords;
+      const timer = setTimeout(() => {
+        if (initialCoords) {
+          setCoords(initialCoords);
+        }
+        runAnalysis(target);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, initialCoords, coords, runAnalysis]);
 
   const handleSelectPreset = (preset) => {
     const newC = { lat: preset.lat, lon: preset.lon };

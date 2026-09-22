@@ -21,6 +21,13 @@ export const COLORMAP_PALETTES = {
     [0.50, [0.10, 0.65, 0.55]], // Mean ocean salinity (~35 PSU, cyan-teal)
     [0.75, [0.45, 0.80, 0.35]], // Elevated salinity (~36.5 PSU, lime-green)
     [1.00, [0.95, 0.90, 0.35]]  // High evaporation Arabian Sea (~38 PSU, light yellow)
+  ],
+  speed: [
+    [0.00, [0.10, 0.15, 0.35]], // Calm (0 m/s, dark blue)
+    [0.25, [0.10, 0.50, 0.70]], // Low current (~0.5 m/s, cyan)
+    [0.50, [0.20, 0.75, 0.45]], // Moderate current (~1.0 m/s, green)
+    [0.75, [0.95, 0.75, 0.15]], // Strong current (~1.5 m/s, yellow)
+    [1.00, [0.95, 0.20, 0.15]]  // Jet / intense current (>2.0 m/s, bright red)
   ]
 };
 

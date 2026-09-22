@@ -10,7 +10,8 @@ from backend.app.schemas.ocean import (
     LocationAvailabilityResponse,
     PointValueResponse,
     ProfileResponse,
-    RegionResponse
+    RegionResponse,
+    OceanVolumeResponse
 )
 from backend.app.services.ocean_service import ocean_service
 
@@ -368,4 +369,61 @@ def get_ocean_region(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Error querying region: {str(e)}")
+
+
+@router.get("/ocean/volume", response_model=OceanVolumeResponse,
+            summary="Retrieve 3D spatial volume data for volumetric block visualization")
+def get_ocean_volume(
+    dataset_id: Optional[str] = Query(None, description="Optional dataset ID override"),
+    variable: str = Query("temperature", description="Target variable (temperature, salinity, currents, u_current, v_current)"),
+    time_idx: int = Query(0, ge=0, description="Time index from dataset metadata"),
+    center_lat: Optional[float] = Query(None, description="Center latitude for radial volume query"),
+    center_lon: Optional[float] = Query(None, description="Center longitude for radial volume query"),
+    radius_km: Optional[float] = Query(None, description="Radius in km for radial volume query"),
+    min_lon: Optional[float] = Query(None, description="Minimum longitude bounding filter"),
+    max_lon: Optional[float] = Query(None, description="Maximum longitude bounding filter"),
+    min_lat: Optional[float] = Query(None, description="Minimum latitude bounding filter"),
+    max_lat: Optional[float] = Query(None, description="Maximum latitude bounding filter"),
+    depth_min: Optional[float] = Query(None, description="Minimum depth in metres"),
+    depth_max: Optional[float] = Query(None, description="Maximum depth in metres"),
+    min_depth: Optional[float] = Query(None, description="Minimum depth alias in metres"),
+    max_depth: Optional[float] = Query(None, description="Maximum depth alias in metres"),
+    max_lon_samples: int = Query(48, ge=4, le=100, description="Maximum samples along longitude axis"),
+    max_lat_samples: int = Query(48, ge=4, le=100, description="Maximum samples along latitude axis"),
+    max_depth_samples: int = Query(24, ge=2, le=50, description="Maximum samples along depth axis")
+):
+    """
+    Returns 3D spatial volume block with downsampled grid coordinates and scalar values.
+    Land cells and missing data are represented as JSON null.
+    Strict truth-in-depth: Never displays or fakes depths beyond actual dataset coverage.
+    """
+    try:
+        eff_depth_min = depth_min if depth_min is not None else min_depth
+        eff_depth_max = depth_max if depth_max is not None else max_depth
+        return ocean_service.get_volume_data(
+            dataset_id=dataset_id,
+            variable=variable,
+            time_idx=time_idx,
+            center_lat=center_lat,
+            center_lon=center_lon,
+            radius_km=radius_km,
+            min_lon=min_lon,
+            max_lon=max_lon,
+            min_lat=min_lat,
+            max_lat=max_lat,
+            depth_min=eff_depth_min,
+            depth_max=eff_depth_max,
+            max_lon_samples=max_lon_samples,
+            max_lat_samples=max_lat_samples,
+            max_depth_samples=max_depth_samples
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail=f"Dataset file missing: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Error querying volume data: {str(e)}")
+
 

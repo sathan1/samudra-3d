@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function CycloneModeModal({ isOpen, onClose, probeData, onFocusCycloneTrack }) {
+export default function CycloneModeModal({ isOpen, onClose, probeData, onFocusCycloneTrack: _onFocusCycloneTrack }) {
   if (!isOpen) return null;
 
   return (

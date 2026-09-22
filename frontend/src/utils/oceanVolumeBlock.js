@@ -1,43 +1,79 @@
 /**
  * SAMUDRA-3D Regional 3D Ocean Volume Block Engine
- * Visualizes the Northern Indian Ocean (0-25°N, 65-95°E) as a true 3D volumetric slab:
- * - Top surface (0m) with temperature/salinity contours or current vectors.
- * - 4 vertical boundary depth curtains (South, North, West, East) showing continuous depth stratification from 0m down to 4000m.
- * - Bottom bathymetric seafloor relief base plate.
- * - Bounding depth markers (0m, 50m, 100m, 500m, 1000m, 2000m, 4000m).
- * - Click-to-Probe 3D pins and ODV vertical transect curtain slices.
+ * Visualizes the ocean volume as a true 3D spatial voxel block (Longitude × Latitude × Depth):
+ * - Renders real scalar data (Temperature, Salinity, Currents) using GPU-efficient THREE.InstancedMesh.
+ * - Dynamic bounds derived directly from dataset metadata (e.g. 65-95°E, 0-25°N, 0.49-92.33m).
+ * - Strict truth-in-depth: Never fakes 4000m depths for GLORYS; displays actual dataset depth range.
+ * - Depth Slice Modes: 'full' (all layers), 'slice' (selected depth), 'surface' (surface only).
+ * - Real depth markers and vertical exaggeration scale indicator.
+ * - Interactive probe pins and ODV transect slices.
  */
 import * as THREE from 'three';
 import { sampleColormap } from './colormaps.js';
 import { geoToCartesian, DEFAULT_GLOBE_RADIUS } from './coordinates.js';
 
-// Domain bounds for Northern Indian Ocean Block
-export const BLOCK_BOUNDS = {
+// Default bounds for Northern Indian Ocean Block (fallback if no volume metadata)
+export const DEFAULT_BLOCK_BOUNDS = {
   latMin: 0.0,
   latMax: 25.0,
   lonMin: 65.0,
   lonMax: 95.0,
-  depthMax: 4000.0,
-  width: 120, // X axis: 65°E (-60) to 95°E (+60)
-  length: 100, // Z axis: 25°N (-50) to 0°N (+50)
-  height: 40 // Y axis: 0m (0) down to 4000m (-40)
+  depthMin: 0.49,
+  depthMax: 92.33,
+  width: 120,   // X axis: West to East
+  length: 100,  // Z axis: South to North
+  height: 40    // Y axis: Surface (0) down to max depth (-40)
 };
 
+let currentActiveBounds = { ...DEFAULT_BLOCK_BOUNDS };
+
 /**
- * Converts geographic coordinates to 3D Cartesian block coordinates.
- * @param {number} lat - Latitude (0 to 25°N)
- * @param {number} lon - Longitude (65 to 95°E)
- * @param {number} [depth=0] - Depth in meters (0 to 4000m)
+ * Updates the active block coordinate mapping bounds from a volume response.
+ */
+export function setActiveBlockBounds(bounds, dimensions = { width: 120, length: 100, height: 40 }) {
+  if (!bounds) return;
+  currentActiveBounds = {
+    latMin: bounds.min_lat ?? DEFAULT_BLOCK_BOUNDS.latMin,
+    latMax: bounds.max_lat ?? DEFAULT_BLOCK_BOUNDS.latMax,
+    lonMin: bounds.min_lon ?? DEFAULT_BLOCK_BOUNDS.lonMin,
+    lonMax: bounds.max_lon ?? DEFAULT_BLOCK_BOUNDS.lonMax,
+    depthMin: bounds.min_depth ?? DEFAULT_BLOCK_BOUNDS.depthMin,
+    depthMax: bounds.max_depth ?? DEFAULT_BLOCK_BOUNDS.depthMax,
+    width: dimensions.width ?? 120,
+    length: dimensions.length ?? 100,
+    height: dimensions.height ?? 40
+  };
+}
+
+export function getActiveBlockBounds() {
+  return currentActiveBounds;
+}
+
+/**
+ * Converts geographic coordinates (lat, lon, depth) to 3D Cartesian block coordinates.
+ * @param {number} lat - Latitude in degrees
+ * @param {number} lon - Longitude in degrees
+ * @param {number} [depth=0] - Depth in meters
+ * @param {object} [customBounds=null] - Optional bounds override
  * @returns {THREE.Vector3}
  */
-export function geoToBlock(lat, lon, depth = 0) {
-  const normLon = (lon - BLOCK_BOUNDS.lonMin) / (BLOCK_BOUNDS.lonMax - BLOCK_BOUNDS.lonMin);
-  const normLat = (lat - BLOCK_BOUNDS.latMin) / (BLOCK_BOUNDS.latMax - BLOCK_BOUNDS.latMin);
-  const normDepth = Math.max(0, Math.min(BLOCK_BOUNDS.depthMax, depth)) / BLOCK_BOUNDS.depthMax;
+export function geoToBlock(lat, lon, depth = 0, customBounds = null) {
+  const b = customBounds || currentActiveBounds || DEFAULT_BLOCK_BOUNDS;
+  const lonSpan = Math.max(1e-4, b.lonMax - b.lonMin);
+  const latSpan = Math.max(1e-4, b.latMax - b.latMin);
+  const depthSpan = Math.max(1e-4, b.depthMax - b.depthMin);
 
-  const x = normLon * BLOCK_BOUNDS.width - BLOCK_BOUNDS.width / 2;
-  const z = -(normLat * BLOCK_BOUNDS.length - BLOCK_BOUNDS.length / 2); // -Z is North
-  const y = -normDepth * BLOCK_BOUNDS.height; // Negative Y is down
+  const normLon = (lon - b.lonMin) / lonSpan;
+  const normLat = (lat - b.latMin) / latSpan;
+  const normDepth = Math.max(0, Math.min(1, (depth - b.depthMin) / depthSpan));
+
+  const width = b.width || 120;
+  const length = b.length || 100;
+  const height = b.height || 40;
+
+  const x = normLon * width - width / 2;
+  const z = -(normLat * length - length / 2); // -Z is North
+  const y = -normDepth * height;              // Negative Y is Depth
 
   return new THREE.Vector3(x, y, z);
 }
@@ -46,267 +82,347 @@ export function geoToBlock(lat, lon, depth = 0) {
  * Converts 3D Cartesian block coordinates (x, z) back to geographic coordinates.
  * @param {number} x
  * @param {number} z
+ * @param {object} [customBounds=null]
  * @returns {{lat: number, lon: number}}
  */
-export function blockToGeo(x, z) {
-  const normLon = (x + BLOCK_BOUNDS.width / 2) / BLOCK_BOUNDS.width;
-  const normLat = (-z + BLOCK_BOUNDS.length / 2) / BLOCK_BOUNDS.length;
+export function blockToGeo(x, z, customBounds = null) {
+  const b = customBounds || currentActiveBounds || DEFAULT_BLOCK_BOUNDS;
+  const width = b.width || 120;
+  const length = b.length || 100;
 
-  const lon = BLOCK_BOUNDS.lonMin + normLon * (BLOCK_BOUNDS.lonMax - BLOCK_BOUNDS.lonMin);
-  const lat = BLOCK_BOUNDS.latMin + normLat * (BLOCK_BOUNDS.latMax - BLOCK_BOUNDS.latMin);
+  const normLon = (x + width / 2) / width;
+  const normLat = (-z + length / 2) / length;
+
+  const lon = b.lonMin + normLon * (b.lonMax - b.lonMin);
+  const lat = b.latMin + normLat * (b.latMax - b.latMin);
 
   return {
-    lat: Math.max(BLOCK_BOUNDS.latMin, Math.min(BLOCK_BOUNDS.latMax, lat)),
-    lon: Math.max(BLOCK_BOUNDS.lonMin, Math.min(BLOCK_BOUNDS.lonMax, lon))
+    lat: Math.max(b.latMin, Math.min(b.latMax, lat)),
+    lon: Math.max(b.lonMin, Math.min(b.lonMax, lon))
   };
 }
 
 /**
- * Generates an HTML5 canvas texture from a 2D scalar field matrix.
+ * Creates a text sprite for spatial annotations in 3D scene.
  */
-function createSurfaceTexture(sliceData, palette = 'thermal', minVal = null, maxVal = null) {
-  if (typeof document === 'undefined') return null;
+function createTextSprite(text, { color = '#38bdf8', fontSize = 28, bgColor = 'rgba(15, 23, 42, 0.75)' } = {}) {
+  if (typeof document === 'undefined') return new THREE.Group();
 
   const canvas = document.createElement('canvas');
-  const ny = sliceData?.shape ? sliceData.shape[0] : (sliceData?.values ? sliceData.values.length : 50);
-  const nx = sliceData?.shape ? sliceData.shape[1] : (sliceData?.values && sliceData.values[0] ? sliceData.values[0].length : 60);
-
-  canvas.width = nx;
-  canvas.height = ny;
+  canvas.width = 256;
+  canvas.height = 64;
   const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
+  if (!ctx) return new THREE.Group();
 
-  const imgData = ctx.createImageData(nx, ny);
-  const values = sliceData?.values || [];
+  ctx.fillStyle = bgColor;
+  ctx.roundRect(4, 4, 248, 56, 8);
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
 
-  const effectiveMin = minVal !== null ? minVal : (sliceData?.min_val ?? 2.0);
-  const effectiveMax = maxVal !== null ? maxVal : (sliceData?.max_val ?? 32.0);
-  const range = Math.max(1e-4, effectiveMax - effectiveMin);
-
-  for (let j = 0; j < ny; j++) {
-    // Invert row index: row 0 in array is min lat (South), but image y=0 is top (North)
-    const srcRowIdx = ny - 1 - j;
-    const row = values[srcRowIdx] || [];
-
-    for (let i = 0; i < nx; i++) {
-      const val = row[i];
-      const pixelIdx = (j * nx + i) * 4;
-
-      if (val === null || val === undefined || isNaN(val)) {
-        // Land point: dark slate / deep navy coastline
-        imgData.data[pixelIdx] = 15;
-        imgData.data[pixelIdx + 1] = 23;
-        imgData.data[pixelIdx + 2] = 42;
-        imgData.data[pixelIdx + 3] = 255;
-      } else {
-        const t = Math.max(0, Math.min(1, (val - effectiveMin) / range));
-        const [r, g, b] = sampleColormap(palette, t);
-        imgData.data[pixelIdx] = Math.round(r * 255);
-        imgData.data[pixelIdx + 1] = Math.round(g * 255);
-        imgData.data[pixelIdx + 2] = Math.round(b * 255);
-        imgData.data[pixelIdx + 3] = 240;
-      }
-    }
-  }
-
-  ctx.putImageData(imgData, 0, 0);
+  ctx.fillStyle = color;
+  ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 32);
 
   const texture = new THREE.CanvasTexture(canvas);
-  texture.generateMipmaps = true;
   texture.minFilter = THREE.LinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  return texture;
+  const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(spriteMat);
+  sprite.scale.set(12, 3, 1);
+  return sprite;
 }
 
 /**
- * Creates vertical gradient texture for depth boundary curtains.
+ * Fits the camera to frame the entire volume mesh using THREE.Box3.
+ * @param {THREE.Camera} camera
+ * @param {THREE.OrbitControls} controls
+ * @param {THREE.Object3D} object
  */
-function createCurtainTexture(palette = 'thermal') {
-  if (typeof document === 'undefined') return null;
+export function fitVolumeCamera(camera, controls, object) {
+  if (!camera || !object) return;
+  const box = new THREE.Box3().setFromObject(object);
+  if (box.isEmpty()) return;
 
-  const canvas = document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
+  const center = new THREE.Vector3();
+  box.getCenter(center);
 
-  // Vertical gradient: y=0 (surface, warm) to y=255 (4000m abyss, cold)
-  for (let y = 0; y < 256; y++) {
-    // Non-linear ocean stratification: rapid thermocline drop in top 20%, gentle gradient in deep ocean
-    const depthFrac = y / 255.0; // 0 at surface, 1 at 4000m
-    // Map depth fraction to temperature normalized t (1.0 at surface down to 0.0 at bottom)
-    const t = Math.pow(1.0 - depthFrac, 2.2);
-    const [r, g, b] = sampleColormap(palette, t);
+  const size = new THREE.Vector3();
+  box.getSize(size);
 
-    ctx.fillStyle = `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
-    ctx.fillRect(0, y, 64, 1);
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const fov = (camera.fov || 45) * (Math.PI / 180);
+  let cameraDistance = (maxDim / 2) / Math.tan(fov / 2);
+  cameraDistance *= 1.45; // Add safety padding
+
+  const offset = new THREE.Vector3(0.9, 0.75, 1.25).normalize().multiplyScalar(cameraDistance);
+  camera.position.copy(center).add(offset);
+  camera.lookAt(center);
+
+  if (controls) {
+    controls.target.copy(center);
+    controls.update();
   }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.generateMipmaps = true;
-  texture.minFilter = THREE.LinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  return texture;
 }
 
 /**
- * Creates the complete 3D Ocean Volume Block group for Three.js.
+ * Creates the complete 3D Ocean Volume Block group using InstancedMesh.
+ * @param {object} volumeData - Structured OceanVolumeResponse from /api/ocean/volume
+ * @param {object} options - Visualization configuration
+ * @returns {THREE.Group}
  */
-export function createOceanVolumeBlock(sliceData, {
+export function createOceanVolumeBlock(volumeData, {
   variable = 'temperature',
-  rangeMode = 'dynamic'
+  rangeMode = 'dynamic',
+  depthSliceMode = 'full', // 'full' | 'slice' | 'surface'
+  selectedDepthIdx = 0
 } = {}) {
   const group = new THREE.Group();
   group.name = 'ocean-volume-block-group';
 
+  if (!volumeData || !volumeData.values) {
+    return group;
+  }
+
+  // Support both Phase 4 (shape & coordinates) and legacy (grid & longitude/latitude/depth)
+  const lons = volumeData.coordinates?.longitude || volumeData.longitude || [];
+  const lats = volumeData.coordinates?.latitude || volumeData.latitude || [];
+  const depths = volumeData.coordinates?.depth || volumeData.depth || [];
+  const values = volumeData.values || [];
+
+  const nz = volumeData.shape ? volumeData.shape[0] : (volumeData.grid?.nz || depths.length || 0);
+  const ny = volumeData.shape ? volumeData.shape[1] : (volumeData.grid?.ny || lats.length || 0);
+  const nx = volumeData.shape ? volumeData.shape[2] : (volumeData.grid?.nx || lons.length || 0);
+
+  if (nz === 0 || ny === 0 || nx === 0) {
+    return group;
+  }
+
+  const is3DValues = Array.isArray(values[0]) && Array.isArray(values[0][0]);
+
+  const bounds = {
+    latMin: volumeData.bounds?.min_lat ?? (lats[0] || 0),
+    latMax: volumeData.bounds?.max_lat ?? (lats[lats.length - 1] || 25),
+    lonMin: volumeData.bounds?.min_lon ?? (lons[0] || 65),
+    lonMax: volumeData.bounds?.max_lon ?? (lons[lons.length - 1] || 95),
+    depthMin: volumeData.bounds?.min_depth ?? (depths[0] || 0.49),
+    depthMax: volumeData.bounds?.max_depth ?? (depths[depths.length - 1] || 92.33),
+    width: 120,
+    length: 100,
+    height: 40
+  };
+  setActiveBlockBounds(bounds);
+
   const isSalinity = variable === 'salinity';
-  const palette = isSalinity ? 'haline' : 'thermal';
-  const minVal = rangeMode === 'fixed' ? (isSalinity ? 32.0 : 2.0) : sliceData?.min_val;
-  const maxVal = rangeMode === 'fixed' ? (isSalinity ? 38.0 : 32.0) : sliceData?.max_val;
+  const isCurrents = variable === 'currents' || variable === 'u_current' || variable === 'v_current';
+  const palette = isSalinity ? 'haline' : (isCurrents ? 'speed' : 'thermal');
 
-  // 1. Top Surface Ocean Plane (0m, Y = 0)
-  const surfaceGeo = new THREE.PlaneGeometry(BLOCK_BOUNDS.width, BLOCK_BOUNDS.length, 60, 50);
-  const surfaceTex = createSurfaceTexture(sliceData, palette, minVal, maxVal);
-  const surfaceMat = new THREE.MeshStandardMaterial({
-    map: surfaceTex || undefined,
-    color: surfaceTex ? 0xffffff : 0x0284c7,
-    roughness: 0.25,
-    metalness: 0.15,
-    side: THREE.DoubleSide
-  });
-  const surfaceMesh = new THREE.Mesh(surfaceGeo, surfaceMat);
-  surfaceMesh.name = 'ocean-block-surface';
-  surfaceMesh.rotation.x = -Math.PI / 2; // Flat horizontal plane
-  surfaceMesh.position.set(0, 0, 0);
-  group.add(surfaceMesh);
+  const minVal = rangeMode === 'fixed'
+    ? (isSalinity ? 32.0 : (isCurrents ? 0.0 : 2.0))
+    : (volumeData.min_value ?? volumeData.min_val ?? 2.0);
+  const maxVal = rangeMode === 'fixed'
+    ? (isSalinity ? 38.0 : (isCurrents ? 2.5 : 32.0))
+    : (volumeData.max_value ?? volumeData.max_val ?? 32.0);
+  const range = Math.max(1e-4, maxVal - minVal);
 
-  // 2. Vertical Boundary Depth Curtains
-  const curtainTex = createCurtainTexture(palette);
-  const curtainMat = new THREE.MeshStandardMaterial({
-    map: curtainTex || undefined,
-    color: curtainTex ? 0xffffff : 0x0369a1,
-    roughness: 0.4,
-    metalness: 0.1,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.88
-  });
+  const { width, length, height } = bounds;
+  const cellDx = (width / nx) * 0.94;
+  const cellDz = (length / ny) * 0.94;
+  const cellDy = (height / nz) * 0.88;
 
-  // South Curtain (0°N, Z = +50)
-  const southGeo = new THREE.PlaneGeometry(BLOCK_BOUNDS.width, BLOCK_BOUNDS.height);
-  const southMesh = new THREE.Mesh(southGeo, curtainMat);
-  southMesh.name = 'curtain-south';
-  southMesh.position.set(0, -BLOCK_BOUNDS.height / 2, BLOCK_BOUNDS.length / 2);
-  group.add(southMesh);
+  // Filter instances according to depthSliceMode
+  const instanceRecords = [];
+  for (let k = 0; k < nz; k++) {
+    if (depthSliceMode === 'surface' && k !== 0) continue;
+    if (depthSliceMode === 'slice' && k !== selectedDepthIdx) continue;
 
-  // North Curtain (25°N, Z = -50)
-  const northGeo = new THREE.PlaneGeometry(BLOCK_BOUNDS.width, BLOCK_BOUNDS.height);
-  const northMesh = new THREE.Mesh(northGeo, curtainMat);
-  northMesh.name = 'curtain-north';
-  northMesh.rotation.y = Math.PI;
-  northMesh.position.set(0, -BLOCK_BOUNDS.height / 2, -BLOCK_BOUNDS.length / 2);
-  group.add(northMesh);
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        let val;
+        if (is3DValues) {
+          val = values[k]?.[j]?.[i];
+        } else {
+          const idx = k * (ny * nx) + j * nx + i;
+          val = values[idx];
+        }
 
-  // West Curtain (65°E, X = -60)
-  const westGeo = new THREE.PlaneGeometry(BLOCK_BOUNDS.length, BLOCK_BOUNDS.height);
-  const westMesh = new THREE.Mesh(westGeo, curtainMat);
-  westMesh.name = 'curtain-west';
-  westMesh.rotation.y = Math.PI / 2;
-  westMesh.position.set(-BLOCK_BOUNDS.width / 2, -BLOCK_BOUNDS.height / 2, 0);
-  group.add(westMesh);
+        if (val === null || val === undefined || isNaN(val)) continue; // Land / missing
 
-  // East Curtain (95°E, X = +60)
-  const eastGeo = new THREE.PlaneGeometry(BLOCK_BOUNDS.length, BLOCK_BOUNDS.height);
-  const eastMesh = new THREE.Mesh(eastGeo, curtainMat);
-  eastMesh.name = 'curtain-east';
-  eastMesh.rotation.y = -Math.PI / 2;
-  eastMesh.position.set(BLOCK_BOUNDS.width / 2, -BLOCK_BOUNDS.height / 2, 0);
-  group.add(eastMesh);
+        const x = ((i + 0.5) / nx) * width - width / 2;
+        const z = -(((j + 0.5) / ny) * length - length / 2); // -Z is North
+        const y = -((k + 0.5) / nz) * height;                // -Y is Depth
 
-  // 3. Bottom Bathymetric Seafloor Base Plate (4000m, Y = -40)
-  const seabedGeo = new THREE.PlaneGeometry(BLOCK_BOUNDS.width, BLOCK_BOUNDS.length, 30, 25);
-  const seabedMat = new THREE.MeshStandardMaterial({
-    color: 0x051329,
-    roughness: 0.85,
-    metalness: 0.2,
-    wireframe: false,
-    side: THREE.DoubleSide
-  });
-  const seabedMesh = new THREE.Mesh(seabedGeo, seabedMat);
-  seabedMesh.name = 'ocean-block-seabed';
-  seabedMesh.rotation.x = -Math.PI / 2;
-  seabedMesh.position.set(0, -BLOCK_BOUNDS.height, 0);
-  group.add(seabedMesh);
+        instanceRecords.push({
+          i, j, k,
+          x, y, z,
+          val,
+          lon: lons[i] ?? 0,
+          lat: lats[j] ?? 0,
+          depth: depths[k] ?? 0
+        });
+      }
+    }
+  }
 
-  // Bathymetric seafloor grid lines overlay
-  const seabedGrid = new THREE.GridHelper(BLOCK_BOUNDS.width, 12, 0x00f5d4, 0x1e3a8a);
-  seabedGrid.position.set(0, -BLOCK_BOUNDS.height + 0.05, 0);
-  group.add(seabedGrid);
+  const instanceCount = instanceRecords.length;
+  if (instanceCount > 0) {
+    const cellGeo = new THREE.BoxGeometry(cellDx, cellDy, cellDz);
+    const cellMat = new THREE.MeshStandardMaterial({
+      roughness: 0.35,
+      metalness: 0.15,
+      transparent: depthSliceMode === 'full',
+      opacity: depthSliceMode === 'full' ? 0.82 : 0.96,
+      side: THREE.FrontSide
+    });
 
-  // 4. Volume Bounding Wireframe Box Edges
-  const boxGeo = new THREE.BoxGeometry(BLOCK_BOUNDS.width, BLOCK_BOUNDS.height, BLOCK_BOUNDS.length);
+    const instancedMesh = new THREE.InstancedMesh(cellGeo, cellMat, instanceCount);
+    instancedMesh.name = 'ocean-volume-instanced-voxels';
+    instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+    const dummy = new THREE.Object3D();
+    const color = new THREE.Color();
+    const cellMetadata = [];
+
+    for (let m = 0; m < instanceCount; m++) {
+      const rec = instanceRecords[m];
+      dummy.position.set(rec.x, rec.y, rec.z);
+      dummy.updateMatrix();
+      instancedMesh.setMatrixAt(m, dummy.matrix);
+
+      const t = Math.max(0, Math.min(1, (rec.val - minVal) / range));
+      const [r, g, b] = sampleColormap(palette, t);
+      color.setRGB(r, g, b);
+      instancedMesh.setColorAt(m, color);
+
+      cellMetadata.push({
+        instanceId: m,
+        lon: rec.lon,
+        lat: rec.lat,
+        depth: rec.depth,
+        value: rec.val,
+        variable: volumeData.variable?.name || variable,
+        units: volumeData.variable?.units || '',
+        dataset: volumeData.dataset?.name || 'Ocean Model',
+        source: volumeData.provenance?.source_mode || volumeData.dataset?.source_mode || 'REAL_LOCAL',
+        time: volumeData.timestamp || ''
+      });
+    }
+
+    instancedMesh.instanceMatrix.needsUpdate = true;
+    if (instancedMesh.instanceColor) instancedMesh.instanceColor.needsUpdate = true;
+    instancedMesh.userData = {
+      isOceanVolume: true,
+      instances: cellMetadata,
+      bounds,
+      provenanceBadge: (volumeData.provenance?.source_mode === 'REAL_LOCAL' || volumeData.dataset?.source_mode === 'REAL_LOCAL')
+        ? 'REAL • COPERNICUS GLORYS12V1 (~8.3 km)'
+        : 'SYNTHETIC • DEVELOPMENT',
+      dataset: volumeData.dataset,
+      provenance: volumeData.provenance,
+      resolution: volumeData.resolution
+    };
+
+    group.add(instancedMesh);
+  }
+
+  // 2. Volume Bounding Wireframe Box Frame
+  const boxGeo = new THREE.BoxGeometry(width, height, length);
   const edgesGeo = new THREE.EdgesGeometry(boxGeo);
   const edgesMat = new THREE.LineBasicMaterial({
     color: 0x38bdf8,
     transparent: true,
-    opacity: 0.6
+    opacity: 0.55
   });
   const wireframe = new THREE.LineSegments(edgesGeo, edgesMat);
-  wireframe.position.set(0, -BLOCK_BOUNDS.height / 2, 0);
+  wireframe.name = 'ocean-block-wireframe';
+  wireframe.position.set(0, -height / 2, 0);
   group.add(wireframe);
 
-  // 5. Depth Level Tick Markers along front-left corner (-60, Y, +50)
-  const depthTicks = [
-    { depth: 0, label: '0m' },
-    { depth: 50, label: '50m' },
-    { depth: 100, label: '100m' },
-    { depth: 500, label: '500m' },
-    { depth: 1000, label: '1000m' },
-    { depth: 2000, label: '2000m' },
-    { depth: 4000, label: '4000m' }
-  ];
+  // 3. Seabed Base Grid at bottom of dataset volume (Y = -height)
+  const seabedGrid = new THREE.GridHelper(width, 10, 0x00f5d4, 0x1e3a8a);
+  seabedGrid.name = 'ocean-block-seabed-grid';
+  seabedGrid.position.set(0, -height, 0);
+  group.add(seabedGrid);
 
-  depthTicks.forEach((dt) => {
-    const y = -(dt.depth / BLOCK_BOUNDS.depthMax) * BLOCK_BOUNDS.height;
-    const tickGeo = new THREE.RingGeometry(0.6, 1.2, 16);
+  // 4. Depth Tick Markers & Reference Labels along front-left vertical edge
+  // Only use actual depths from dataset
+  const sampleDepths = [];
+  if (depths.length > 0) {
+    sampleDepths.push(depths[0]); // Surface (e.g. 0.49m)
+    if (depths.length > 3) sampleDepths.push(depths[Math.floor(depths.length * 0.25)]);
+    if (depths.length > 2) sampleDepths.push(depths[Math.floor(depths.length * 0.5)]);
+    if (depths.length > 4) sampleDepths.push(depths[Math.floor(depths.length * 0.75)]);
+    sampleDepths.push(depths[depths.length - 1]); // Max depth (e.g. 92.33m)
+  }
+
+  const depthSpan = Math.max(1e-4, bounds.depthMax - bounds.depthMin);
+  sampleDepths.forEach((d) => {
+    const normD = (d - bounds.depthMin) / depthSpan;
+    const y = -normD * height;
+
+    // Small circular ring marker
+    const tickGeo = new THREE.RingGeometry(0.5, 1.0, 16);
     const tickMat = new THREE.MeshBasicMaterial({
-      color: 0x38bdf8,
+      color: 0x00f5d4,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.8
+      opacity: 0.85
     });
     const tickMesh = new THREE.Mesh(tickGeo, tickMat);
-    tickMesh.position.set(-BLOCK_BOUNDS.width / 2, y, BLOCK_BOUNDS.length / 2 + 0.2);
+    tickMesh.position.set(-width / 2 - 0.2, y, length / 2 + 0.2);
     group.add(tickMesh);
+
+    // Text label
+    const labelSprite = createTextSprite(`${d.toFixed(1)}m`, {
+      color: '#00f5d4',
+      fontSize: 24,
+      bgColor: 'rgba(5, 19, 41, 0.85)'
+    });
+    labelSprite.position.set(-width / 2 - 8, y, length / 2 + 0.2);
+    group.add(labelSprite);
   });
+
+  // 5. Vertical Scale & Provenance Annotation Sprite
+  const meanLatRad = ((bounds.latMin + bounds.latMax) / 2) * (Math.PI / 180);
+  const widthKm = Math.max(1, (bounds.lonMax - bounds.lonMin) * 111 * Math.cos(meanLatRad));
+  const depthKm = Math.max(0.001, (bounds.depthMax - bounds.depthMin) / 1000);
+  const vertExag = Math.round((bounds.height * widthKm) / (bounds.width * depthKm));
+
+  const verticalScaleLabel = createTextSprite(
+    `VERTICAL EXAGGERATION: ~${vertExag}× | DEPTH: ${bounds.depthMin.toFixed(1)}m — ${bounds.depthMax.toFixed(1)}m`,
+    { color: '#f59e0b', fontSize: 20, bgColor: 'rgba(15, 23, 42, 0.9)' }
+  );
+  verticalScaleLabel.scale.set(30, 4, 1);
+  verticalScaleLabel.position.set(0, 10, length / 2 + 8);
+  group.add(verticalScaleLabel);
 
   return group;
 }
 
 /**
  * Creates an interactive 3D Probe Pin beacon.
- * @param {number} lat - Latitude
- * @param {number} lon - Longitude
- * @param {boolean} [isBlockMode=false] - Whether in 3D Block mode vs Globe mode
- * @returns {THREE.Group}
+ * Spans from surface down to dataset base.
  */
-export function createProbePinMesh(lat, lon, isBlockMode = false) {
+export function createProbePinMesh(lat, lon, isBlockMode = false, customBounds = null) {
   const pinGroup = new THREE.Group();
   pinGroup.name = 'probe-pin-group';
 
   if (isBlockMode) {
-    const topPos = geoToBlock(lat, lon, 0);
+    const b = customBounds || currentActiveBounds || DEFAULT_BLOCK_BOUNDS;
+    const topPos = geoToBlock(lat, lon, b.depthMin, b);
     pinGroup.position.copy(topPos);
 
-    // Luminous vertical probe needle extending down to seabed
-    const needleGeo = new THREE.CylinderGeometry(0.15, 0.15, BLOCK_BOUNDS.height, 8);
+    // Luminous vertical probe needle extending down to actual dataset depth base
+    const needleGeo = new THREE.CylinderGeometry(0.2, 0.2, b.height, 8);
     const needleMat = new THREE.MeshBasicMaterial({
       color: 0x00f5d4,
       transparent: true,
       opacity: 0.85
     });
     const needleMesh = new THREE.Mesh(needleGeo, needleMat);
-    needleMesh.position.set(0, -BLOCK_BOUNDS.height / 2, 0);
+    needleMesh.position.set(0, -b.height / 2, 0);
     pinGroup.add(needleMesh);
 
     // Surface beacon head
@@ -388,20 +504,20 @@ export function createTransectCurtainMesh(transectData, { palette = 'thermal' } 
   const group = new THREE.Group();
   group.name = 'odv-transect-curtain';
 
-  const p1 = geoToBlock(transectData.lat1, transectData.lon1, 0);
-  const p2 = geoToBlock(transectData.lat2, transectData.lon2, 0);
+  const b = currentActiveBounds || DEFAULT_BLOCK_BOUNDS;
+  const p1 = geoToBlock(transectData.lat1, transectData.lon1, b.depthMin, b);
+  const p2 = geoToBlock(transectData.lat2, transectData.lon2, b.depthMin, b);
 
   const dx = p2.x - p1.x;
   const dz = p2.z - p1.z;
   const length = Math.sqrt(dx * dx + dz * dz);
   if (length < 1e-3) return null;
 
-  const height = BLOCK_BOUNDS.height;
+  const height = b.height;
   const geo = new THREE.PlaneGeometry(length, height, 50, 9);
 
-  // Generate canvas texture from the transect matrix resampled to physical depth [0m .. 4000m]
   const matrix = transectData.matrix;
-  const depths = transectData.depth_levels || [0, 10, 50, 100, 200, 500, 1000, 2000, 4000];
+  const depths = transectData.depth_levels || [0.49, 10, 20, 50, 92.33];
   const ndepths = matrix.length;
   const npts = matrix[0].length;
   const texHeight = 256;
@@ -416,11 +532,12 @@ export function createTransectCurtainMesh(transectData, { palette = 'thermal' } 
       const minV = transectData.min_val ?? 2.0;
       const maxV = transectData.max_val ?? 32.0;
       const range = Math.max(1e-4, maxV - minV);
+      const minD = depths[0] || 0;
+      const maxD = depths[depths.length - 1] || 100;
+      const dRange = Math.max(1e-4, maxD - minD);
 
-      // Resample along physical depth axis (0m at y=0 down to 4000m at y=texHeight-1)
       for (let y = 0; y < texHeight; y++) {
-        const targetDepth = (y / (texHeight - 1)) * 4000.0;
-        // Find bounding depth indices
+        const targetDepth = minD + (y / (texHeight - 1)) * dRange;
         let k0 = 0;
         let k1 = 1;
         for (let k = 0; k < ndepths - 1; k++) {
@@ -473,15 +590,11 @@ export function createTransectCurtainMesh(transectData, { palette = 'thermal' } 
       });
 
       const mesh = new THREE.Mesh(geo, mat);
-      // Position midpoint between p1 and p2 at y = -height / 2
       mesh.position.set((p1.x + p2.x) / 2, -height / 2, (p1.z + p2.z) / 2);
-      // Rotate plane to align along transect vector
       const angle = Math.atan2(dz, dx);
       mesh.rotation.y = -angle;
-
       group.add(mesh);
 
-      // Add top path line along surface
       const lineGeo = new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(p1.x, 0.2, p1.z),
         new THREE.Vector3(p2.x, 0.2, p2.z)

@@ -77,12 +77,14 @@ export default function ComparisonPanel({
       <div className="drawer-header flex justify-between items-center py-3 px-4 border-b border-slate-700/60 bg-slate-900/80 sticky top-0 z-20 backdrop-blur">
         <div>
           <span className="eyebrow text-[10px] text-cyan-400">
-            {probedPoint ? 'VIRTUAL CTD STATION' : activeTransect ? 'ODV TRANSECT' : selectedFloat ? 'SENSOR INSPECTION' : 'OCEAN DATA NAVIGATOR'}
+            {probedPoint
+              ? (probeData?.depths ? `MODEL WATER COLUMN (${probeData.depths[0].toFixed(2)}m–${probeData.depths[probeData.depths.length - 1].toFixed(2)}m)` : 'MODEL WATER COLUMN (0.49m–92.33m)')
+              : activeTransect ? 'ODV TRANSECT' : selectedFloat ? 'SENSOR INSPECTION' : 'OCEAN DATA NAVIGATOR'}
           </span>
           <div className="flex flex-wrap items-center gap-2">
             <h2 id="inspection-heading" className="text-base font-bold text-slate-100 m-0">
               {probedPoint
-                ? `Water Column (${probedPoint.lat.toFixed(2)}°N, ${probedPoint.lon.toFixed(2)}°E)`
+                ? `Model Water Column (${probedPoint.lat.toFixed(2)}°N, ${probedPoint.lon.toFixed(2)}°E)`
                 : activeTransect
                 ? `Vertical Cross-Section (${activeTransect.total_distance_km} km)`
                 : selectedFloat?.name || 'Inspection & Collocation'}
@@ -128,10 +130,10 @@ export default function ComparisonPanel({
                 <span>📍</span>
                 <span>Interactive Location Probe</span>
               </span>
-              <span className="text-[10px] font-mono text-slate-400">9-Depth Sounding</span>
+              <span className="text-[10px] font-mono text-slate-400">Vertical Sounding</span>
             </div>
             <p className="text-xs text-slate-300 m-0 leading-relaxed">
-              Click anywhere on the 3D Indian Ocean globe to probe vertical water columns (SST, Salinity, MLD, Thermocline D20, and Cyclone Heat Potential across 0–4000m).
+              Click anywhere on the 3D Indian Ocean domain to probe vertical water columns (SST, Salinity, MLD, Thermocline D20, and Cyclone Heat Potential across active depth levels: 0.49m–92.33m).
             </p>
             <div className="pt-1">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
@@ -156,11 +158,13 @@ export default function ComparisonPanel({
           </section>
         )}
 
-        {/* 1. Probed Point Virtual CTD Section */}
+        {/* 1. Probed Point Model Water Column Section */}
         {probedPoint && (
           <section className="probed-station-section bg-slate-900/60 border border-slate-700/70 rounded-xl p-3.5 space-y-3.5">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-semibold text-cyan-300">Virtual CTD Probe Sounding</span>
+              <span className="text-xs font-semibold text-cyan-300">
+                Model Water Column ({probeData?.depths ? `${probeData.depths[0].toFixed(2)}m–${probeData.depths[probeData.depths.length - 1].toFixed(2)}m` : '0.49m–92.33m'})
+              </span>
               {isOutOfBounds ? (
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-950/60 border border-amber-500/40 text-amber-300 font-bold">
                   ⚠️ Outside Basin Bounds
@@ -269,22 +273,35 @@ export default function ComparisonPanel({
                       <line x1="40" y1="100" x2="460" y2="100" stroke="#334155" strokeDasharray="3 3" />
                       <line x1="40" y1="150" x2="460" y2="150" stroke="#334155" strokeDasharray="3 3" />
 
-                      {/* Depth Axis Labels (positive down) */}
-                      <text x="35" y="24" fill="#94a3b8" fontSize="9" textAnchor="end">0m</text>
-                      <text x="35" y="64" fill="#94a3b8" fontSize="9" textAnchor="end">500m</text>
-                      <text x="35" y="104" fill="#94a3b8" fontSize="9" textAnchor="end">2000m</text>
-                      <text x="35" y="154" fill="#94a3b8" fontSize="9" textAnchor="end">4000m</text>
+                      {/* Dynamic Depth Axis Labels based on actual dataset depth */}
+                      {(() => {
+                        const depths = probeData.depths || [];
+                        const maxDepth = depths.length > 0 ? depths[depths.length - 1] : 92.33;
+                        const isShallow = maxDepth <= 150;
+                        const tick1 = isShallow ? (maxDepth * 0.33).toFixed(1) + 'm' : '500m';
+                        const tick2 = isShallow ? (maxDepth * 0.66).toFixed(1) + 'm' : '2000m';
+                        const tick3 = maxDepth.toFixed(1) + 'm';
+                        return (
+                          <>
+                            <text x="35" y="24" fill="#94a3b8" fontSize="9" textAnchor="end">0m</text>
+                            <text x="35" y="64" fill="#94a3b8" fontSize="9" textAnchor="end">{tick1}</text>
+                            <text x="35" y="104" fill="#94a3b8" fontSize="9" textAnchor="end">{tick2}</text>
+                            <text x="35" y="154" fill="#94a3b8" fontSize="9" textAnchor="end">{tick3}</text>
+                          </>
+                        );
+                      })()}
 
                       {/* Temperature Profile Line (Orange/Coral) */}
                       {(() => {
                         const depths = probeData.depths || [];
                         const temps = probeData.temperature || [];
+                        const maxDepth = Math.max(1, depths.length > 0 ? depths[depths.length - 1] : 92.33);
                         const points = depths.map((d, i) => {
                           const t = temps[i] ?? 0;
                           // x: temperature map [0°C to 32°C] -> [50, 450]
                           const x = 50 + ((t - 0) / 32) * 400;
-                          // y: depth non-linear scale -> [20 to 150]
-                          const y = 20 + Math.sqrt(d / 4000) * 130;
+                          // y: depth linear scale relative to actual maxDepth -> [20 to 150]
+                          const y = 20 + (d / maxDepth) * 130;
                           return `${x.toFixed(1)},${y.toFixed(1)}`;
                         }).join(' ');
 
@@ -294,7 +311,7 @@ export default function ComparisonPanel({
                             {depths.map((d, i) => {
                               const t = temps[i] ?? 0;
                               const x = 50 + ((t - 0) / 32) * 400;
-                              const y = 20 + Math.sqrt(d / 4000) * 130;
+                              const y = 20 + (d / maxDepth) * 130;
                               return (
                                 <circle key={d} cx={x} cy={y} r="3" fill="#f59e0b" stroke="#0f172a" strokeWidth="1">
                                   <title>{`${d}m: ${t}°C`}</title>
@@ -311,7 +328,9 @@ export default function ComparisonPanel({
                       <span className="w-2.5 h-2.5 bg-amber-500 rounded-full inline-block" />
                       <span>Temperature (°C)</span>
                     </span>
-                    <span>Depth: 0m to 4000m (Non-linear Pycnocline)</span>
+                    <span>
+                      Depth: 0m to {probeData.depths?.length ? probeData.depths[probeData.depths.length - 1].toFixed(1) : '92.3'}m
+                    </span>
                   </div>
                 </div>
 

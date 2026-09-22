@@ -3,7 +3,7 @@ import React from 'react';
 /**
  * Parses inline markdown elements: **bold**, *italic*, and `code`.
  */
-function parseInline(text, onActionClick) {
+function parseInline(text, _onActionClick) {
   if (!text) return null;
 
   // Split by inline code first

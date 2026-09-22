@@ -49,7 +49,7 @@ export default function SidebarControls({
   totalTimeSteps = getTotalForecastSteps(),
   currentTimeTimestamp = null,
   availableDepths = [],
-  availableTimes = [],
+  _availableTimes = [],
   availableVariables = [],
   isBuffering = false,
   showCurrents = false,

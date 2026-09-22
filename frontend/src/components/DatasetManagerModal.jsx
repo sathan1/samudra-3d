@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   fetchDatasets,
   selectActiveDataset,
@@ -6,15 +6,13 @@ import {
   registerCustomDataset,
   generateSubsetCommand,
   fetchDatasetManifests,
-  startDatasetDownload,
-  fetchDownloadStatus,
-  cancelDatasetDownload
+  startDatasetDownload
 } from '../services/api';
 
-export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched, currentActiveDatasetId }) {
+export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched, currentActiveDatasetId: _currentActiveDatasetId }) {
   const [activeTab, setActiveTab] = useState('catalog'); // 'catalog' | 'downloader' | 'manifests' | 'estimator' | 'custom'
   const [datasets, setDatasets] = useState([]);
-  const [activeId, setActiveId] = useState(currentActiveDatasetId || '');
+  const [activeId, setActiveId] = useState(_currentActiveDatasetId || '');
   const [loading, setLoading] = useState(false);
   const [switchingId, setSwitchingId] = useState(null);
   const [error, setError] = useState(null);
@@ -38,7 +36,7 @@ export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched
   const [generatingCmd, setGeneratingCmd] = useState(false);
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [copiedHash, setCopiedHash] = useState(null);
-  const [activeDownloadJob, setActiveDownloadJob] = useState(null);
+  const [_activeDownloadJob, setActiveDownloadJob] = useState(null);
 
   // Manifests state
   const [manifests, setManifests] = useState([]);
@@ -71,15 +69,7 @@ export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched
   });
   const [customRegistering, setCustomRegistering] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadDatasets();
-      loadManifests();
-      handleGenerateCommand();
-    }
-  }, [isOpen]);
-
-  const loadDatasets = async () => {
+  const loadDatasets = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -93,9 +83,9 @@ export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadManifests = async () => {
+  const loadManifests = useCallback(async () => {
     setLoadingManifests(true);
     try {
       const data = await fetchDatasetManifests();
@@ -105,7 +95,29 @@ export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched
     } finally {
       setLoadingManifests(false);
     }
-  };
+  }, []);
+
+  const handleGenerateCommand = useCallback(async (e) => {
+    if (e) e.preventDefault();
+    setGeneratingCmd(true);
+    setError(null);
+    try {
+      const res = await generateSubsetCommand(subsetParams);
+      setCmdResponse(res);
+    } catch (err) {
+      setError(err.message || 'Failed to generate subset command');
+    } finally {
+      setGeneratingCmd(false);
+    }
+  }, [subsetParams]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadDatasets();
+      loadManifests();
+      handleGenerateCommand();
+    }
+  }, [isOpen, loadDatasets, loadManifests, handleGenerateCommand]);
 
   const handleSelectDataset = async (datasetId) => {
     setSwitchingId(datasetId);
@@ -123,20 +135,6 @@ export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched
       setError(err.message || 'Failed to switch dataset');
     } finally {
       setSwitchingId(null);
-    }
-  };
-
-  const handleGenerateCommand = async (e) => {
-    if (e) e.preventDefault();
-    setGeneratingCmd(true);
-    setError(null);
-    try {
-      const res = await generateSubsetCommand(subsetParams);
-      setCmdResponse(res);
-    } catch (err) {
-      setError(err.message || 'Failed to generate subset command');
-    } finally {
-      setGeneratingCmd(false);
     }
   };
 

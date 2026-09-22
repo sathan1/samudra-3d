@@ -239,6 +239,78 @@ export async function fetchOceanRegion({
 }
 
 /**
+ * Retrieves 3D spatial volume data for volumetric ocean block visualization.
+ * Returns downsampled 3D grid coordinates, scalar values (and current components),
+ * metadata, and real dataset provenance.
+ */
+export async function fetchOceanVolume({
+  dataset_id = null,
+  variable = 'temperature',
+  time_idx = 0,
+  center_lat = null,
+  center_lon = null,
+  radius_km = null,
+  min_lon = null,
+  max_lon = null,
+  min_lat = null,
+  max_lat = null,
+  depth_min = null,
+  depth_max = null,
+  min_depth = null,
+  max_depth = null,
+  max_lon_samples = 48,
+  max_lat_samples = 48,
+  max_depth_samples = 24,
+  signal = null,
+  useCache = true
+} = {}) {
+  const params = new URLSearchParams();
+  if (dataset_id) params.set('dataset_id', dataset_id);
+  params.set('variable', variable);
+  params.set('time_idx', String(time_idx));
+  if (center_lat !== null && center_lat !== undefined) params.set('center_lat', String(center_lat));
+  if (center_lon !== null && center_lon !== undefined) params.set('center_lon', String(center_lon));
+  if (radius_km !== null && radius_km !== undefined) params.set('radius_km', String(radius_km));
+  if (min_lon !== null && min_lon !== undefined) params.set('min_lon', String(min_lon));
+  if (max_lon !== null && max_lon !== undefined) params.set('max_lon', String(max_lon));
+  if (min_lat !== null && min_lat !== undefined) params.set('min_lat', String(min_lat));
+  if (max_lat !== null && max_lat !== undefined) params.set('max_lat', String(max_lat));
+  
+  const effDepthMin = depth_min !== null && depth_min !== undefined ? depth_min : min_depth;
+  const effDepthMax = depth_max !== null && depth_max !== undefined ? depth_max : max_depth;
+  if (effDepthMin !== null && effDepthMin !== undefined) params.set('depth_min', String(effDepthMin));
+  if (effDepthMax !== null && effDepthMax !== undefined) params.set('depth_max', String(effDepthMax));
+  
+  params.set('max_lon_samples', String(max_lon_samples));
+  params.set('max_lat_samples', String(max_lat_samples));
+  params.set('max_depth_samples', String(max_depth_samples));
+
+  const cacheKey = useCache
+    ? makeCacheKey({
+        ep: 'volume',
+        dataset_id,
+        variable,
+        time_idx,
+        center_lat,
+        center_lon,
+        radius_km,
+        min_lon,
+        max_lon,
+        min_lat,
+        max_lat,
+        depth_min: effDepthMin,
+        depth_max: effDepthMax,
+        max_lon_samples,
+        max_lat_samples,
+        max_depth_samples
+      })
+    : null;
+
+  return requestJson(`${API_BASE}/ocean/volume?${params.toString()}`, { signal, cacheKey });
+}
+
+
+/**
  * Evaluates vertical water column CTD profile, derived metrics (MLD, D20, D26, TCHP),
  * and nearest in-situ observation collocation for a probed coordinate.
  */

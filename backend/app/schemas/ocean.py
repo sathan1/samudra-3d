@@ -201,3 +201,62 @@ class RegionResponse(BaseModel):
     source_mode: Optional[str] = None
     dataset_id: Optional[str] = None
     cached: Optional[bool] = False
+
+
+class VolumeDatasetMeta(BaseModel):
+    id: str
+    name: str
+    provider: str
+    source_mode: str
+
+
+class VolumeVariableMeta(BaseModel):
+    name: str
+    raw_name: str
+    units: str
+
+
+class VolumeBoundsMeta(BaseModel):
+    min_lon: float
+    max_lon: float
+    min_lat: float
+    max_lat: float
+    min_depth: float
+    max_depth: float
+
+
+class VolumeCoordinates(BaseModel):
+    longitude: List[float]
+    latitude: List[float]
+    depth: List[float]
+
+
+class VolumeResolution(BaseModel):
+    horizontal_km: float
+    vertical_levels: int
+
+
+class VolumeProvenance(BaseModel):
+    provider: str
+    dataset_id: str
+    source_mode: str
+
+
+class OceanVolumeResponse(BaseModel):
+    dataset: VolumeDatasetMeta
+    variable: VolumeVariableMeta
+    bounds: VolumeBoundsMeta
+    coordinates: VolumeCoordinates
+    values: List[List[List[Optional[float]]]]
+    shape: List[int]
+    native_shape: List[int]
+    render_shape: List[int]
+    min_value: Optional[float] = None
+    max_value: Optional[float] = None
+    resolution: VolumeResolution
+    timestamp: str
+    provenance: VolumeProvenance
+    u_values: Optional[List[List[List[Optional[float]]]]] = None
+    v_values: Optional[List[List[List[Optional[float]]]]] = None
+    cached: Optional[bool] = False
+

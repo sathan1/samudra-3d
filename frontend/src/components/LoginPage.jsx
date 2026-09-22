@@ -38,7 +38,7 @@ export default function LoginPage({ onLoginSuccess, onNavigate }) {
     }
   };
 
-  const handleContinueAsGuest = () => {
+  const _handleContinueAsGuest = () => {
     if (onNavigate) {
       onNavigate('/app');
     } else if (typeof window !== 'undefined') {

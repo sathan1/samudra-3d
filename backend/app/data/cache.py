@@ -30,6 +30,25 @@ class SliceCacheManager:
         raw = f"{dataset_id}:{variable}:{time_idx}:{depth:.2f}:{lat_min}:{lat_max}:{lon_min}:{lon_max}:{version}"
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
+    def make_volume_key(
+        self,
+        dataset_id: str,
+        variable: str,
+        time_idx: int,
+        min_lon: Optional[float] = None,
+        max_lon: Optional[float] = None,
+        min_lat: Optional[float] = None,
+        max_lat: Optional[float] = None,
+        depth_min: Optional[float] = None,
+        depth_max: Optional[float] = None,
+        max_lat_samples: int = 48,
+        max_lon_samples: int = 48,
+        max_depth_samples: int = 24,
+        version: str = "v2"
+    ) -> str:
+        raw = f"vol:{dataset_id}:{variable}:{time_idx}:{min_lon}:{max_lon}:{min_lat}:{max_lat}:{depth_min}:{depth_max}:{max_lat_samples}:{max_lon_samples}:{max_depth_samples}:{version}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
     def get(self, key: str) -> Optional[Any]:
         # Check memory cache
         if key in self._memory_cache:

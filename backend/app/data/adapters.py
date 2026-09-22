@@ -26,7 +26,14 @@ from backend.app.schemas.ocean import (
     LocationAvailabilityResponse,
     PointValueResponse,
     ProfileResponse,
-    RegionResponse
+    RegionResponse,
+    OceanVolumeResponse,
+    VolumeDatasetMeta,
+    VolumeVariableMeta,
+    VolumeBoundsMeta,
+    VolumeCoordinates,
+    VolumeResolution,
+    VolumeProvenance
 )
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -306,6 +313,27 @@ class BaseOceanAdapter(ABC):
         time_idx: int = 0
     ) -> Any:
         """Returns a bounded 3D region subset for local visualization."""
+        pass
+
+    @abstractmethod
+    def get_volume_data(
+        self,
+        variable: str = "temperature",
+        time_idx: int = 0,
+        center_lat: Optional[float] = None,
+        center_lon: Optional[float] = None,
+        radius_km: Optional[float] = None,
+        min_lon: Optional[float] = None,
+        max_lon: Optional[float] = None,
+        min_lat: Optional[float] = None,
+        max_lat: Optional[float] = None,
+        depth_min: Optional[float] = None,
+        depth_max: Optional[float] = None,
+        max_lat_samples: int = 48,
+        max_lon_samples: int = 48,
+        max_depth_samples: int = 24,
+    ) -> OceanVolumeResponse:
+        """Returns a 3D sampled spatial volume block for volumetric rendering."""
         pass
 
 
@@ -875,6 +903,229 @@ class SyntheticRomsAdapter(BaseOceanAdapter):
             source_mode=SourceMode.SYNTHETIC,
             dataset_id="incois_roms_synthetic"
         )
+
+    def get_volume_data(
+        self,
+        variable: str = "temperature",
+        time_idx: int = 0,
+        center_lat: Optional[float] = None,
+        center_lon: Optional[float] = None,
+        radius_km: Optional[float] = None,
+        min_lon: Optional[float] = None,
+        max_lon: Optional[float] = None,
+        min_lat: Optional[float] = None,
+        max_lat: Optional[float] = None,
+        depth_min: Optional[float] = None,
+        depth_max: Optional[float] = None,
+        max_lat_samples: int = 48,
+        max_lon_samples: int = 48,
+        max_depth_samples: int = 24,
+    ) -> OceanVolumeResponse:
+        if not self.is_loaded():
+            self.load_dataset()
+
+        assert self.dataset is not None
+
+        # Convert center_lat, center_lon, radius_km to bounds if provided
+        if center_lat is not None and center_lon is not None and radius_km is not None:
+            lat_span = radius_km / 111.0
+            lon_span = radius_km / (111.0 * max(0.01, abs(math.cos(math.radians(center_lat)))))
+            min_lat = max(float(self.lats[0]), center_lat - lat_span)
+            max_lat = min(float(self.lats[-1]), center_lat + lat_span)
+            min_lon = max(float(self.lons[0]), center_lon - lon_span)
+            max_lon = min(float(self.lons[-1]), center_lon + lon_span)
+
+        cache_key = slice_cache.make_volume_key(
+            dataset_id="incois_roms_synthetic",
+            variable=variable,
+            time_idx=time_idx,
+            min_lon=min_lon,
+            max_lon=max_lon,
+            min_lat=min_lat,
+            max_lat=max_lat,
+            depth_min=depth_min,
+            depth_max=depth_max,
+            max_lat_samples=max_lat_samples,
+            max_lon_samples=max_lon_samples,
+            max_depth_samples=max_depth_samples,
+        )
+        cached_res = slice_cache.get(cache_key)
+        if cached_res:
+            res = OceanVolumeResponse(**cached_res)
+            res.cached = True
+            return res
+
+        eff_min_lon = max(float(self.lons[0]), min_lon) if min_lon is not None else float(self.lons[0])
+        eff_max_lon = min(float(self.lons[-1]), max_lon) if max_lon is not None else float(self.lons[-1])
+        eff_min_lat = max(float(self.lats[0]), min_lat) if min_lat is not None else float(self.lats[0])
+        eff_max_lat = min(float(self.lats[-1]), max_lat) if max_lat is not None else float(self.lats[-1])
+        eff_min_depth = max(float(self.depths[0]), depth_min) if depth_min is not None else float(self.depths[0])
+        eff_max_depth = min(float(self.depths[-1]), depth_max) if depth_max is not None else float(self.depths[-1])
+
+        i_min = max(0, min(len(self.lons) - 1, int(np.searchsorted(self.lons, eff_min_lon, side='left'))))
+        i_max = max(0, min(len(self.lons) - 1, int(np.searchsorted(self.lons, eff_max_lon, side='right')) - 1))
+        if i_min > i_max:
+            i_min, i_max = i_max, i_min
+
+        j_min = max(0, min(len(self.lats) - 1, int(np.searchsorted(self.lats, eff_min_lat, side='left'))))
+        j_max = max(0, min(len(self.lats) - 1, int(np.searchsorted(self.lats, eff_max_lat, side='right')) - 1))
+        if j_min > j_max:
+            j_min, j_max = j_max, j_min
+
+        k_min = max(0, min(len(self.depths) - 1, int(np.searchsorted(self.depths, eff_min_depth, side='left'))))
+        k_max = max(0, min(len(self.depths) - 1, int(np.searchsorted(self.depths, eff_max_depth, side='right')) - 1))
+        if k_min > k_max:
+            k_min, k_max = k_max, k_min
+
+        n_lon = i_max - i_min + 1
+        n_lat = j_max - j_min + 1
+        n_depth = k_max - k_min + 1
+
+        stride_x = max(1, math.ceil(n_lon / max_lon_samples))
+        stride_y = max(1, math.ceil(n_lat / max_lat_samples))
+        stride_z = max(1, math.ceil(n_depth / max_depth_samples))
+
+        sub_lons = [round(float(x), 4) for x in self.lons[i_min:i_max + 1:stride_x]]
+        sub_lats = [round(float(y), 4) for y in self.lats[j_min:j_max + 1:stride_y]]
+        sub_depths = [round(float(z), 2) for z in self.depths[k_min:k_max + 1:stride_z]]
+
+        time_idx = max(0, min(len(self.times) - 1, time_idx))
+        timestamp = self.time_timestamps[time_idx] if self.time_timestamps else ""
+
+        u_3d = None
+        v_3d = None
+        if variable == "currents":
+            u_raw = self.dataset.variables["u_current"][time_idx, k_min:k_max + 1:stride_z, j_min:j_max + 1:stride_y, i_min:i_max + 1:stride_x]
+            v_raw = self.dataset.variables["v_current"][time_idx, k_min:k_max + 1:stride_z, j_min:j_max + 1:stride_y, i_min:i_max + 1:stride_x]
+            u_sq = np.where(np.ma.getmaskarray(u_raw) | np.isnan(u_raw), 0.0, np.asarray(u_raw)**2)
+            v_sq = np.where(np.ma.getmaskarray(v_raw) | np.isnan(v_raw), 0.0, np.asarray(v_raw)**2)
+            raw_3d = np.sqrt(np.maximum(0.0, u_sq + v_sq))
+            u_3d = u_raw
+            v_3d = v_raw
+            units = "m/s"
+            raw_name = "u_current,v_current"
+        elif variable == "u_current":
+            raw_3d = self.dataset.variables["u_current"][time_idx, k_min:k_max + 1:stride_z, j_min:j_max + 1:stride_y, i_min:i_max + 1:stride_x]
+            u_3d = raw_3d
+            units = "m/s"
+            raw_name = "u_current"
+        elif variable == "v_current":
+            raw_3d = self.dataset.variables["v_current"][time_idx, k_min:k_max + 1:stride_z, j_min:j_max + 1:stride_y, i_min:i_max + 1:stride_x]
+            v_3d = raw_3d
+            units = "m/s"
+            raw_name = "v_current"
+        elif variable == "salinity":
+            raw_3d = self.dataset.variables["salinity"][time_idx, k_min:k_max + 1:stride_z, j_min:j_max + 1:stride_y, i_min:i_max + 1:stride_x]
+            units = "PSU"
+            raw_name = "salinity"
+        else:
+            variable = "temperature"
+            raw_3d = self.dataset.variables["temperature"][time_idx, k_min:k_max + 1:stride_z, j_min:j_max + 1:stride_y, i_min:i_max + 1:stride_x]
+            units = "degC"
+            raw_name = "temperature"
+
+        raw_np = np.asarray(raw_3d)
+        mask_np = np.ma.getmaskarray(raw_3d) if np.ma.is_masked(raw_3d) else np.zeros(raw_np.shape, dtype=bool)
+        nan_mask = np.isnan(raw_np) | (raw_np < -1e9) | (raw_np > 1e9) | mask_np
+
+        values_3d: List[List[List[Optional[float]]]] = []
+        valid_vals: List[float] = []
+
+        nz, ny, nx = raw_np.shape
+        for k in range(nz):
+            plane = []
+            for j in range(ny):
+                row = []
+                for i in range(nx):
+                    if nan_mask[k, j, i]:
+                        row.append(None)
+                    else:
+                        val = round(float(raw_np[k, j, i]), 2 if variable != "currents" else 3)
+                        row.append(val)
+                        valid_vals.append(val)
+                plane.append(row)
+            values_3d.append(plane)
+
+        u_values_3d = None
+        v_values_3d = None
+        if u_3d is not None:
+            u_values_3d = []
+            u_np = np.asarray(u_3d)
+            u_mask = np.ma.getmaskarray(u_3d) if np.ma.is_masked(u_3d) else np.zeros(u_np.shape, dtype=bool)
+            for k in range(nz):
+                plane = []
+                for j in range(ny):
+                    row = []
+                    for i in range(nx):
+                        if u_mask[k, j, i] or np.isnan(u_np[k, j, i]):
+                            row.append(None)
+                        else:
+                            row.append(round(float(u_np[k, j, i]), 3))
+                    plane.append(row)
+                u_values_3d.append(plane)
+        if v_3d is not None:
+            v_values_3d = []
+            v_np = np.asarray(v_3d)
+            v_mask = np.ma.getmaskarray(v_3d) if np.ma.is_masked(v_3d) else np.zeros(v_np.shape, dtype=bool)
+            for k in range(nz):
+                plane = []
+                for j in range(ny):
+                    row = []
+                    for i in range(nx):
+                        if v_mask[k, j, i] or np.isnan(v_np[k, j, i]):
+                            row.append(None)
+                        else:
+                            row.append(round(float(v_np[k, j, i]), 3))
+                    plane.append(row)
+                v_values_3d.append(plane)
+
+        response = OceanVolumeResponse(
+            dataset=VolumeDatasetMeta(
+                id="incois_roms_synthetic",
+                name="ROMS 3.9 Indian Ocean Simulation",
+                provider="Ministry of Earth Sciences / INCOIS",
+                source_mode=SourceMode.SYNTHETIC.value,
+            ),
+            variable=VolumeVariableMeta(
+                name=variable,
+                raw_name=raw_name,
+                units=units
+            ),
+            bounds=VolumeBoundsMeta(
+                min_lon=sub_lons[0] if sub_lons else 0.0,
+                max_lon=sub_lons[-1] if sub_lons else 0.0,
+                min_lat=sub_lats[0] if sub_lats else 0.0,
+                max_lat=sub_lats[-1] if sub_lats else 0.0,
+                min_depth=sub_depths[0] if sub_depths else 0.0,
+                max_depth=sub_depths[-1] if sub_depths else 0.0
+            ),
+            coordinates=VolumeCoordinates(
+                longitude=sub_lons,
+                latitude=sub_lats,
+                depth=sub_depths
+            ),
+            values=values_3d,
+            shape=[nz, ny, nx],
+            native_shape=[len(self.depths), len(self.lats), len(self.lons)],
+            render_shape=[nz, ny, nx],
+            min_value=min(valid_vals) if valid_vals else None,
+            max_value=max(valid_vals) if valid_vals else None,
+            resolution=VolumeResolution(
+                horizontal_km=round(55.0 * stride_x, 2),
+                vertical_levels=nz
+            ),
+            timestamp=timestamp,
+            provenance=VolumeProvenance(
+                provider="Ministry of Earth Sciences / INCOIS",
+                dataset_id="incois_roms_synthetic",
+                source_mode=SourceMode.SYNTHETIC.value
+            ),
+            u_values=u_values_3d,
+            v_values=v_values_3d,
+            cached=False
+        )
+        slice_cache.set(cache_key, response.model_dump(), write_disk=False)
+        return response
 
 
 class GlorysLocalAdapter(BaseOceanAdapter):
@@ -1526,5 +1777,228 @@ class GlorysLocalAdapter(BaseOceanAdapter):
             source_mode=SourceMode.REAL_LOCAL,
             dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m"
         )
+
+    def get_volume_data(
+        self,
+        variable: str = "temperature",
+        time_idx: int = 0,
+        center_lat: Optional[float] = None,
+        center_lon: Optional[float] = None,
+        radius_km: Optional[float] = None,
+        min_lon: Optional[float] = None,
+        max_lon: Optional[float] = None,
+        min_lat: Optional[float] = None,
+        max_lat: Optional[float] = None,
+        depth_min: Optional[float] = None,
+        depth_max: Optional[float] = None,
+        max_lat_samples: int = 48,
+        max_lon_samples: int = 48,
+        max_depth_samples: int = 24,
+    ) -> OceanVolumeResponse:
+        if not self.is_loaded():
+            self.load_dataset()
+
+        assert self.dataset is not None
+
+        # Convert center_lat, center_lon, radius_km to bounds if provided
+        if center_lat is not None and center_lon is not None and radius_km is not None:
+            lat_span = radius_km / 111.0
+            lon_span = radius_km / (111.0 * max(0.01, abs(math.cos(math.radians(center_lat)))))
+            min_lat = max(float(self.lats[0]), center_lat - lat_span)
+            max_lat = min(float(self.lats[-1]), center_lat + lat_span)
+            min_lon = max(float(self.lons[0]), center_lon - lon_span)
+            max_lon = min(float(self.lons[-1]), center_lon + lon_span)
+
+        cache_key = slice_cache.make_volume_key(
+            dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m",
+            variable=variable,
+            time_idx=time_idx,
+            min_lon=min_lon,
+            max_lon=max_lon,
+            min_lat=min_lat,
+            max_lat=max_lat,
+            depth_min=depth_min,
+            depth_max=depth_max,
+            max_lat_samples=max_lat_samples,
+            max_lon_samples=max_lon_samples,
+            max_depth_samples=max_depth_samples,
+        )
+        cached_res = slice_cache.get(cache_key)
+        if cached_res:
+            res = OceanVolumeResponse(**cached_res)
+            res.cached = True
+            return res
+
+        eff_min_lon = max(float(self.lons[0]), min_lon) if min_lon is not None else float(self.lons[0])
+        eff_max_lon = min(float(self.lons[-1]), max_lon) if max_lon is not None else float(self.lons[-1])
+        eff_min_lat = max(float(self.lats[0]), min_lat) if min_lat is not None else float(self.lats[0])
+        eff_max_lat = min(float(self.lats[-1]), max_lat) if max_lat is not None else float(self.lats[-1])
+        eff_min_depth = max(float(self.depths[0]), depth_min) if depth_min is not None else float(self.depths[0])
+        eff_max_depth = min(float(self.depths[-1]), depth_max) if depth_max is not None else float(self.depths[-1])
+
+        i_min = max(0, min(len(self.lons) - 1, int(np.searchsorted(self.lons, eff_min_lon, side='left'))))
+        i_max = max(0, min(len(self.lons) - 1, int(np.searchsorted(self.lons, eff_max_lon, side='right')) - 1))
+        if i_min > i_max:
+            i_min, i_max = i_max, i_min
+
+        j_min = max(0, min(len(self.lats) - 1, int(np.searchsorted(self.lats, eff_min_lat, side='left'))))
+        j_max = max(0, min(len(self.lats) - 1, int(np.searchsorted(self.lats, eff_max_lat, side='right')) - 1))
+        if j_min > j_max:
+            j_min, j_max = j_max, j_min
+
+        k_min = max(0, min(len(self.depths) - 1, int(np.searchsorted(self.depths, eff_min_depth, side='left'))))
+        k_max = max(0, min(len(self.depths) - 1, int(np.searchsorted(self.depths, eff_max_depth, side='right')) - 1))
+        if k_min > k_max:
+            k_min, k_max = k_max, k_min
+
+        n_lon = i_max - i_min + 1
+        n_lat = j_max - j_min + 1
+        n_depth = k_max - k_min + 1
+
+        stride_x = max(1, math.ceil(n_lon / max_lon_samples))
+        stride_y = max(1, math.ceil(n_lat / max_lat_samples))
+        stride_z = max(1, math.ceil(n_depth / max_depth_samples))
+
+        sub_lons = [round(float(x), 4) for x in self.lons[i_min:i_max + 1:stride_x]]
+        sub_lats = [round(float(y), 4) for y in self.lats[j_min:j_max + 1:stride_y]]
+        sub_depths = [round(float(z), 2) for z in self.depths[k_min:k_max + 1:stride_z]]
+
+        time_idx = max(0, min(len(self.times) - 1, time_idx))
+        timestamp = self.time_timestamps[time_idx] if self.time_timestamps else ""
+
+        u_3d = None
+        v_3d = None
+        if variable == "currents":
+            u_raw = self.dataset.variables["uo"][time_idx, k_min:k_max + 1:stride_z, j_min:j_max + 1:stride_y, i_min:i_max + 1:stride_x]
+            v_raw = self.dataset.variables["vo"][time_idx, k_min:k_max + 1:stride_z, j_min:j_max + 1:stride_y, i_min:i_max + 1:stride_x]
+            u_sq = np.where(np.ma.getmaskarray(u_raw) | np.isnan(u_raw), 0.0, np.asarray(u_raw)**2)
+            v_sq = np.where(np.ma.getmaskarray(v_raw) | np.isnan(v_raw), 0.0, np.asarray(v_raw)**2)
+            raw_3d = np.sqrt(np.maximum(0.0, u_sq + v_sq))
+            u_3d = u_raw
+            v_3d = v_raw
+            units = "m/s"
+            raw_name = "uo,vo"
+        elif variable == "u_current":
+            raw_3d = self.dataset.variables["uo"][time_idx, k_min:k_max + 1:stride_z, j_min:j_max + 1:stride_y, i_min:i_max + 1:stride_x]
+            u_3d = raw_3d
+            units = "m/s"
+            raw_name = "uo"
+        elif variable == "v_current":
+            raw_3d = self.dataset.variables["vo"][time_idx, k_min:k_max + 1:stride_z, j_min:j_max + 1:stride_y, i_min:i_max + 1:stride_x]
+            v_3d = raw_3d
+            units = "m/s"
+            raw_name = "vo"
+        elif variable == "salinity":
+            raw_3d = self.dataset.variables["so"][time_idx, k_min:k_max + 1:stride_z, j_min:j_max + 1:stride_y, i_min:i_max + 1:stride_x]
+            units = "PSU"
+            raw_name = "so"
+        else:
+            variable = "temperature"
+            raw_3d = self.dataset.variables["thetao"][time_idx, k_min:k_max + 1:stride_z, j_min:j_max + 1:stride_y, i_min:i_max + 1:stride_x]
+            units = "degC"
+            raw_name = "thetao"
+
+        raw_np = np.asarray(raw_3d)
+        mask_np = np.ma.getmaskarray(raw_3d) if np.ma.is_masked(raw_3d) else np.zeros(raw_np.shape, dtype=bool)
+        nan_mask = np.isnan(raw_np) | (raw_np < -1e9) | (raw_np > 1e9) | mask_np
+
+        values_3d: List[List[List[Optional[float]]]] = []
+        valid_vals: List[float] = []
+
+        nz, ny, nx = raw_np.shape
+        for k in range(nz):
+            plane = []
+            for j in range(ny):
+                row = []
+                for i in range(nx):
+                    if nan_mask[k, j, i]:
+                        row.append(None)
+                    else:
+                        val = round(float(raw_np[k, j, i]), 2 if variable != "currents" else 3)
+                        row.append(val)
+                        valid_vals.append(val)
+                plane.append(row)
+            values_3d.append(plane)
+
+        u_values_3d = None
+        v_values_3d = None
+        if u_3d is not None:
+            u_values_3d = []
+            u_np = np.asarray(u_3d)
+            u_mask = np.ma.getmaskarray(u_3d) if np.ma.is_masked(u_3d) else np.zeros(u_np.shape, dtype=bool)
+            for k in range(nz):
+                plane = []
+                for j in range(ny):
+                    row = []
+                    for i in range(nx):
+                        if u_mask[k, j, i] or np.isnan(u_np[k, j, i]):
+                            row.append(None)
+                        else:
+                            row.append(round(float(u_np[k, j, i]), 3))
+                    plane.append(row)
+                u_values_3d.append(plane)
+        if v_3d is not None:
+            v_values_3d = []
+            v_np = np.asarray(v_3d)
+            v_mask = np.ma.getmaskarray(v_3d) if np.ma.is_masked(v_3d) else np.zeros(v_np.shape, dtype=bool)
+            for k in range(nz):
+                plane = []
+                for j in range(ny):
+                    row = []
+                    for i in range(nx):
+                        if v_mask[k, j, i] or np.isnan(v_np[k, j, i]):
+                            row.append(None)
+                        else:
+                            row.append(round(float(v_np[k, j, i]), 3))
+                    plane.append(row)
+                v_values_3d.append(plane)
+
+        response = OceanVolumeResponse(
+            dataset=VolumeDatasetMeta(
+                id="cmems_mod_glo_phy_my_0.083deg_P1D-m",
+                name="Copernicus GLORYS12V1 Global Physics Reanalysis",
+                provider="Copernicus Marine Service / Mercator Ocean",
+                source_mode=SourceMode.REAL_LOCAL.value,
+            ),
+            variable=VolumeVariableMeta(
+                name=variable,
+                raw_name=raw_name,
+                units=units
+            ),
+            bounds=VolumeBoundsMeta(
+                min_lon=sub_lons[0] if sub_lons else 0.0,
+                max_lon=sub_lons[-1] if sub_lons else 0.0,
+                min_lat=sub_lats[0] if sub_lats else 0.0,
+                max_lat=sub_lats[-1] if sub_lats else 0.0,
+                min_depth=sub_depths[0] if sub_depths else 0.0,
+                max_depth=sub_depths[-1] if sub_depths else 0.0
+            ),
+            coordinates=VolumeCoordinates(
+                longitude=sub_lons,
+                latitude=sub_lats,
+                depth=sub_depths
+            ),
+            values=values_3d,
+            shape=[nz, ny, nx],
+            native_shape=[len(self.depths), len(self.lats), len(self.lons)],
+            render_shape=[nz, ny, nx],
+            min_value=min(valid_vals) if valid_vals else None,
+            max_value=max(valid_vals) if valid_vals else None,
+            resolution=VolumeResolution(
+                horizontal_km=round(8.33 * stride_x, 2),
+                vertical_levels=nz
+            ),
+            timestamp=timestamp,
+            provenance=VolumeProvenance(
+                provider="Copernicus Marine Service / Mercator Ocean",
+                dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m",
+                source_mode=SourceMode.REAL_LOCAL.value
+            ),
+            u_values=u_values_3d,
+            v_values=v_values_3d,
+            cached=False
+        )
+        slice_cache.set(cache_key, response.model_dump(), write_disk=False)
+        return response
 
 

@@ -1,10 +1,4 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const evidenceDir = path.resolve(__dirname, '../../docs/evidence/model-comparison');
 
 test.describe('Model Prediction vs In-Situ Observation Comparison Suite', () => {
   test.beforeEach(async ({ page }) => {
