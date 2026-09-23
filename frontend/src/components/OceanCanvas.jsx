@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { loadEarthTextures, createAtmosphereMaterial } from '../utils/earthTexture.js';
+import { createOceanGlobeMaterial } from '../utils/oceanGlobeShader.js';
 import { geoToCartesian, cartesianToGeo, cameraVisibleBoundingBox, DEFAULT_GLOBE_RADIUS } from '../utils/coordinates.js';
 import { buildScalarFieldGeometry, createScalarFieldMaterial } from '../utils/scalarField.js';
 import { fetchOceanData, fetchOceanVolume } from '../services/api.js';
@@ -229,6 +230,16 @@ export default function OceanCanvas({
   const [rendererStats, setRendererStats] = useState({ fps: 0, drawCalls: 0 });
   const [retryKey, setRetryKey] = useState(0);
   const [rangeMode, setRangeMode] = useState('dynamic');
+  const [oceanStyle, setOceanStyle] = useState(0); // 0: Bathymetric Digital Twin, 1: Satellite Ocean
+  const [showDataOverlay, setShowDataOverlay] = useState(true);
+  const oceanStyleRef = useRef(0);
+  useEffect(() => {
+    oceanStyleRef.current = oceanStyle;
+    if (globeMaterialRef.current?.uniforms?.uOceanStyle) {
+      globeMaterialRef.current.uniforms.uOceanStyle.value = oceanStyle;
+    }
+  }, [oceanStyle]);
+
   const [fieldState, setFieldState] = useState({
     loading: true,
     error: null,
@@ -410,10 +421,11 @@ export default function OceanCanvas({
     };
   }, [selectedVariable, requestedDepth, timeIndex, isPlaying, retryKey, onDepthResolved, onTimeResolved, onBufferingChange]);
 
-  // 2. Particle Streamlines Lifecycle Effect
+  // 2. Particle Streamlines Lifecycle Effect (Vector Velocity Flow)
   useEffect(() => {
     const scene = sceneRef.current;
-    if (!scene || !showCurrents) {
+    const isCurrentsActive = showCurrents || selectedVariable === 'currents';
+    if (!scene || !isCurrentsActive) {
       if (particleSystemRef.current) {
         particleSystemRef.current.dispose();
         particleSystemRef.current = null;
@@ -480,7 +492,7 @@ export default function OceanCanvas({
       ignore = true;
       controller.abort();
     };
-  }, [showCurrents, timeIndex, requestedDepth, fieldState.sliceData]);
+  }, [showCurrents, selectedVariable, timeIndex, requestedDepth, fieldState.sliceData]);
 
   // 3. Three.js Scalar Mesh Update Effect (Draped onto Globe)
   useEffect(() => {
@@ -492,6 +504,16 @@ export default function OceanCanvas({
       scalarMeshRef.current.geometry?.dispose();
       scalarMeshRef.current.material?.dispose();
       scalarMeshRef.current = null;
+    }
+
+    // CRITICAL: CURRENTS is a vector field and must NEVER render an opaque scalar quad!
+    // This permanently eliminates the giant yellow rectangle defect.
+    if (fieldState.sliceData?.variable === 'currents') {
+      return;
+    }
+
+    if (!showDataOverlay) {
+      return;
     }
 
     if (fieldState.sliceData) {
@@ -508,7 +530,7 @@ export default function OceanCanvas({
         min_val: rangeMode === 'fixed' ? (isSalinity ? 32.0 : 2.0) : fieldState.sliceData.min_val,
         max_val: rangeMode === 'fixed' ? (isSalinity ? 38.0 : 32.0) : fieldState.sliceData.max_val
       });
-      const material = createScalarFieldMaterial();
+      const material = createScalarFieldMaterial(0.60);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = `scalar_field_${fieldState.sliceData.variable}_${depth}`;
       mesh.renderOrder = 3;
@@ -519,7 +541,7 @@ export default function OceanCanvas({
       scene.add(mesh);
       scalarMeshRef.current = mesh;
     }
-  }, [fieldState.sliceData, rangeMode]);
+  }, [fieldState.sliceData, rangeMode, showDataOverlay]);
 
   // 4a. Fetch Volume Data for 3D Block View Mode
   const fetchVolumeData = useCallback(() => {
@@ -817,19 +839,13 @@ export default function OceanCanvas({
     starField.renderOrder = 0;
     scene.add(starField);
 
-    // Photorealistic Solid Earth Globe
-    const earthTextures = loadEarthTextures();
-    const globeGeometry = new THREE.SphereGeometry(DEFAULT_GLOBE_RADIUS, 64, 64);
-    const globeMaterial = new THREE.MeshStandardMaterial({
-      map: earthTextures.dayTexture,
-      normalMap: earthTextures.normalTexture,
-      normalScale: new THREE.Vector2(0.85, 0.85),
-      roughnessMap: earthTextures.specularTexture,
-      roughness: 0.65,
-      metalness: 0.05,
-      transparent: false,
-      opacity: 1.0,
-      depthWrite: true
+    // Ocean-Centric Digital Twin Globe (GEBCO Bathymetry + Procedural Wave Normals)
+    const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+    const earthTextures = loadEarthTextures(maxAnisotropy);
+    const globeGeometry = new THREE.SphereGeometry(DEFAULT_GLOBE_RADIUS, 128, 128);
+    const globeMaterial = createOceanGlobeMaterial(earthTextures, {
+      oceanStyle: oceanStyleRef.current ?? 0,
+      waveIntensity: 0.75
     });
     const earthMesh = new THREE.Mesh(globeGeometry, globeMaterial);
     earthMesh.renderOrder = 2;
@@ -1167,6 +1183,9 @@ export default function OceanCanvas({
         }
         if (cloudsMesh) {
           cloudsMesh.rotation.y += 0.00015;
+        }
+        if (globeMaterialRef.current?.uniforms?.uTime) {
+          globeMaterialRef.current.uniforms.uTime.value = now * 0.001;
         }
       }
 
@@ -1745,6 +1764,42 @@ export default function OceanCanvas({
                   data-testid="toggle-basin-labels-btn"
                 >
                   <span>🏷️ Basins</span>
+                </span>
+              )}
+
+              {/* 3D Ocean Visual Style: Bathymetry Digital Twin vs Satellite Ocean */}
+              {viewMode === 'globe' && (
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  onClick={() => setOceanStyle((s) => (s === 0 ? 1 : 0))}
+                  className={`hud-button rounded px-2 py-1 text-[11px] font-sans flex items-center gap-1 transition cursor-pointer select-none border ${
+                    oceanStyle === 0
+                      ? 'border-cyan-500 bg-cyan-950/60 text-cyan-300 font-semibold'
+                      : 'border-slate-700 bg-slate-800/90 text-slate-300'
+                  }`}
+                  title="Toggle between Ocean Bathymetry Digital Twin and Satellite Ocean"
+                  data-testid="toggle-ocean-style-btn"
+                >
+                  <span>{oceanStyle === 0 ? '🌊 Bathymetry' : '🛰️ Satellite'}</span>
+                </span>
+              )}
+
+              {/* Data Layer Overlay Toggle (Thermal/Salinity) */}
+              {viewMode === 'globe' && selectedVariable !== 'currents' && (
+                <span
+                  role="button"
+                  tabIndex={-1}
+                  onClick={() => setShowDataOverlay((v) => !v)}
+                  className={`hud-button rounded px-2 py-1 text-[11px] font-sans flex items-center gap-1 transition cursor-pointer select-none border ${
+                    showDataOverlay
+                      ? 'border-emerald-500 bg-emerald-950/60 text-emerald-300 font-semibold'
+                      : 'border-slate-700 bg-slate-800/90 text-slate-400'
+                  }`}
+                  title="Toggle 2D Scientific Data Layer on Globe"
+                  data-testid="toggle-data-overlay-btn"
+                >
+                  <span>{showDataOverlay ? '👁️ Layer ON' : '👁️ Layer OFF'}</span>
                 </span>
               )}
 

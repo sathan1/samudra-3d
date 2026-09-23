@@ -61,16 +61,26 @@ export function buildScalarFieldGeometry(sliceData, options = {}) {
   const ny = lats.length;
   const nx = lons.length;
 
+  const variable = sliceData.variable || 'temperature';
+  let defaultMin = 2.0;
+  let defaultMax = 30.0;
+  if (variable === 'salinity') {
+    defaultMin = 32.0;
+    defaultMax = 38.0;
+  } else if (variable === 'currents') {
+    defaultMin = 0.0;
+    defaultMax = 1.0;
+  }
+
   // Determine normalization scale
-  let vMin = customMin ?? 2.0;
-  let vMax = customMax ?? 30.0;
+  let vMin = customMin ?? defaultMin;
+  let vMax = customMax ?? defaultMax;
   if (vMin >= vMax) {
-    vMin = 0.0;
-    vMax = 30.0;
+    vMin = defaultMin;
+    vMax = defaultMax;
   }
   const vRange = vMax - vMin || 1.0;
-  const variable = sliceData.variable || 'temperature';
-  const palette = options.palette || (variable === 'salinity' ? 'haline' : 'thermal');
+  const palette = options.palette || (variable === 'salinity' ? 'haline' : (variable === 'currents' ? 'speed' : 'thermal'));
 
   // Pre-calculate 3D Cartesian coordinates and colors for all grid points
   // Grid layout: pointGrid[j][i] = { pos: [x, y, z], color: [r, g, b], valid: bool }
@@ -145,16 +155,18 @@ export function buildScalarFieldGeometry(sliceData, options = {}) {
 }
 
 /**
- * Creates a standard material for the scalar field mesh.
+ * Creates an elegant translucent material for the scalar field mesh,
+ * allowing underlying ocean bathymetry relief to show through gracefully.
  */
-export function createScalarFieldMaterial() {
+export function createScalarFieldMaterial(opacity = 0.65) {
   return new THREE.MeshStandardMaterial({
     vertexColors: true,
     side: THREE.DoubleSide,
     roughness: 0.35,
     metalness: 0.05,
     transparent: true,
-    opacity: 0.90,
-    depthWrite: true
+    opacity: opacity,
+    depthWrite: false,
+    blending: THREE.NormalBlending
   });
 }

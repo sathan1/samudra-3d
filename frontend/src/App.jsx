@@ -545,6 +545,13 @@ export default function App() {
     [gliderTransects, handleSelectGlider]
   );
 
+  const handleSelectVariable = useCallback((varId) => {
+    setSelectedVariable(varId);
+    if (varId === 'currents') {
+      setShowCurrents(true);
+    }
+  }, []);
+
   // Single managed playback timer
   useEffect(() => {
     if (!isPlaying) return;
@@ -752,7 +759,7 @@ export default function App() {
         {/* Full 3D Ocean Globe Workspace */}
         <OceanCanvas
           selectedVariable={selectedVariable}
-          onSelectVariable={setSelectedVariable}
+          onSelectVariable={handleSelectVariable}
           requestedDepth={requestedDepth}
           onDepthResolved={setResolvedDepth}
           timeIndex={timeIndex}
@@ -796,7 +803,7 @@ export default function App() {
         {/* Bottom Variable and Continuous Timeline Dock */}
         <BottomControlBar
           selectedVariable={selectedVariable}
-          onSelectVariable={setSelectedVariable}
+          onSelectVariable={handleSelectVariable}
           timeIndex={timeIndex}
           onSelectTime={handleSelectTime}
           isPlaying={isPlaying}
