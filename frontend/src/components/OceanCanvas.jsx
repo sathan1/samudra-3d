@@ -1189,14 +1189,14 @@ export default function OceanCanvas({
         }
       }
 
-      // Dynamically scale the probe pin beacon so it remains a small, razor-sharp precision needle
-      // regardless of camera zoom distance (preventing oversized pin blowup when zoomed in)
+      // Dynamically scale the probe pin beacon so it remains a sharp precision needle
+      // without blowing up into a giant blob, nor shrinking into an invisible speck.
       if (probeGroupRef.current && probeGroupRef.current.children.length > 0) {
         probeGroupRef.current.children.forEach((pin) => {
           const worldPos = new THREE.Vector3();
           pin.getWorldPosition(worldPos);
           const distToCam = camera.position.distanceTo(worldPos);
-          const scaleFactor = Math.max(0.015, Math.min(1.0, distToCam / 140.0));
+          const scaleFactor = Math.max(0.22, Math.min(1.1, distToCam / 140.0));
           pin.scale.set(scaleFactor, scaleFactor, scaleFactor);
         });
       }

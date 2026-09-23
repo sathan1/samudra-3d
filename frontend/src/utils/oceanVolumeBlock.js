@@ -415,8 +415,8 @@ export function createProbePinMesh(lat, lon, isBlockMode = false, customBounds =
     const topPos = geoToBlock(lat, lon, b.depthMin, b);
     pinGroup.position.copy(topPos);
 
-    // Fine vertical probe needle extending down to actual dataset depth base
-    const needleGeo = new THREE.CylinderGeometry(0.06, 0.06, b.height, 8);
+    // Vertical probe needle extending down to actual dataset depth base
+    const needleGeo = new THREE.CylinderGeometry(0.12, 0.12, b.height, 8);
     const needleMat = new THREE.MeshBasicMaterial({
       color: 0x00f5d4,
       transparent: true,
@@ -427,19 +427,19 @@ export function createProbePinMesh(lat, lon, isBlockMode = false, customBounds =
     pinGroup.add(needleMesh);
 
     // Surface beacon head
-    const headGeo = new THREE.SphereGeometry(0.4, 16, 16);
+    const headGeo = new THREE.SphereGeometry(0.75, 16, 16);
     const headMat = new THREE.MeshStandardMaterial({
       color: 0x00f5d4,
       emissive: 0x00f5d4,
-      emissiveIntensity: 1.4,
-      roughness: 0.2
+      emissiveIntensity: 1.5,
+      roughness: 0.15
     });
     const headMesh = new THREE.Mesh(headGeo, headMat);
-    headMesh.position.set(0, 0.5, 0);
+    headMesh.position.set(0, 0.8, 0);
     pinGroup.add(headMesh);
 
     // Surface precision target ring
-    const ringGeo = new THREE.RingGeometry(0.28, 0.44, 32);
+    const ringGeo = new THREE.RingGeometry(0.75, 1.25, 32);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0x00f5d4,
       side: THREE.DoubleSide,
@@ -452,7 +452,7 @@ export function createProbePinMesh(lat, lon, isBlockMode = false, customBounds =
     pinGroup.add(ringMesh);
 
     // Center precision pip
-    const pipGeo = new THREE.CircleGeometry(0.08, 16);
+    const pipGeo = new THREE.CircleGeometry(0.20, 16);
     const pipMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       side: THREE.DoubleSide
@@ -473,8 +473,8 @@ export function createProbePinMesh(lat, lon, isBlockMode = false, customBounds =
     pinGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
 
     // Precision tapered needle with sharp apex touching exact surface (y = 0)
-    const needleHeight = 2.2;
-    const needleGeo = new THREE.ConeGeometry(0.16, needleHeight, 16);
+    const needleHeight = 3.8;
+    const needleGeo = new THREE.ConeGeometry(0.26, needleHeight, 16);
     const needleMat = new THREE.MeshBasicMaterial({ color: 0x00f5d4 });
     const needleMesh = new THREE.Mesh(needleGeo, needleMat);
     needleMesh.rotation.x = Math.PI; // Invert cone so apex points down
@@ -482,7 +482,7 @@ export function createProbePinMesh(lat, lon, isBlockMode = false, customBounds =
     pinGroup.add(needleMesh);
 
     // Sleek luminous beacon head at the top of the needle
-    const headGeo = new THREE.SphereGeometry(0.32, 16, 16);
+    const headGeo = new THREE.SphereGeometry(0.70, 16, 16);
     const headMat = new THREE.MeshStandardMaterial({
       color: 0x00f5d4,
       emissive: 0x00f5d4,
@@ -490,11 +490,11 @@ export function createProbePinMesh(lat, lon, isBlockMode = false, customBounds =
       roughness: 0.15
     });
     const headMesh = new THREE.Mesh(headGeo, headMat);
-    headMesh.position.set(0, needleHeight + 0.22, 0);
+    headMesh.position.set(0, needleHeight + 0.45, 0);
     pinGroup.add(headMesh);
 
     // Surface precision target ring
-    const ringGeo = new THREE.RingGeometry(0.24, 0.38, 32);
+    const ringGeo = new THREE.RingGeometry(0.65, 1.05, 32);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0x00f5d4,
       side: THREE.DoubleSide,
@@ -507,7 +507,7 @@ export function createProbePinMesh(lat, lon, isBlockMode = false, customBounds =
     pinGroup.add(ringMesh);
 
     // Center precision pip dot (exact sub-pixel coordinate marker)
-    const pipGeo = new THREE.CircleGeometry(0.07, 16);
+    const pipGeo = new THREE.CircleGeometry(0.18, 16);
     const pipMat = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       side: THREE.DoubleSide

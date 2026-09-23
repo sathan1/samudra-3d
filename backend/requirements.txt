@@ -2,8 +2,11 @@
 # Note: netCDF4 + numpy + scipy provide native, high-performance CF NetCDF4 handling.
 # xarray/pandas optional due to Windows Application Control policy on pandas C-extensions.
 
-netCDF4==1.7.4
-numpy==2.4.6
-scipy==1.17.1
-fastapi==0.141.1
-uvicorn==0.52.4
+netCDF4>=1.6.5
+numpy>=1.26.0,<3.0.0
+scipy>=1.11.0
+fastapi>=0.109.0
+uvicorn>=0.27.0
+sqlalchemy>=2.0.0
+pydantic>=2.5.0
+

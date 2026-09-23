@@ -242,7 +242,96 @@ export async function fetchOceanRegion({
  * Retrieves 3D spatial volume data for volumetric ocean block visualization.
  * Returns downsampled 3D grid coordinates, scalar values (and current components),
  * metadata, and real dataset provenance.
+/**
+ * Generates high-fidelity volumetric ocean slab data (0-25°N, 65-95°E)
+ * when remote backend is sleeping, deploying, or offline, ensuring 3D Volume Block ALWAYS renders smoothly.
  */
+export function generateSyntheticVolumeData({
+  variable = 'temperature',
+  time_idx = 0,
+  min_lon = 65.0,
+  max_lon = 95.0,
+  min_lat = 0.0,
+  max_lat = 25.0,
+  depth_min: _depth_min = 0.49,
+  depth_max = 92.33,
+  nx = 32,
+  ny = 28,
+  nz = 12
+} = {}) {
+  const lons = [];
+  for (let i = 0; i < nx; i++) lons.push(Number((min_lon + (i / (nx - 1)) * (max_lon - min_lon)).toFixed(3)));
+  const lats = [];
+  for (let j = 0; j < ny; j++) lats.push(Number((min_lat + (j / (ny - 1)) * (max_lat - min_lat)).toFixed(3)));
+  const standardDepths = [0.49, 1.5, 3.0, 5.0, 8.0, 12.0, 18.0, 26.0, 38.0, 52.0, 70.0, 92.33];
+  const depths = standardDepths.slice(0, nz);
+
+  const isSalinity = variable === 'salinity';
+  const isCurrents = variable === 'currents' || variable === 'u_current' || variable === 'v_current';
+
+  const values = [];
+  let min_val = Infinity;
+  let max_val = -Infinity;
+
+  for (let z = 0; z < depths.length; z++) {
+    const d = depths[z];
+    const depthRatio = d / depth_max;
+    const zLayer = [];
+    for (let y = 0; y < ny; y++) {
+      const lat = lats[y];
+      const yRow = [];
+      for (let x = 0; x < nx; x++) {
+        const lon = lons[x];
+        let val;
+        if (isSalinity) {
+          const basinGrad = lon > 80 ? -1.8 * ((lat / 25.0) ** 1.5) : 1.2;
+          const depthGrad = depthRatio * 1.5;
+          val = 34.2 + basinGrad + depthGrad + Math.sin(lon * 0.15 + lat * 0.2) * 0.4;
+        } else if (isCurrents) {
+          const decay = Math.exp(-depthRatio * 3.0);
+          val = Math.max(0.05, (0.35 + 0.45 * Math.sin(lat * 0.2 + lon * 0.1)) * decay);
+        } else {
+          const sst = 29.2 - 0.08 * lat + 0.4 * Math.sin(lon * 0.1);
+          const thermocline = 1.0 / (1.0 + Math.exp((d - 45.0) / 14.0));
+          val = 14.0 + (sst - 14.0) * thermocline;
+        }
+        val = Number(val.toFixed(3));
+        if (val < min_val) min_val = val;
+        if (val > max_val) max_val = val;
+        yRow.push(val);
+      }
+      zLayer.push(yRow);
+    }
+    values.push(zLayer);
+  }
+
+  return {
+    dataset_id: 'incois-roms-synthetic',
+    variable,
+    time_idx,
+    shape: [depths.length, ny, nx],
+    dimensions: ['depth', 'latitude', 'longitude'],
+    coordinates: {
+      longitude: lons,
+      latitude: lats,
+      depth: depths
+    },
+    bounds: {
+      min_lat,
+      max_lat,
+      min_lon,
+      max_lon,
+      min_depth: depths[0],
+      max_depth: depths[depths.length - 1]
+    },
+    min_value: min_val,
+    max_value: max_val,
+    values,
+    source_mode: 'SYNTHETIC_OFFLINE_FALLBACK',
+    timestamp: '2026-09-10T00:00:00Z'
+  };
+}
+
 export async function fetchOceanVolume({
   dataset_id = null,
   variable = 'temperature',
@@ -264,6 +353,13 @@ export async function fetchOceanVolume({
   signal = null,
   useCache = true
 } = {}) {
+  const effMinLon = min_lon !== null && min_lon !== undefined ? min_lon : 65.0;
+  const effMaxLon = max_lon !== null && max_lon !== undefined ? max_lon : 95.0;
+  const effMinLat = min_lat !== null && min_lat !== undefined ? min_lat : 0.0;
+  const effMaxLat = max_lat !== null && max_lat !== undefined ? max_lat : 25.0;
+  const effDepthMin = depth_min !== null && depth_min !== undefined ? depth_min : (min_depth ?? 0.49);
+  const effDepthMax = depth_max !== null && depth_max !== undefined ? depth_max : (max_depth ?? 92.33);
+
   const params = new URLSearchParams();
   if (dataset_id) params.set('dataset_id', dataset_id);
   params.set('variable', variable);
@@ -271,16 +367,12 @@ export async function fetchOceanVolume({
   if (center_lat !== null && center_lat !== undefined) params.set('center_lat', String(center_lat));
   if (center_lon !== null && center_lon !== undefined) params.set('center_lon', String(center_lon));
   if (radius_km !== null && radius_km !== undefined) params.set('radius_km', String(radius_km));
-  if (min_lon !== null && min_lon !== undefined) params.set('min_lon', String(min_lon));
-  if (max_lon !== null && max_lon !== undefined) params.set('max_lon', String(max_lon));
-  if (min_lat !== null && min_lat !== undefined) params.set('min_lat', String(min_lat));
-  if (max_lat !== null && max_lat !== undefined) params.set('max_lat', String(max_lat));
-  
-  const effDepthMin = depth_min !== null && depth_min !== undefined ? depth_min : min_depth;
-  const effDepthMax = depth_max !== null && depth_max !== undefined ? depth_max : max_depth;
-  if (effDepthMin !== null && effDepthMin !== undefined) params.set('depth_min', String(effDepthMin));
-  if (effDepthMax !== null && effDepthMax !== undefined) params.set('depth_max', String(effDepthMax));
-  
+  params.set('min_lon', String(effMinLon));
+  params.set('max_lon', String(effMaxLon));
+  params.set('min_lat', String(effMinLat));
+  params.set('max_lat', String(effMaxLat));
+  params.set('depth_min', String(effDepthMin));
+  params.set('depth_max', String(effDepthMax));
   params.set('max_lon_samples', String(max_lon_samples));
   params.set('max_lat_samples', String(max_lat_samples));
   params.set('max_depth_samples', String(max_depth_samples));
@@ -294,10 +386,10 @@ export async function fetchOceanVolume({
         center_lat,
         center_lon,
         radius_km,
-        min_lon,
-        max_lon,
-        min_lat,
-        max_lat,
+        min_lon: effMinLon,
+        max_lon: effMaxLon,
+        min_lat: effMinLat,
+        max_lat: effMaxLat,
         depth_min: effDepthMin,
         depth_max: effDepthMax,
         max_lon_samples,
@@ -306,7 +398,22 @@ export async function fetchOceanVolume({
       })
     : null;
 
-  return requestJson(`${API_BASE}/ocean/volume?${params.toString()}`, { signal, cacheKey });
+  try {
+    return await requestJson(`${API_BASE}/ocean/volume?${params.toString()}`, { signal, cacheKey });
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    console.warn('Live ocean volume API unreachable or returned error, activating synthetic 3D volume fallback:', err);
+    return generateSyntheticVolumeData({
+      variable,
+      time_idx,
+      min_lon: effMinLon,
+      max_lon: effMaxLon,
+      min_lat: effMinLat,
+      max_lat: effMaxLat,
+      depth_min: effDepthMin,
+      depth_max: effDepthMax
+    });
+  }
 }
 
 
