@@ -834,6 +834,7 @@ export default function App() {
             probeData={probeData}
             isLoading={isProbeLoading}
             currentTime={currentTimeTimestamp}
+            activeDataset={activeDataset}
             activeDatasetName={activeDataset?.name}
             onClose={() => setProbedPoint(null)}
             onOpenProfile={() => setIsProfileModalOpen(true)}

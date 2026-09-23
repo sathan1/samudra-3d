@@ -1920,7 +1920,7 @@ input:-webkit-autofill:focus {
   position: absolute;
   top: 16px;
   right: 16px;
-  width: 330px;
+  width: 350px;
   max-width: calc(100vw - 32px);
   padding: 14px;
   z-index: 40;
@@ -2209,6 +2209,11 @@ input:-webkit-autofill:focus {
   color: #c084fc;
 }
 .badge-synthetic {
+  font-size: 10px;
+  font-family: monospace;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
   background: rgba(245, 158, 11, 0.15);
   border: 1px solid rgba(245, 158, 11, 0.5);
   color: #fbbf24;

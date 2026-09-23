@@ -10,6 +10,7 @@ export default function LocationInspector({
   probeData,
   isLoading,
   currentTime,
+  activeDataset,
   activeDatasetName = 'COPERNICUS GLORYS12V1',
   onClose,
   onOpenProfile,
@@ -24,6 +25,17 @@ export default function LocationInspector({
 
   const isUnavailable = probeData?.unavailable || probeData?.error;
 
+  const isSynthetic = 
+    activeDataset?.source_mode === 'SYNTHETIC' || 
+    activeDatasetName?.toLowerCase().includes('synthetic') ||
+    activeDataset?.dataset_id?.toLowerCase().includes('synthetic');
+
+  const provenanceBadge = isSynthetic
+    ? 'SYNTHETIC • INCOIS ROMS Ocean Model'
+    : (activeDatasetName?.includes('cmems') || activeDatasetName?.toLowerCase().includes('glorys')
+      ? 'REAL • COPERNICUS GLORYS12V1'
+      : `REAL • ${activeDatasetName || 'OCEAN MODEL'}`);
+
   return (
     <div className="location-inspector-card glassmorphic-panel" role="region" aria-label="Location Inspector">
       <div className="inspector-header flex items-center justify-between">
@@ -35,28 +47,28 @@ export default function LocationInspector({
         </div>
         <button
           type="button"
-          className="icon-close-btn"
+          className="icon-close-btn flex items-center justify-center w-6 h-6 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
           onClick={onClose}
           aria-label="Close Location Inspector"
         >
-          &times;
+          ✕
         </button>
       </div>
 
       <div className="inspector-body mt-2">
         <div className="coordinate-display font-mono text-base font-bold text-white tracking-wide">
-          {latStr} &nbsp;&bull;&nbsp; {lonStr}
+          {latStr} &nbsp;•&nbsp; {lonStr}
         </div>
 
         <div className="metadata-badges-row flex flex-wrap gap-2 mt-2">
-          <span className="badge-source-copernicus">
-            REAL &bull; {activeDatasetName.includes('cmems') || activeDatasetName.includes('glorys') ? 'COPERNICUS' : activeDatasetName}
+          <span className={isSynthetic ? 'badge-synthetic font-mono text-[10px] font-bold py-0.5 px-1.5 rounded' : 'badge-source-copernicus'}>
+            {provenanceBadge}
           </span>
           <span className="badge-resolution font-mono text-xs">
             8.3 km
           </span>
           <span className="badge-time font-mono text-xs">
-            {currentTime || '2025-01-04'}
+            {currentTime || '2026-09-10'}
           </span>
         </div>
 
@@ -74,26 +86,61 @@ export default function LocationInspector({
           </div>
         ) : (
           <>
-            <div className="data-availability-grid my-3 text-xs font-mono grid grid-cols-2 gap-1.5 bg-slate-900/60 p-2 rounded border border-slate-700/50">
-              <div className="flex items-center gap-1.5 text-emerald-400">
-                <span>&check;</span>
-                <span className="text-slate-300">Temperature:</span>
-                <span className="text-white font-bold">{probeData?.sst !== undefined && probeData?.sst !== null ? `${probeData.sst.toFixed(2)}°C` : 'avail'}</span>
+            <div className="data-availability-grid my-3 grid grid-cols-2 gap-2">
+              <div className="bg-slate-900/80 border border-slate-700/60 rounded p-2 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1 text-emerald-400 font-mono">
+                    <span className="font-bold">✓</span> Temp
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">SST</span>
+                </div>
+                <div className="text-sm font-mono font-bold text-white mt-1">
+                  {probeData?.sst !== undefined && probeData?.sst !== null
+                    ? `${probeData.sst.toFixed(2)} °C`
+                    : 'avail'}
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 text-emerald-400">
-                <span>&check;</span>
-                <span className="text-slate-300">Salinity:</span>
-                <span className="text-white font-bold">{probeData?.sss !== undefined && probeData?.sss !== null ? `${probeData.sss.toFixed(2)} PSU` : 'avail'}</span>
+
+              <div className="bg-slate-900/80 border border-slate-700/60 rounded p-2 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1 text-emerald-400 font-mono">
+                    <span className="font-bold">✓</span> Salinity
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">SSS</span>
+                </div>
+                <div className="text-sm font-mono font-bold text-white mt-1">
+                  {probeData?.sss !== undefined && probeData?.sss !== null
+                    ? `${probeData.sss.toFixed(2)} PSU`
+                    : 'avail'}
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 text-emerald-400">
-                <span>&check;</span>
-                <span className="text-slate-300">MLD:</span>
-                <span className="text-white font-bold">{probeData?.mld ? `${probeData.mld.toFixed(1)} m` : 'calc'}</span>
+
+              <div className="bg-slate-900/80 border border-slate-700/60 rounded p-2 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1 text-emerald-400 font-mono">
+                    <span className="font-bold">✓</span> MLD
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">Mixed Layer</span>
+                </div>
+                <div className="text-sm font-mono font-bold text-white mt-1">
+                  {probeData?.mld !== undefined && probeData?.mld !== null
+                    ? `${probeData.mld.toFixed(1)} m`
+                    : 'calc'}
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 text-emerald-400">
-                <span>&check;</span>
-                <span className="text-slate-300">D20:</span>
-                <span className="text-white font-bold">{probeData?.d20 ? `${probeData.d20.toFixed(1)} m` : 'calc'}</span>
+
+              <div className="bg-slate-900/80 border border-slate-700/60 rounded p-2 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1 text-emerald-400 font-mono">
+                    <span className="font-bold">✓</span> D20
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">Thermocline</span>
+                </div>
+                <div className="text-sm font-mono font-bold text-white mt-1">
+                  {probeData?.d20 !== undefined && probeData?.d20 !== null
+                    ? `${probeData.d20.toFixed(1)} m`
+                    : 'calc'}
+                </div>
               </div>
             </div>
 

@@ -1017,8 +1017,8 @@ export default function OceanCanvas({
             }
           }
           const geo = blockToGeo(hit.point.x, hit.point.z);
-          const lat = Math.round(geo.lat * 100) / 100;
-          const lon = Math.round(geo.lon * 100) / 100;
+          const lat = Math.round(geo.lat * 1000) / 1000;
+          const lon = Math.round(geo.lon * 1000) / 1000;
           onProbePointRef.current?.({ lat, lon });
           return;
         }
@@ -1028,8 +1028,8 @@ export default function OceanCanvas({
         if (hits.length > 0) {
           const hit = hits[0];
           const geo = cartesianToGeo(hit.point.x, hit.point.y, hit.point.z);
-          const lat = Math.round(geo.lat * 100) / 100;
-          const lon = Math.round(geo.lon * 100) / 100;
+          const lat = Math.round(geo.lat * 1000) / 1000;
+          const lon = Math.round(geo.lon * 1000) / 1000;
           onProbePointRef.current?.({ lat, lon });
           return;
         }
@@ -1187,6 +1187,18 @@ export default function OceanCanvas({
         if (globeMaterialRef.current?.uniforms?.uTime) {
           globeMaterialRef.current.uniforms.uTime.value = now * 0.001;
         }
+      }
+
+      // Dynamically scale the probe pin beacon so it remains a small, razor-sharp precision needle
+      // regardless of camera zoom distance (preventing oversized pin blowup when zoomed in)
+      if (probeGroupRef.current && probeGroupRef.current.children.length > 0) {
+        probeGroupRef.current.children.forEach((pin) => {
+          const worldPos = new THREE.Vector3();
+          pin.getWorldPosition(worldPos);
+          const distToCam = camera.position.distanceTo(worldPos);
+          const scaleFactor = Math.max(0.015, Math.min(1.0, distToCam / 140.0));
+          pin.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        });
       }
 
       controls.update();
