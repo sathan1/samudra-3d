@@ -1,219 +1,282 @@
-# SAMUDRA-3D: 4D Ocean Digital Twin & Grounded Intelligence Platform
+# SAMUDRA-3D: 3D/4D Oceanographic Data & Numerical Model Platform
 
 [![SIH 2026](https://img.shields.io/badge/SIH%202026-Problem%20SIH26067-blue.svg)](https://sih.gov.in/)
 [![Ministry](https://img.shields.io/badge/Ministry-MoES%20%2F%20INCOIS-teal.svg)](https://incois.gov.in/)
-[![Phases](https://img.shields.io/badge/Roadmap-15%2F15%20Phases%20PASS-brightgreen.svg)](docs/phase-status.md)
-[![Playwright E2E](https://img.shields.io/badge/Playwright-46%2F46%20Pass%20(13%20Specs)-brightgreen.svg)](docs/final-readiness.md)
-[![WebGL FPS](https://img.shields.io/badge/Rendering-60--165%20FPS%20(Three.js)-success.svg)](docs/final-readiness.md)
+[![Backend Tests](https://img.shields.io/badge/Backend%20Tests-59%2F59%20PASS-brightgreen.svg)](docs/validation.md)
+[![Rendering](https://img.shields.io/badge/3D%20Rendering-Three.js%20WebGL-success.svg)](docs/architecture.md)
+[![Data Engine](https://img.shields.io/badge/Scientific%20Data-NetCDF4%20%2F%20NumPy%20%2F%20SciPy-informational.svg)](docs/scientific-methods.md)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)](LICENSE)
 
 > **Interactive 3D/4D Visualization of Oceanographic Data and Numerical Model Simulations**  
-> Developed for the **Ministry of Earth Sciences (MoES)** and the **Indian National Centre for Ocean Information Services (INCOIS)** by **Team Nexus Nova**.
+> Developed for the **Ministry of Earth Sciences (MoES)** and the **Indian National Centre for Ocean Information Services (INCOIS)** by **Team Nexus Nova** for Smart India Hackathon (Problem ID: **SIH26067**).
 
 ---
 
-## 🌊 Overview & Mission
+## 1. Problem Statement (SIH26067)
 
-The Indian Ocean is one of the most dynamically complex marine ecosystems on Earth, influencing the Indian Summer Monsoon, tropical cyclogenesis, and regional maritime commerce. While INCOIS generates terabytes of high-resolution 4D numerical model forecasts (ROMS / INDOFOS) and maintains extensive in-situ observing networks (Argo floats, underwater gliders, moored buoys), oceanographers, defense operators, and policy makers are often constrained by 2D slice plots or cumbersome command-line scripts.
+The Indian National Centre for Ocean Information Services (INCOIS) generates massive volumes of high-resolution numerical ocean model outputs and collects continuous in-situ observations across the Indian Ocean basin (Argo profiling floats, underwater gliders, moored buoy arrays). However:
+- Traditional oceanographic workflows rely heavily on static 2D slice plots, offline desktop software (ODV), or custom scripting that obscures complex three-dimensional circulation and thermal structures.
+- Comparing numerical model forecasts with heterogeneous in-situ observations requires complex data munging, manual coordinate alignment, and interpolation across disparate data formats (NetCDF, BUFR, ASCII).
+- Existing web viewers often attempt to transfer multi-gigabyte raw model tensors directly to web browsers, resulting in excessive bandwidth consumption, sluggish frame rates, and frequent client crashes.
 
-**SAMUDRA-3D** bridges this critical gap by delivering a **zero-install, browser-native 4D Oceanographic Digital Twin**:
-- **Unifies Simulation & In-Situ Reality:** Combines 4D ROMS NetCDF numerical grids with live Argo profiling floats and underwater gliders.
-- **Spatio-Temporal Collocation Engine:** Performs trilinear interpolation at exact platform coordinates $(t, \text{lat}, \text{lon}, z)$ to calculate true residuals ($\Delta = \text{MODEL} - \text{OBSERVED}$).
-- **3D Discrepancy Heatmap:** Visualizes residual fields on the 3D globe with diverging palettes and traceable threshold alerts.
-- **Grounded AI Ocean Assistant:** Non-hallucinatory, deterministic ocean query engine that evaluates live numerical arrays in under 150ms with zero cloud API keys.
+**SIH26067 mandates**: A browser-native 3D/4D visualization system that ingests standardized multi-format oceanographic data, co-visualizes numerical models with in-situ platforms, provides intuitive depth/variable controls, enables quantitative model-observation comparison, and adheres to open standards.
 
 ---
 
-## 🏛️ System Architecture
+## 2. Solution Overview
+
+**SAMUDRA-3D** delivers a zero-install, browser-native 3D ocean intelligence platform that bridges the gap between numerical simulation and real-world in-situ observations:
+- **Spatial Index Architecture**: The interactive 3D globe acts as a spatial coordinate index. Ocean fields are extracted server-side using bounded coordinate-on-demand queries, transferring only lightweight, screen-safe JSON payloads to the browser.
+- **Dual 3D Visualization Modes**:
+  1. *Global 3D Earth Globe*: Seamless navigation across the Indian Ocean basin with bathymetric relief, surface scalar contours, vertical Argo profiling stems, and 3D glider trajectories.
+  2. *Regional 3D Ocean Volume Block*: GPU-accelerated volumetric voxel grid (`InstancedMesh`) showcasing subsurface temperature/salinity stratification from sea surface down through the thermocline.
+- **Quantitative Model–Observation Analysis**: Automatic 4D spatio-temporal collocation between model grids and observational platforms, calculating exact residuals ($\Delta = \text{MODEL} - \text{OBSERVED}$) alongside Bias, MAE, and RMSE.
+- **Physical Oceanography Core**: Server-side calculation of Mixed Layer Depth (MLD), Thermocline depth ($D_{20}$), Upper Ocean Heat ($D_{26}$, TCHP), and water column stability.
+
+---
+
+## 3. Scientific Data Architecture
 
 ```
-                                 [ Web Browser Client (Port 80 / 3000 / 5173) ]
-                                                        │
-                   ┌────────────────────────────────────┴────────────────────────────────────┐
-                   ▼                                                                         ▼
-       [ React 18 + Tailwind UI ]                                                [ Three.js WebGL Engine ]
-   • Header (Theme, Status, AI trigger)                                      • 3D Earth Globe with Bump Map
-   • SidebarControls (Layer/Variable/Time/Depth)                             • 4D Scalar Field Surface & Slices
-   • ComparisonPanel (Collocation, Anomaly, Alerts)                          • 10,000+ GPU Current Streamlines
-   • ProfileModal (CTD Curves, T-S Diagram)                                  • Argo Float Spheres & Raycasting
-   • AIAssistantModal (Grounded Ocean Queries)                               • Glider Sawtooth Trajectories (Tubes)
-                                                                             • 3D Discrepancy Residual Spheres
-                   │                                                                         │
-                   └────────────────────────────────────┬────────────────────────────────────┘
-                                                        │ REST API (JSON / Typed Float32Array)
-                                                        ▼
-                                     [ FastAPI Backend Service (Port 8000) ]
-   • /api/health & /api/metadata            ── CF-Compliant Dataset Ingestion & Validation
-   • /api/ocean/slice & /api/currents       ── 4D ROMS Grid Hyperslab Slicing & GPU Vector Packing
-   • /api/insitu/argo & /api/gliders        ── Normalized In-Situ Profiles & Trajectory Waypoints
-   • /api/collocation/profile/{id}          ── Exact 4D Trilinear Spatio-Temporal Interpolation
-   • /api/anomaly/field & /summary          ── Discrepancy Field (Δ = MODEL - OBS) with Sparse Radii
-   • /api/assistant/query & /presets        ── Deterministic Mathematical Query Evaluation
-                                                        │
-                   ┌────────────────────────────────────┴────────────────────────────────────┐
-                   ▼                                                                         ▼
-       [ 4D ROMS Numerical Simulation ]                                          [ In-Situ Observation Store ]
-   • CF NetCDF4 (`model_indian_ocean.nc`)                                     • Argo GDAC Profiles (Synthetic + Real)
-   • Dimensions: time, depth, lat, lon                                       • Glider Sawtooth Missions & Waypoints
-   • Variables: temp, salt, u, v, w                                          • WMO Quality Control Flags (1-4)
+┌────────────────────────────────────────────────────────────────────────┐
+│                        1. OCEAN DATA SOURCES                           │
+│  • Copernicus Marine GLORYS12V1 (REAL_LOCAL: 0.49–92.33m, 8.3 km grid) │
+│  • Argo GDAC Profiles (REAL_LOCAL / WMO NetCDF: 0–2000m, QC flags 1-4) │
+│  • Autonomous Underwater Gliders (REAL_LOCAL / IFREMER NetCDF)         │
+│  • INCOIS OMNI Moored Buoys (REAL_LOCAL / Multi-depth Thermistors)     │
+│  • INCOIS ROMS Synthetic Model (TEST_FIXTURE_AND_OFFLINE_FALLBACK)     │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                   2. INGESTION & BOUNDED SUBSETTING                    │
+│  • NetCDF-4 C API Engine (`netCDF4.Dataset`)                           │
+│  • Dimensional Validation (lat, lon, depth, time)                      │
+│  • Mandatory Spatial Bounding Box Filter (min_lat, max_lat, etc.)      │
+│  • Download Safety Gate (Safe < 1GB, Blocked > 1TB)                    │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                   3. SCIENTIFIC PROCESSING ENGINE                      │
+│  • NumPy Array Hyperslab Extractor (Vectorized Slicing)                 │
+│  • SciPy `RegularGridInterpolator` (4D Trilinear Interpolation)        │
+│  • Dynamic Ocean Metrics (MLD, D20, D26, TCHP)                         │
+│  • Residual Discrepancy Engine (Δ = MODEL - OBSERVED: Bias, MAE, RMSE) │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│               4. COMMON METADATA & PERSISTENCE LAYER                   │
+│  • PostgreSQL 16 + PostGIS 3.4 (Institutional Primary Database)        │
+│  • SQLite Compatibility (Local Developer & CI Automated Testing)       │
+│  • In-Memory Dataset Registry & Cryptographic Manifest Store           │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                    5. FASTAPI REST MICROSERVICES                       │
+│  • `/api/health`, `/api/metadata`, `/api/ocean-data`                   │
+│  • `/api/ocean/volume`, `/api/ocean/probe`, `/api/ocean/transect`      │
+│  • `/api/collocation/match`, `/api/anomaly/field`                      │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ HTTP / JSON & Float32 Typed Arrays
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│              6. THREE.JS / WEBGL CLIENT VISUALIZATION                  │
+│  • Global 3D Interactive Ocean Globe (WGS-84 Sphere, Custom Shaders)   │
+│  • Regional 3D Volumetric Ocean Block (`InstancedMesh` Voxel Grid)     │
+│  • Standardized Oceanographic Colormaps (`cmocean thermal / haline`)   │
+│  • Precision Ocean Probe Pin with Camera Distance LOD Clamping         │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│              7. SCIENTIFIC ANALYSIS & INTERACTION PANELS               │
+│  • Location Inspector (SST, SSS, MLD, D20 Cards with Checkmarks)       │
+│  • CTD Vertical Profiles & Oceanographic T-S Diagrams                  │
+│  • Model vs Observation Residual Comparison Panel                      │
+│  • 3D Discrepancy Heatmap with Dynamic Threshold Filtering             │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ✨ Core Features & Highlights
+## 4. Real Data Sources & Demonstrated Datasets
 
-### 1. 4D ROMS Digital Twin & Volumetric Slicing
-- Seamlessly slice from the sea surface down to 2,000m abyss with radial coordinate scaling.
-- Toggle between physical variables: **Sea Water Temperature (°C)** and **Salinity (PSU)**.
-- Perceptually uniform, oceanographically standardized colormaps: **cmocean thermal** and **cmocean haline**.
-- 4D Time Playback engine: Step forward/backward or loop through 6-hour forecast horizons with lead-hour counters.
+SAMUDRA-3D enforces strict runtime provenance tagging. Real ocean data and synthetic fixtures are never conflated:
 
-### 2. Real-Time GPU Particle Streamlines
-- 10,000+ GPU-accelerated current particles advected dynamically via local tangent-basis velocity fields ($u, v$).
-- Frame-rate independent Euler integration with dynamic speed color coding (0.0 – 2.0+ m/s).
-- Land-mask filtering prevents particles from penetrating continental landmasses.
+| Dataset / Source | Provider | Format | Variables | Source Mode | Depth Coverage | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Copernicus Marine GLORYS12V1** | Copernicus Marine Service / Mercator Ocean | NetCDF-4 (CF-1.4) | `thetao` (Temp), `so` (Salinity), `uo`, `vo` (Currents) | `REAL_LOCAL` | **0.49 m – 92.33 m** (22 vertical levels, 8.3 km grid) | **VALIDATED REAL REANALYSIS** |
+| **Argo Profiling Floats** | INCOIS / Coriolis GDAC | NetCDF-3/4 (WMO v3.1) | `PRES`, `TEMP`, `PSAL`, Quality Flags (`*_QC`) | `REAL_LOCAL` & `REMOTE_LIVE` | **0.0 m – 2,000.0 m** (Continuous profiling) | **VALIDATED REAL IN-SITU** |
+| **Autonomous Underwater Gliders** | OceanGliders / IFREMER | NetCDF-4 Trajectory | Pressure, Temperature, Practical Salinity | `REAL_LOCAL` | **0.0 m – 1,000.0 m** (Sawtooth dive/climb) | **VALIDATED REAL IN-SITU** |
+| **INCOIS OMNI Moored Buoys** | INCOIS / MoES | NetCDF-4 / ASCII | SST, Thermistor Chain ($z=1\dots100\text{ m}$) | `REAL_LOCAL` | **0.0 m – 100.0 m** (Fixed inductive depths) | **VALIDATED REAL IN-SITU** |
+| **INCOIS ROMS Synthetic Ocean Model** | MoES / INCOIS Specification | NetCDF-4 (CF-1.8) | `temperature`, `salinity`, `u_current`, `v_current` | `SYNTHETIC` | **0.0 m – 4,000.0 m** (9 synthetic levels) | **TEST FIXTURE & OFFLINE FALLBACK** |
 
-### 3. Multi-Platform In-Situ Ingestion (Argo & Gliders)
-- **Argo Profiling Floats:** Clickable 3D marker spheres with line-of-sight Earth occlusion and drag discrimination.
-- **Autonomous Underwater Gliders:** 3D sawtooth yo-yo dive/climb trajectories rendered via 3D `TubeGeometry`.
-- **Quality Control (QC) Integrity:** WMO QC flags (1-4) strictly honored. Flagged outliers (flags 3, 4) render visible line-breaks in curves to prevent false scientific interpolation.
-- **T-S Correlation Diagrams:** Temperature vs Salinity curves plotted over background isopycnal density contours ($\sigma_\theta = 22 \dots 28\,\text{kg/m}^3$) calculated from UNESCO 1983 Seawater Equation of State (EOS-80).
+> **Scientific Depth Truth**:
+> The currently validated local demonstration subset of Copernicus Marine GLORYS12V1 encompasses $0.49\text{--}92.33\text{ m}$ (22 vertical levels, 7 daily timesteps). This captures the critical sea surface, mixed layer, and upper thermocline dynamics. The volume renderer, vertical probe, and transect services are dynamically dataset-driven; ingesting deeper Copernicus or INCOIS NetCDF files ($0\text{--}2000\text{ m}$) requires zero code modification.
+> If a real dataset file is unmounted or missing, the backend returns an explicit `HTTP 503 Service Unavailable` error; **silent synthetic fallback is strictly prohibited**.
 
-### 4. 4D Collocation & 3D Anomaly Residual Field
-- Exact 4D trilinear interpolation evaluates ROMS forecast values at exact observation space-time coordinates.
-- Rigorously adopts physical oceanography standard: $\Delta = \text{MODEL} - \text{OBSERVED}$.
-- 3D Diverging difference spheres (blue = under-prediction, red = over-prediction) with documented ~55km support radius.
-- Interactive threshold discrepancy slider (|Δ| ≥ threshold) with traceable alert items that deep-link to source CTD curves.
+---
 
-### 5. Grounded AI Ocean Assistant
-- **Zero Hallucination:** Deterministic mathematical query engine evaluates queries directly against active NetCDF arrays.
-- **Sub-200ms Execution:** In-memory AST evaluation completes in an average of 142ms.
-- **Adversarial Security:** Hardened boundary regex sanitizes prompt injections and system override attacks.
-### 6. Real Copernicus Marine GLORYS12V1 Integration & Dataset Architecture
-- **Verified Real Ocean Physics:** Uses genuine Copernicus Marine GLORYS12V1 global physics reanalysis subset (`cmems_mod_glo_phy_my_0.083deg_P1D-m`) at 0.0833° (~8.3 km) spatial resolution.
-- **Configurable Data Root:** Fully externalized data directory (`SAMUDRA_DATA_ROOT` in `.env`) keeping multi-hundred-megabyte NetCDF tensors out of Git version control.
-- **Dynamic Runtime Switching:** Switch between Real Copernicus GLORYS12V1 and Synthetic ROMS baseline at runtime via the `📁 Datasets` UI manager or `POST /api/datasets/select`.
-- **Scientific Download Size Estimator:** Calibrated volume estimator predicting uncompressed RAM tensor footprint, zlib-deflated NetCDF4 disk size, bandwidth transfer times, and target disk space headroom.
-- **Hierarchical Precision Navigation:** Zoom seamlessly across 4 geographic tiers: Macro Basin &rarr; Regional Sub-Basin &rarr; Coastal Maritime Shelf &rarr; Local Harbor / PFZ Sector.
-- **Specialized Operational Modes:**
-  - **Fisherman Mode & PFZ Advisory:** Thermal front gradient ($\nabla T \ge 0.3^\circ\text{C/km}$), coastal upwelling MLD, live 2D gradient extraction, and nearest fishing harbor distance/conditions with explicit safety notices.
-  - **Cyclone Heat Engine & TCHP:** Upper-ocean heat potential ($>110\,\text{kJ/cm}^2$ Severe / Rapid Intensification threshold) with strict institutional separation from official IMD forecast tracks.
+## 5. Processing Pipeline
 
-### 7. Safe Ocean Download Pipeline & Subsetting Generator
-- **Protection Against Unbounded Global Downloads:** Enforces strict parameter-based bounding boxes for `copernicusmarine subset` (`--minimum-longitude`, `--maximum-longitude`, `--minimum-latitude`, `--maximum-latitude`, `--minimum-depth`, `--maximum-depth`, `--start-datetime`, `--end-datetime`, `-v`). Prohibits full-archive global fetches (which exceed 14.48 TB) from automatic execution.
-- **Safety Level Thresholds:**
-  - `SAFE` (< 1 GB): Standard download approved.
-  - `CONFIRMATION_REQUIRED` (1 – 10 GB): Warning with user confirmation step.
-  - `EXPLICIT_CONFIRMATION_REQUIRED` (10 – 100 GB): High-volume warning requiring explicit administrator confirmation.
-  - `CRITICAL_WARNING` (> 100 GB): Very high volume; requires manual review.
-  - `BLOCKED` (> 1 TB or insufficient local disk space): Execution automatically prevented to safeguard system stability.
-- **Atomic Downloads & Resumption:** Uses atomic `.part` chunking (`filename.nc.part` &rarr; atomic rename to `filename.nc` upon verification).
-- **Cryptographic Manifests:** Generates SHA-256 checksums and provenance records stored in `SAMUDRA_DATA/manifests/{manifest_id}.json`.
+1. **Ingestion & Subsetting**: The NetCDF-4 C API (`netCDF4.Dataset`) opens numerical files and validates CF coordinates (`time`, `depth`, `latitude`, `longitude`).
+2. **Bounded Spatial Slicing**: Mandatory bounding coordinates clamp queries to visible viewing windows, preventing unbounded memory spikes.
+3. **Trilinear Interpolation**: SciPy `RegularGridInterpolator` performs exact 4D interpolation to arbitrary observation coordinates $(t, z, y, x)$.
+4. **Physical Metrics Derivation**:
+   - Mixed Layer Depth (MLD) via the de Boyer Montégut $0.5^\circ\text{C}$ criterion.
+   - Thermocline Depth ($D_{20}$) via vertical isotherm root-finding.
+   - Upper Ocean Heat Potential (TCHP) via vertical numerical integration down to $26.0^\circ\text{C}$.
+5. **Quality Control Filtering**: In-situ profiles are checked against WMO QC flags (1-4); flags 3 and 4 are excluded from statistical metrics.
 
-### 8. Multi-Platform Real In-situ Ingestion (Argo, Gliders, INCOIS Buoys, Satellite)
-- **Argo GDAC Parser (`argo_ingest.py`):** Parses WMO v3.1 NetCDF files (`PRES`, `TEMP`, `PSAL`, `*_QC`), converts pressure to depth via standard UNESCO factor (0.992), and honors WMO QC flags (1-4).
-- **Underwater Gliders (`glider_ingest.py`):** Ingests IFREMER / OceanGliders NetCDF mission trajectories with 3D dive/climb waypoints.
-- **INCOIS Moored Buoy Network (`incois_ingest.py`):** Ingests authentic OMNI / RAMA moored buoy thermistor chain profiles (BD08, BD10, AD01, AD06, CB02).
-- **Satellite Thermal Front Engine (`satellite_ingest.py`):** Calculates 2D spatial temperature gradient vectors ($|\nabla T| = \sqrt{(\partial T/\partial x)^2 + (\partial T/\partial y)^2}$) across surface fields to detect thermal fronts for marine ecology and PFZ.
-- **Scientific Provenance Integrity:** Every observation and model slice displays explicit provenance badges (`[REAL • COPERNICUS]`, `[REAL • ARGO]`, `[REAL • GLIDER]`, `[REAL • INCOIS]`, `[REAL • SATELLITE]`, `[SYNTHETIC • ROMS]`). Never claims synthetic data is real.
+---
 
+## 6. 3D WebGL / Three.js Visualization Architecture
 
-## 🚀 Quick Start Guide
+- **Global 3D Globe**: Rendered as a WGS-84 sphere with custom GLSL shaders, NASA Blue Marble textures, bathymetric depth relief, and 5°/10° latitude-longitude graticules.
+- **3D Ocean Volume Block**: Slices an ocean rectangular slab rendered via GPU `InstancedMesh`. Thousands of individual ocean voxel cells are colored with `cmocean` colormaps in real time.
+- **Camera-Distance Scale Clamping**: Probe needles and geographic place labels compute Euclidean distance to the camera lens (`camera.position.distanceTo(target)`), maintaining consistent screen-space sharpness without ballooning during close surface zoom.
+- **Observation Platforms**: Argo floats render with vertical profiling stems descending into the water column; gliders render 3D sawtooth mission paths via `TubeGeometry`.
 
-### Option 1: Docker Compose (Recommended)
-Prerequisites: Docker Engine 24+ and Docker Compose v2.
+---
 
+## 7. Model–Observation Comparison & Anomaly Detection
+
+- **Collocation Protocol**: Numerical model fields are collocated with observation profiles within a 200 km spatial radius and a 24-hour temporal window.
+- **Sign Convention**: Rigorously follows physical oceanography standards:
+  $$\Delta = \text{MODEL} - \text{OBSERVED}$$
+  - $\Delta > 0$ (Warm / Salty Bias): Model over-prediction (rendered in red on 3D difference spheres).
+  - $\Delta < 0$ (Cold / Fresh Bias): Model under-prediction (rendered in blue on 3D difference spheres).
+- **Statistical Residual Metrics**: Calculates Mean Bias, Mean Absolute Error (MAE), and Root Mean Square Error (RMSE).
+- **Discrepancy Threshold Filtering**: Interactive slider enables ocean forecasters to isolate significant anomalies ($|\Delta| \ge \text{threshold}$) across the basin.
+
+---
+
+## 8. Current Implementation Status
+
+| Feature / Capability | Status | Implementation Details |
+| :--- | :--- | :--- |
+| **Interactive 3D Earth Globe** | **IMPLEMENTED** | Three.js WebGL, WGS-84 sphere, OrbitControls, graticules, coastline overlays. |
+| **3D Volumetric Ocean Block** | **IMPLEMENTED** | GPU `InstancedMesh` voxel grid, dataset-driven depth levels, `cmocean` palettes. |
+| **Real Copernicus GLORYS12V1 Ingestion** | **IMPLEMENTED** | CF NetCDF-4 adapter, 22 depth levels, temperature, salinity, $u/v$ currents. |
+| **In-Situ Ingestion (Argo, Gliders, Buoys)** | **IMPLEMENTED** | NetCDF WMO v3.1 parser, QC flags 1-4, 3D stems, sawtooth trajectory tubes. |
+| **4D Spatio-Temporal Collocation** | **IMPLEMENTED** | SciPy `RegularGridInterpolator`, residual calculation ($\Delta = \text{MODEL} - \text{OBS}$). |
+| **Residual Discrepancy Heatmap** | **IMPLEMENTED** | 3D diverging difference spheres, dynamic threshold slider, traceable alerts. |
+| **Scientific Metric Calculations** | **IMPLEMENTED** | MLD ($0.5^\circ\text{C}$), $D_{20}$ thermocline, $D_{26}$, TCHP, sound speed (Mackenzie 1981). |
+| **Download Safety & Command Generator** | **IMPLEMENTED** | Parameter validator, threshold gating (`SAFE` to `BLOCKED`), SHA-256 manifests. |
+| **Role-Based Access Control & Auth** | **IMPLEMENTED** | JWT tokens, bcrypt hashing, Admin/Scientist/Public permission roles. |
+| **Docker Compose Multi-Container Stack** | **IMPLEMENTED** | FastAPI Python 3.11 backend + Nginx React 18 frontend + PostgreSQL. |
+| **Deep GLORYS Expansion ($> 100\text{ m}$)** | **PLANNED** | Extensible architecture ready to ingest $0\text{--}2000\text{ m}$ subsets upon disk allocation. |
+| **Marching Cubes Isosurface Extraction** | **PLANNED** | Target enhancement for future release using GPU Compute / WebGL raymarching. |
+
+---
+
+## 9. Quick Start & Local Setup
+
+### Prerequisites
+- Python 3.11+
+- Node.js 20+ LTS
+- System libraries: `libnetcdf-dev`, `libhdf5-dev` (Linux/macOS) or pre-built NetCDF4 wheels (Windows)
+
+### 1. Backend Setup
 ```bash
-# Clone the repository
-git clone https://github.com/nexus-nova/samudra-3d.git
-cd samudra-3d
+# Navigate to backend directory
+cd backend
 
-# Launch complete stack (FastAPI Backend + React Nginx Frontend)
-docker compose up --build
-```
-- Open frontend at: **[http://localhost](http://localhost)** or **[http://localhost:3000](http://localhost:3000)**
-- FastAPI documentation at: **[http://localhost:8000/docs](http://localhost:8000/docs)**
-
----
-
-### Option 2: Local Native Setup (Windows / PowerShell)
-Prerequisites: Python 3.11+, Node.js 20+ / 22+ LTS.
-
-#### 1. Backend Setup
-```powershell
-Set-Location -LiteralPath 'D:\Studies\SIH\Samudra 3Dackend'
+# Create and activate virtual environment
 python -m venv venv
-.
-env\Scripts\Activate.ps1
+# On Windows PowerShell:
+.\venv\Scripts\Activate.ps1
+# On Linux/macOS:
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
+pip install sqlalchemy alembic "psycopg[binary]" pydantic httpx pytest
+
+# Start FastAPI development server
 python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
+API Documentation will be available at: **http://127.0.0.1:8000/docs**
 
-#### 2. Frontend Setup
-```powershell
-Set-Location -LiteralPath 'D:\Studies\SIH\Samudra 3D\frontend'
-npm ci
+### 2. Frontend Setup
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install Node dependencies
+npm install
+
+# Launch Vite development server
 npm run dev
 ```
-Open **[http://127.0.0.1:5173](http://127.0.0.1:5173)** in Google Chrome or Microsoft Edge.
+Client application will be accessible at: **http://localhost:5173**
 
 ---
 
-## 🧪 Comprehensive Test Suite & Verification
+## 10. Automated Testing & Verification
 
-SAMUDRA-3D achieves **100% automated verification** across all architectural layers:
+SAMUDRA-3D includes an extensive automated test suite covering scientific algorithms, API contracts, and browser workflows:
 
-```powershell
-# 1. Run Complete 46-Test Playwright E2E Suite (13 Specs)
+```bash
+# Run all backend unit & integration tests (59 tests across 14 suites)
+python -m unittest discover backend/tests -v
+
+# Verify frontend static analysis (zero warnings enforced)
 cd frontend
-npm run test:browser
+npm run lint
 
-# 2. Run All 13 Frontend Unit Test Suites
-cmd /c "node tests/check-environment.mjs && node tests/test-coordinates.mjs && node tests/test-scalar-grid.mjs && node tests/test-colormaps.mjs && node tests/test-depth.mjs && node tests/test-time-animation.mjs && node tests/test-currents.mjs && node tests/test-argo.mjs && node tests/test-profile-charts.mjs && node tests/test-glider-transects.mjs && node tests/test-collocation.mjs && node tests/test-anomaly.mjs && node tests/test-assistant.mjs"
-
-# 3. Run All 7 Backend Test Suites
-cd ../backend
-cmd /c "python tests/test_synthetic_data.py && python tests/test_api.py && python tests/test_insitu.py && python tests/test_gliders.py && python tests/test_collocation.py && python tests/test_anomaly.py && python tests/test_assistant.py"
-
-# 4. Verify Baseline Integrity
-cd ..
-python scripts/check-baseline.py
+# Compile production frontend bundle
+npm run build
 ```
 
----
-
-## 📊 Roadmap & Deliverables Tracking
-
-| Phase | Module | Classification | Status | Evidence & Artifacts |
-|---|---|---|---|---|
-| **Phase 01** | UI Shell, Theme & Layout Boundaries | MUST HAVE | ✅ PASS | `docs/evidence/phase-01/` |
-| **Phase 02** | 3D Earth Globe & OrbitControls | MUST HAVE | ✅ PASS | `docs/evidence/phase-02/` |
-| **Phase 03** | 4D ROMS NetCDF CF Synthetic Generator | MUST HAVE | ✅ PASS | `docs/evidence/phase-03/` |
-| **Phase 04** | FastAPI 4D Slicing & CF Metadata API | MUST HAVE | ✅ PASS | `docs/evidence/phase-04/` |
-| **Phase 05** | 3D Scalar Field Rendering & Meshing | MUST HAVE | ✅ PASS | `docs/evidence/phase-05/` |
-| **Phase 06** | Scientific Colormaps (cmocean thermal/haline)| MUST HAVE | ✅ PASS | `docs/evidence/phase-06/` |
-| **Phase 07** | Interactive Vertical Depth Slicer | MUST HAVE | ✅ PASS | `docs/evidence/phase-07/` |
-| **Phase 08** | 4D Time Playback & Forecast Horizons | MUST HAVE | ✅ PASS | `docs/evidence/phase-08/` |
-| **Phase 09** | GPU Particle Streamlines for Currents | GOOD TO HAVE | ✅ PASS | `docs/evidence/phase-09/` |
-| **Phase 10** | 3D Argo Float Markers & In-Situ Ingestion | MUST HAVE | ✅ PASS | `docs/evidence/phase-10/` |
-| **Phase 11** | Interactive CTD Profile Curves & T-S Charts | MUST HAVE | ✅ PASS | `docs/evidence/phase-11/` |
-| **Phase 12** | Underwater Glider Sawtooth Transects | GOOD TO HAVE | ✅ PASS | `docs/evidence/phase-12/` |
-| **Phase 13** | 4D Trilinear Collocation & Model Overlays | MUST HAVE | ✅ PASS | `docs/evidence/phase-13/` |
-| **Phase 14** | 3D Residual Field & Discrepancy Heatmap | GOOD TO HAVE | ✅ PASS | `docs/evidence/phase-14/` |
-| **Phase 15** | Grounded AI Ocean Assistant & SIH Package | ADVANCED | ✅ PASS | `docs/evidence/phase-15/` |
+Full verification results and benchmark figures are documented in [`docs/validation.md`](docs/validation.md).
 
 ---
 
-## 📖 Key Documentation Links
+## 11. Deployment
 
-- **[Final Readiness & Judge Pitch Script](docs/final-readiness.md):** 5-minute hackathon pitch script, operational data integration guide, and technical jury defense Q&A.
-- **[Architectural Decisions Log](docs/decisions.md):** Complete log of decisions D01 through D80.
-- **[Phase 15 Completion Report](docs/phase-reports/phase-15-report.md):** Detailed Phase 15 implementation and verification report.
-- **[Requirements Traceability Matrix](docs/requirements-traceability.md):** Full traceability mapping from SIH problem statement and handbook to codebase.
+### Docker Compose (Recommended)
+```bash
+# Clone the repository
+git clone https://github.com/sathan1/samudra-3d.git
+cd samudra-3d
+
+# Build and start services
+docker compose up -d --build
+```
+- Frontend: **http://localhost** (Port 80)
+- Backend API: **http://localhost:8000**
+- API Docs: **http://localhost:8000/docs**
+
+Comprehensive deployment instructions for Docker, Render, Vercel, and PostgreSQL are detailed in [`docs/deployment.md`](docs/deployment.md).
 
 ---
 
-## 👥 Team Nexus Nova (SIH 2026)
-- **Problem Statement:** SIH26067
-- **Organization:** Ministry of Earth Sciences (MoES) / INCOIS
-- **Repository:** SAMUDRA-3D
+## 12. Known Limitations & Scientific Boundaries
+
+1. **Demonstration Dataset Depth Coverage**: The validated local Copernicus GLORYS12V1 subset currently spans $0.49\text{--}92.33\text{ m}$ (22 vertical levels). The volume block renderer operates within this real physical range. Loading deeper operational subsets ($0\text{--}2000\text{ m}$) requires data storage allocation rather than code modification.
+2. **Grid Sampling in 3D Block View**: To ensure smooth 60 FPS WebGL rendering on commodity laptops without dedicated GPUs, the 3D volume block downsamples horizontal grids to a default maximum of 48×48 sample points.
+3. **Observation Latency**: In-situ Argo and glider profiles are ingested from GDAC archives and local files; live streaming depends on external satellite uplink availability and institutional telemetries.
+4. **Isosurface Extraction**: Volumetric data is currently rendered as regular voxel cells via Three.js `InstancedMesh`. Arbitrary polygonal isosurface mesh extraction (Marching Cubes) is identified as a planned enhancement.
+
+---
+
+## Documentation Index
+
+- [System Architecture](docs/architecture.md)
+- [Data Sources & Ingestion Matrix](docs/data-sources.md)
+- [Scientific Methods & Formulas](docs/scientific-methods.md)
+- [REST API Reference](docs/api.md)
+- [Validation & Verification](docs/validation.md)
+- [Deployment Guide](docs/deployment.md)
+- [Technical Defense Walkthrough](docs/demo.md)
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.  
+Developed for the **Smart India Hackathon 2026** under Problem Statement **SIH26067**.

@@ -328,6 +328,8 @@ export function generateSyntheticVolumeData({
     max_value: max_val,
     values,
     source_mode: 'SYNTHETIC_OFFLINE_FALLBACK',
+    is_fallback: true,
+    is_synthetic: true,
     timestamp: '2026-09-10T00:00:00Z'
   };
 }

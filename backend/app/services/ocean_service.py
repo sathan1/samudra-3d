@@ -41,6 +41,15 @@ class OceanDataService:
         dataset_id = active_desc.dataset_id if active_desc else "incois_roms_synthetic"
         if dataset_id in self.adapters:
             return self.adapters[dataset_id]
+        if active_desc and active_desc.local_path and Path(active_desc.local_path).exists():
+            self.adapters[dataset_id] = GlorysLocalAdapter(Path(active_desc.local_path))
+            return self.adapters[dataset_id]
+        if active_desc and active_desc.source_mode != SourceMode.SYNTHETIC:
+            raise FileNotFoundError(
+                f"Active dataset '{dataset_id}' ({active_desc.name}) is unavailable: "
+                f"NetCDF file '{active_desc.local_path}' is missing or unmounted. "
+                f"Silent synthetic fallback is prohibited to preserve scientific veracity."
+            )
         return self.adapters["incois_roms_synthetic"]
 
     def set_active_dataset(self, dataset_id: str):
@@ -49,6 +58,10 @@ class OceanDataService:
             desc = dataset_registry.get_dataset(dataset_id)
             if desc and desc.local_path and Path(desc.local_path).exists():
                 self.adapters[dataset_id] = GlorysLocalAdapter(Path(desc.local_path))
+            elif desc and desc.source_mode != SourceMode.SYNTHETIC:
+                raise FileNotFoundError(
+                    f"Cannot activate dataset '{dataset_id}': data file '{desc.local_path}' not found."
+                )
         adapter = self.get_active_adapter()
         if not adapter.is_loaded():
             adapter.load_dataset()
@@ -255,6 +268,16 @@ class OceanDataService:
         """Returns 3D spatial volume data for volumetric block visualization."""
         if dataset_id and dataset_id in self.adapters:
             adapter = self.adapters[dataset_id]
+        elif dataset_id:
+            desc = dataset_registry.get_dataset(dataset_id)
+            if desc and desc.local_path and Path(desc.local_path).exists():
+                self.adapters[dataset_id] = GlorysLocalAdapter(Path(desc.local_path))
+                adapter = self.adapters[dataset_id]
+            else:
+                raise FileNotFoundError(
+                    f"Requested dataset '{dataset_id}' data file is not found or unmounted. "
+                    f"Silent synthetic fallback is prohibited to preserve scientific veracity."
+                )
         else:
             adapter = self.get_active_adapter()
         
