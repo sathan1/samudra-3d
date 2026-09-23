@@ -842,7 +842,7 @@ export default function OceanCanvas({
     // Ocean-Centric Digital Twin Globe (GEBCO Bathymetry + Procedural Wave Normals)
     const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
     const earthTextures = loadEarthTextures(maxAnisotropy);
-    const globeGeometry = new THREE.SphereGeometry(DEFAULT_GLOBE_RADIUS, 128, 128);
+    const globeGeometry = new THREE.SphereGeometry(DEFAULT_GLOBE_RADIUS, 192, 192);
     const globeMaterial = createOceanGlobeMaterial(earthTextures, {
       oceanStyle: oceanStyleRef.current ?? 0,
       waveIntensity: 0.75
