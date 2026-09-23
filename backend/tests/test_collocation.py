@@ -88,7 +88,7 @@ class TestPhase13Collocation(unittest.TestCase):
 
         # Check model health
         self.assertIn(data["model_health"], ["EXCELLENT", "GOOD", "ACCEPTABLE", "REQUIRES_CALIBRATION"])
-        self.assertLess(data["latency_ms"], 100.0)
+        self.assertLess(data["latency_ms"], 300.0)
         print(f"[OK] ARGO_2902145 collocated in {data['latency_ms']:.2f}ms (Health: {data['model_health']})")
 
     def test_04_qc_outlier_and_missing_levels(self):

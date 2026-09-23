@@ -10,8 +10,10 @@ import secrets
 from datetime import datetime, timezone
 from backend.app.core.config import settings
 
-DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
-DB_PATH = os.path.join(DB_DIR, "samudra.db")
+_cand_1 = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "samudra.db")
+_cand_2 = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "samudra.db")
+DB_PATH = _cand_1 if os.path.exists(_cand_1) else _cand_2
+DB_DIR = os.path.dirname(DB_PATH)
 
 def get_db_connection() -> sqlite3.Connection:
     """Returns an active SQLite database connection with row-factory enabled."""
