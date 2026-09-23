@@ -81,7 +81,7 @@ const INITIAL_CAM_POS = geoToCartesian(5, 75, 0, {
  * Supports Dual View Modes:
  * - View Mode 1: Solid Realistic Earth Globe (no see-through ghost effect)
  * - View Mode 2: Regional 3D Ocean Volume Block (Northern Indian Ocean 0-25°N, 65-95°E)
- *   with 4 vertical boundary depth curtains from 0m down to 4000m and ODV slices.
+ *   with instanced volumetric voxel cells, depth slicing, truth-in-depth bounds, and ODV transect slices.
  */
 export default function OceanCanvas({
   selectedVariable = 'temperature',

@@ -263,7 +263,7 @@ export default function ComparisonPanel({
                 {/* SVG CTD Profile Curves */}
                 <div className="ctd-chart-container bg-slate-950/80 border border-slate-800 rounded-lg p-3">
                   <span className="text-[11px] font-bold text-slate-300 block mb-2">
-                    Vertical CTD Profile (0m - 4000m Seabed)
+                    Vertical CTD Profile ({probeData.depths?.length ? `${probeData.depths[0]}m – ${probeData.depths[probeData.depths.length - 1]}m` : '0m – 92.33m'})
                   </span>
                   <div className="h-48 w-full flex items-center justify-center">
                     <svg viewBox="0 0 480 180" className="w-full h-full overflow-visible">
@@ -408,30 +408,32 @@ export default function ComparisonPanel({
               </div>
 
               <svg viewBox="0 0 540 190" className="w-full h-48">
-                {/* Depth axis ticks on left (0m, 100m, 500m, 1000m, 2000m, 4000m) */}
-                {[
-                  { d: 0, k: 0 },
-                  { d: 100, k: 3 },
-                  { d: 500, k: 5 },
-                  { d: 1000, k: 6 },
-                  { d: 2000, k: 7 },
-                  { d: 4000, k: 8 }
-                ].map(({ d, k }) => {
-                  const y = 12 + (k / 8) * 150;
-                  return (
-                    <g key={d}>
-                      <text x="38" y={y + 3} fill="#94a3b8" fontSize="8.5" textAnchor="end" fontFamily="monospace">
-                        {d}m
-                      </text>
-                      <line x1="40" y1={y} x2="44" y2={y} stroke="#475569" strokeWidth="1" />
-                    </g>
-                  );
-                })}
+                {/* Dynamic Depth axis ticks */}
+                {(() => {
+                  const depthsList = activeTransect.depth_levels || [0, 10, 50, 100, 200, 500, 1000, 2000, 4000];
+                  const n = depthsList.length;
+                  const tickIndices = n <= 6
+                    ? depthsList.map((_, i) => i)
+                    : [0, Math.floor(n * 0.2), Math.floor(n * 0.4), Math.floor(n * 0.6), Math.floor(n * 0.8), n - 1];
+                  const uniqueTicks = Array.from(new Set(tickIndices)).map(k => ({ d: depthsList[k], k }));
+                  return uniqueTicks.map(({ d, k }) => {
+                    const y = 12 + (k / Math.max(1, n - 1)) * 150;
+                    return (
+                      <g key={d}>
+                        <text x="38" y={y + 3} fill="#94a3b8" fontSize="8.5" textAnchor="end" fontFamily="monospace">
+                          {d}m
+                        </text>
+                        <line x1="40" y1={y} x2="44" y2={y} stroke="#475569" strokeWidth="1" />
+                      </g>
+                    );
+                  });
+                })()}
 
                 {/* Heatmap cells */}
                 {activeTransect.matrix?.map((row, depthIdx) => {
-                  const y = 12 + (depthIdx / 9) * 150;
-                  const rowHeight = 150 / 9;
+                  const numRows = Math.max(1, activeTransect.matrix?.length || 9);
+                  const y = 12 + (depthIdx / numRows) * 150;
+                  const rowHeight = 150 / numRows;
                   const minV = activeTransect.min_val ?? 2.0;
                   const maxV = activeTransect.max_val ?? 32.0;
                   const range = Math.max(1e-4, maxV - minV);
@@ -483,7 +485,7 @@ export default function ComparisonPanel({
                     }
                     const frac = (depthsList[k1] > depthsList[k0]) ? (mld - depthsList[k0]) / (depthsList[k1] - depthsList[k0]) : 0;
                     const effK = k0 + frac;
-                    const y = 12 + (effK / 8) * 150;
+                    const y = 12 + (effK / Math.max(1, depthsList.length - 1)) * 150;
                     dStr += dStr === '' ? `M ${x} ${y}` : ` L ${x} ${y}`;
                   });
                   return dStr ? <path d={dStr} fill="none" stroke="#22d3ee" strokeWidth="2" strokeDasharray="3,2" /> : null;
@@ -508,7 +510,7 @@ export default function ComparisonPanel({
                     }
                     const frac = (depthsList[k1] > depthsList[k0]) ? (d20 - depthsList[k0]) / (depthsList[k1] - depthsList[k0]) : 0;
                     const effK = k0 + frac;
-                    const y = 12 + (effK / 8) * 150;
+                    const y = 12 + (effK / Math.max(1, depthsList.length - 1)) * 150;
                     dStr += dStr === '' ? `M ${x} ${y}` : ` L ${x} ${y}`;
                   });
                   return dStr ? <path d={dStr} fill="none" stroke="#f59e0b" strokeWidth="2" /> : null;

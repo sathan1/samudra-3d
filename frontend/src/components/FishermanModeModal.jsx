@@ -90,11 +90,12 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
           </button>
         </div>
 
-        {/* Safety Notice */}
+        {/* Safety & Scientific Basis Notice */}
         <div className="mx-6 mt-4 p-3 bg-amber-950/50 border border-amber-800/60 rounded-lg text-amber-200 text-xs flex items-start gap-2.5">
           <svg className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
           <div className="leading-relaxed">
-            <strong className="font-semibold text-white">Navigational & Resolution Notice:</strong> Numerical model resolution is ~8.3 km grid (~0.083°). Coastal navigation inside harbors, breaker lines, and near-shore shoals requires official nautical charts, port radar, and local INCOIS broadcast advisories. Do not navigate shallow inlets by macro model alone.
+            <div><strong className="font-semibold text-white">Navigational & Resolution Notice:</strong> Numerical model resolution is ~8.3 km grid (~0.083°). Coastal navigation inside harbors and near-shore shoals requires official nautical charts, port radar, and local INCOIS broadcast advisories.</div>
+            <div className="mt-1 text-slate-300"><strong className="text-emerald-300">Scientific Basis:</strong> PFZ indicators shown here are physical proxies computed from horizontal temperature gradients (|∇T| ≥ 0.015°C/km) and mixed layer upwelling. Live INCOIS biological Chlorophyll-a / PFZ multilingual bulletin APIs are planned remote integrations; no fish biomass or catch quantities are fabricated.</div>
           </div>
         </div>
 

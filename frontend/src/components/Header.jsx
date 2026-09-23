@@ -195,7 +195,7 @@ export default function Header({
                 <span className="icon">📦</span>
                 <div>
                   <div className="title">3D Ocean Volume Block</div>
-                  <div className="desc">Regional vertical depth curtains & ODV slices</div>
+                  <div className="desc">Regional 3D volumetric ocean voxels & ODV slices</div>
                 </div>
               </button>
             </div>

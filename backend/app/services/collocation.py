@@ -199,7 +199,20 @@ class CollocationEngine:
         ds = self.ocean_svc.dataset
         assert ds is not None
 
-        if variable not in ds.variables:
+        var_name = variable
+        if var_name not in ds.variables:
+            mapping = {
+                "temperature": ["thetao", "temperature", "temp"],
+                "salinity": ["so", "salinity", "salt"],
+                "u_current": ["uo", "u_current", "u"],
+                "v_current": ["vo", "v_current", "v"],
+            }
+            for candidate in mapping.get(variable, []):
+                if candidate in ds.variables:
+                    var_name = candidate
+                    break
+
+        if var_name not in ds.variables:
             return (None, f"UNSUPPORTED_VARIABLE ({variable})", 0.0)
 
         times = self.ocean_svc.times
@@ -212,20 +225,20 @@ class CollocationEngine:
         if time_strategy == "nearest":
             t_idx = int(np.argmin(np.abs(times - obs_hours)))
             temp_offset = abs(float(times[t_idx]) - obs_hours)
-            grid_3d = ds.variables[variable][t_idx, :, :, :]
+            grid_3d = ds.variables[var_name][t_idx, :, :, :]
             val, err = self.trilinear_interpolate_3d(grid_3d, lat, lon, depth)
             return (val, err, temp_offset)
 
         # 2. Linear Temporal Interpolation Strategy (Default)
         if obs_hours <= float(times[0]):
             temp_offset = float(times[0]) - obs_hours
-            grid_3d = ds.variables[variable][0, :, :, :]
+            grid_3d = ds.variables[var_name][0, :, :, :]
             val, err = self.trilinear_interpolate_3d(grid_3d, lat, lon, depth)
             return (val, err, temp_offset)
 
         if obs_hours >= float(times[-1]):
             temp_offset = obs_hours - float(times[-1])
-            grid_3d = ds.variables[variable][-1, :, :, :]
+            grid_3d = ds.variables[var_name][-1, :, :, :]
             val, err = self.trilinear_interpolate_3d(grid_3d, lat, lon, depth)
             return (val, err, temp_offset)
 
@@ -235,12 +248,12 @@ class CollocationEngine:
         span_t = float(times[t1] - times[t0])
         alpha = float((obs_hours - times[t0]) / span_t) if span_t > 0 else 0.0
 
-        grid_3d_0 = ds.variables[variable][t0, :, :, :]
+        grid_3d_0 = ds.variables[var_name][t0, :, :, :]
         val0, err0 = self.trilinear_interpolate_3d(grid_3d_0, lat, lon, depth)
         if err0:
             return (None, err0, 0.0)
 
-        grid_3d_1 = ds.variables[variable][t1, :, :, :]
+        grid_3d_1 = ds.variables[var_name][t1, :, :, :]
         val1, err1 = self.trilinear_interpolate_3d(grid_3d_1, lat, lon, depth)
         if err1:
             return (None, err1, 0.0)
@@ -262,8 +275,15 @@ class CollocationEngine:
         Convention: delta = MODEL - OBSERVED.
         """
         unit = "degC" if variable == "temperature" else "PSU"
+        prov = "INCOIS ROMS Numerical Simulation (CF-1.8)"
+        try:
+            from backend.app.data.registry import dataset_registry
+            active_d = dataset_registry.get_active_dataset()
+            if active_d:
+                prov = active_d.name
+        except Exception:
+            pass
         n = len(valid_pairs)
-
         if n == 0:
             return CollocationSummary(
                 variable=variable,
@@ -280,7 +300,7 @@ class CollocationEngine:
                 spatial_distance_km=round(spatial_dist_km, 2),
                 interpolation_method="trilinear",
                 time_strategy=time_strategy,
-                provenance="INCOIS ROMS Numerical Simulation (CF-1.8)"
+                provenance=prov
             )
 
                 # residuals: e_i = model_i - observed_i

@@ -260,41 +260,42 @@ export default function SidebarControls({
 
             {/* Fine Depth Range Slider — bounds from ACTUAL dataset metadata (Master Prompt Section 7) */}
             {(() => {
+              const minDepth = availableDepths.length > 0 ? availableDepths[0] : 0;
               const maxDepth = availableDepths.length > 0 ? Math.max(...availableDepths) : 100;
               return (
                 <>
-            <input
-              id="depth"
-              type="range"
-              min={availableDepths.length > 0 ? availableDepths[0] : 0}
-              max={maxDepth}
-              step="any"
-              value={requestedDepth}
-              onChange={(e) => onSelectDepth?.(parseFloat(e.target.value))}
-              aria-describedby="depth-help"
-              list="depth-levels"
-              className="w-full accent-sky-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
-            />
-            <datalist id="depth-levels">
-              {availableDepths.map((d) => (
-                <option key={d} value={d} label={d < 100 ? `${d.toFixed(2)}m` : `${Math.round(d)}m`}></option>
-              ))}
-            </datalist>
+                  <input
+                    id="depth"
+                    type="range"
+                    min={minDepth}
+                    max={maxDepth}
+                    step="any"
+                    value={requestedDepth}
+                    onChange={(e) => onSelectDepth?.(parseFloat(e.target.value))}
+                    aria-describedby="depth-help"
+                    list="depth-levels"
+                    className="w-full accent-sky-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                  />
+                  <datalist id="depth-levels">
+                    {availableDepths.map((d) => (
+                      <option key={d} value={d} label={d < 100 ? `${d.toFixed(2)}m` : `${Math.round(d)}m`}></option>
+                    ))}
+                  </datalist>
+                  <div className="range-labels flex justify-between text-[10px] text-slate-400 mt-1 font-mono">
+                    <span>{minDepth < 1 ? `${minDepth.toFixed(1)}m (Surface)` : `${Math.round(minDepth)}m (Surface)`}</span>
+                    <span>{maxDepth <= 120 ? `${(maxDepth * 0.5).toFixed(1)}m` : '100m (Thermocline)'}</span>
+                    <span>{`${maxDepth < 100 ? maxDepth.toFixed(1) : Math.round(maxDepth)}m (${maxDepth > 1000 ? 'Abyss' : 'Base'})`}</span>
+                  </div>
+                  <p id="depth-help" className="helper text-[11px] text-slate-400 mt-1 mb-0">
+                    {resolvedDepth !== null && resolvedDepth !== requestedDepth
+                      ? `Requested ${requestedDepth} m (snapped to ${resolvedDepth} m model level).`
+                      : requestedDepth === minDepth
+                      ? `Surface ocean layer (${minDepth.toFixed(2)} m). Slide or use arrow keys to slice subsurface levels to ${maxDepth < 100 ? maxDepth.toFixed(1) : Math.round(maxDepth)} m.`
+                      : `Subsurface model layer (${resolvedDepth ?? requestedDepth} m).`}
+                  </p>
                 </>
               );
             })()}
-            <div className="range-labels flex justify-between text-[10px] text-slate-400 mt-1 font-mono">
-              <span>0m (Surface)</span>
-              <span>100m (Thermocline)</span>
-              <span>4000m (Abyss)</span>
-            </div>
-            <p id="depth-help" className="helper text-[11px] text-slate-400 mt-1 mb-0">
-              {resolvedDepth !== null && resolvedDepth !== requestedDepth
-                ? `Requested ${requestedDepth} m (snapped to ${resolvedDepth} m model level).`
-                : requestedDepth === 0
-                ? 'Surface ocean layer (0 m). Slide or use arrow keys to slice subsurface levels to 4,000 m.'
-                : `Subsurface model layer (${resolvedDepth ?? requestedDepth} m).`}
-            </p>
           </div>
 
           {/* Section 3: Forecast Simulation */}

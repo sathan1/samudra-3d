@@ -676,15 +676,21 @@ export default function ModelComparisonModal({
                   <div className="relative w-full overflow-hidden flex items-center justify-center">
                     <svg viewBox={`0 0 ${chartScales.chartWidth} ${chartScales.chartHeight}`} className="w-full h-auto overflow-visible select-none" data-testid="dual-curves-svg">
                       {/* Depth Grid Lines */}
-                      {[0, 100, 500, 1000, 2000, 4000].filter(d => d <= chartScales.maxDepth).map(d => {
-                        const y = chartScales.depthToY(d);
-                        return (
-                          <g key={`d-line-${d}`}>
-                            <line x1={chartScales.pad.left} y1={y} x2={chartScales.chartWidth - chartScales.pad.right} y2={y} stroke="var(--border)" strokeDasharray="3 3" strokeOpacity="0.6" />
-                            <text x={chartScales.pad.left - 8} y={y + 3} fill="var(--muted)" fontSize="9" textAnchor="end" fontFamily="monospace">{d}m</text>
-                          </g>
-                        );
-                      })}
+                      {(() => {
+                        let ticks = [0, 100, 500, 1000, 2000, 4000].filter(d => d <= chartScales.maxDepth);
+                        if (chartScales.maxDepth <= 150) {
+                          ticks = [0, Math.round(chartScales.maxDepth * 0.25), Math.round(chartScales.maxDepth * 0.5), Math.round(chartScales.maxDepth * 0.75), Math.round(chartScales.maxDepth)];
+                        }
+                        return Array.from(new Set(ticks)).map(d => {
+                          const y = chartScales.depthToY(d);
+                          return (
+                            <g key={`d-line-${d}`}>
+                              <line x1={chartScales.pad.left} y1={y} x2={chartScales.chartWidth - chartScales.pad.right} y2={y} stroke="var(--border)" strokeDasharray="3 3" strokeOpacity="0.6" />
+                              <text x={chartScales.pad.left - 8} y={y + 3} fill="var(--muted)" fontSize="9" textAnchor="end" fontFamily="monospace">{d}m</text>
+                            </g>
+                          );
+                        });
+                      })()}
 
                       {/* Value Grid Lines */}
                       {[0, 0.25, 0.5, 0.75, 1.0].map((frac, idx) => {
