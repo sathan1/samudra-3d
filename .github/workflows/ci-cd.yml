@@ -46,7 +46,6 @@ jobs:
         run: |
           mkdir -p backend/data
           mkdir -p SAMUDRA_DATA/raw SAMUDRA_DATA/processed SAMUDRA_DATA/cache SAMUDRA_DATA/indexes SAMUDRA_DATA/manifests SAMUDRA_DATA/demo
-          cp backend/sample_data/model_indian_ocean.nc SAMUDRA_DATA/raw/cmems_mod_glo_phy_my_0.083deg_P1D-m_sample.nc
 
       - name: Run Backend Unit & Integration Tests
         run: |
