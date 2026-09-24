@@ -62,7 +62,7 @@ def sanitize_value(val: Any) -> Optional[float]:
 
 # Hard safety limit: maximum grid cells returned by a single /ocean-data request.
 # The real GLORYS grid is 301 x 601 = 180,901 cells.  We reject larger requests
-# with HTTP 400 to prevent browser overload.  (Master Prompt �19)
+# with HTTP 400 to prevent browser overload.  
 MAX_GRID_CELLS = 100_000
 
 # Maximum payload size in bytes for any single field response
@@ -1299,8 +1299,8 @@ class GlorysLocalAdapter(BaseOceanAdapter):
         if time_idx < 0 or time_idx >= len(self.times):
             raise ValueError(f"time_idx {time_idx} out of range [0..{len(self.times)-1}]")
 
-        # Master Prompt §18 & §19: Spatial bounds are REQUIRED for the real dataset
-        # to prevent accidental full-grid retrieval (301x601 = 180,901 cells).
+        # Spatial bounds are REQUIRED for the real dataset to prevent accidental
+        # full-grid retrieval (301x601 = 180,901 cells).
         # The globe is a coordinate index, not a data container.
         if lat_min is None or lat_max is None or lon_min is None or lon_max is None:
             raise ValueError(
@@ -1343,11 +1343,9 @@ class GlorysLocalAdapter(BaseOceanAdapter):
         if i_min > i_max:
             raise ValueError(f"Invalid longitude range: min ({lon_min}) > max ({lon_max})")
 
-        # Master Prompt §19: Hard server-side safety limit on grid cells.
         # Progressive-detail (LOD) auto-decimation: the backend chooses the coarsest
         # integer decimation step that keeps the response within the payload budget.
-        # This is a REAL LOD system derived from the dataset's native resolution —
-        # no invented resolutions are created (Master Prompt §16).
+        # This is a real LOD system derived from the dataset's native resolution.
         n_lat = j_max - j_min + 1
         n_lon = i_max - i_min + 1
         step = 1

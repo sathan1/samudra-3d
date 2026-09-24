@@ -12,7 +12,6 @@ export const BASIN_PRESETS = [
 
 /**
  * ComparisonPanel - Right Slide-Out Inspector Drawer (560-600px)
- * Authority: Master Handbook & HUD UI/UX Overhaul Specifications.
  * Slides out when a point is probed or an in-situ sensor/transect is selected.
  */
 export default function ComparisonPanel({
@@ -749,7 +748,7 @@ export default function ComparisonPanel({
                     {activeCollocation.model_health} (RMSE {tempSummary?.rmse ?? 'N/A'}°C · MAE {tempSummary?.mae ?? 'N/A'}°C)
                   </strong>
                 </div>
-                {/* Pearson correlation coefficient R (Master Prompt Section 31): from real
+                {/* Pearson correlation coefficient R : from real
                     model-observation pairs.  'n < 3' means insufficient samples — never an invalid value. */}
                 <div className="metric-placeholder flex justify-between items-center text-xs py-1">
                   <span className="text-slate-400">Correlation R (model × observed)</span>

@@ -1,6 +1,5 @@
 /**
- * SAMUDRA-3D Argo Float Markers Unit Tests (Phase 10)
- * Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap p. 10 (SIH26067)
+ * SAMUDRA-3D Argo Float Markers Unit Tests
  */
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -17,7 +16,7 @@ import {
 } from '../src/utils/argoProfiles.js';
 import { geoToCartesian } from '../src/utils/coordinates.js';
 
-console.log('--- Testing SAMUDRA-3D Argo Float Markers (Phase 10) ---');
+console.log('--- Testing SAMUDRA-3D Argo Float Markers  ---');
 
 // -----------------------------------------------------------------------------
 // 1. 3D Spherical Coordinate Placement & Precision
@@ -135,4 +134,4 @@ disposeArgoMarkers(markersContainer);
 assert.equal(markersContainer.children.length, 0, 'disposeArgoMarkers must remove all children');
 console.log('✓ 5. Three.js marker creation, selection highlighting, and resource disposal verified');
 
-console.log('\nALL PHASE 10 ARGO FLOAT TESTS PASSED (100%)\n');
+console.log('\nALL ARGO FLOAT TESTS PASSED (100%)\n');

@@ -24,7 +24,6 @@ function calculatePearsonR(obsArr, modelArr) {
 
 /**
  * ModelComparisonModal - Dedicated Model Prediction & Observation Validation Suite
- * Authority: Core problem statement & scientific validation requirements.
  * Allows scientists to compare numerical forecast model predictions against in-situ ground truth observations.
  */
 export default function ModelComparisonModal({

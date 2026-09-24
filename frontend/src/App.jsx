@@ -56,7 +56,7 @@ export default function App() {
   const [isLooping, _setIsLooping] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
   const [currentTimeTimestamp, setCurrentTimeTimestamp] = useState(getForecastTimestamps()[0]);
-  // Dynamic dataset-driven controls (Master Prompt Section 7-10):
+  // Dynamic dataset-driven controls :
   // depths/times/variables come from /api/metadata, never hardcoded.
   const [availableDepths, setAvailableDepths] = useState([]);
   const [availableTimes, setAvailableTimes] = useState([]);
@@ -70,7 +70,7 @@ export default function App() {
   const [gliderTransects, setGliderTransects] = useState([]);
   const [selectedGlider, setSelectedGlider] = useState(null);
 
-  // Phase 14: 3D Difference Field & Anomaly Heatmap state
+  // 3D Difference Field & Anomaly Heatmap state
   const [showAnomalyField, setShowAnomalyField] = useState(false);
   const [anomalyVariable, _setAnomalyVariable] = useState('temperature');
   const [anomalyThreshold, _setAnomalyThreshold] = useState(0.5);
@@ -97,7 +97,7 @@ export default function App() {
   const [targetRegion, setTargetRegion] = useState(null);
   const [selectedSectorId, setSelectedSectorId] = useState('macro-nio');
 
-  // Phase 15: AI Ocean Assistant Modal state
+  // Ocean Assistant Modal state
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isSourcesOpen, setIsSourcesOpen] = useState(false);
   // MoES/INCOIS Admin & Sensor Management state
@@ -213,7 +213,7 @@ export default function App() {
           const found = data.datasets.find((d) => d.dataset_id === data.active_dataset_id);
           setActiveDataset(found || glorys || data.datasets[0]);
 
-         // Fetch actual metadata so the UI uses real timestamps, depths, and variables (Master Prompt Section 9)
+         // Fetch actual metadata so the UI uses real timestamps, depths, and variables 
          try {
            const meta = await fetchMetadata();
            if (meta?.time_timestamps) setForecastTimestamps(meta.time_timestamps);
@@ -366,7 +366,7 @@ export default function App() {
     }
   }, [argoFloats, gliderTransects]);
 
-  // Phase 14: Load Anomaly Field when layer is enabled or filters change
+  // 3D Difference Field & Anomaly Heatmap state
   useEffect(() => {
     if (!showAnomalyField) return;
     let ignore = false;
@@ -608,7 +608,7 @@ export default function App() {
     setProbedPoint(geo);
     setIsProbeLoading(true);
 
-    // REAL DATA ONLY (Master Prompt Section 21): never fabricate a scientific
+    // REAL DATA ONLY : never fabricate a scientific
     // profile as a fallback.  If the real probe fails, surface a clear error state.
     fetchOceanProbe({
       lat: geo.lat,
@@ -622,7 +622,7 @@ export default function App() {
         setIsProbeLoading(false);
       })
       .catch((err) => {
-        // DATA UNAVAILABLE — no synthetic fallback is ever used (Master Prompt Section 21, 75)
+        // DATA UNAVAILABLE — no synthetic fallback is ever used 
         console.warn('Probe fetch failed:', err.message);
         setProbeData({
           lat: geo.lat,

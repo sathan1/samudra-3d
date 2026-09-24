@@ -2,17 +2,17 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-const evidenceDir = path.resolve('..', 'docs', 'evidence', 'phase-07');
+const evidenceDir = path.resolve('test-results', 'screenshots');
 mkdirSync(evidenceDir, { recursive: true });
 
-test.describe('Phase 07: Interactive Depth Slicer (0m to 4,000m)', () => {
+test.describe('Interactive Depth Slicer (0m to 4,000m)', () => {
 
-  test('AC02, AC04, AC05 & AC07: Depth slider navigates surface, thermocline, and abyss with snapping disclosure', async ({ page }) => {
+  test('Depth slider navigates surface, thermocline, and abyss with snapping disclosure', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/');
 
     // 1. Initial State: Surface 0m
-    await expect(page.locator('.phase-label')).toContainText('OPERATIONAL');
+    await expect(page.locator('.brand')).toContainText('SAMUDRA-3D');
     const depthSlider = page.locator('input#depth');
     await expect(depthSlider).toBeEnabled();
     await expect(depthSlider).toHaveValue('0');
@@ -92,7 +92,7 @@ test.describe('Phase 07: Interactive Depth Slicer (0m to 4,000m)', () => {
     });
   });
 
-  test('AC06: Rapid depth dragging and out-of-order rejection settles on final selection', async ({ page }) => {
+  test('Rapid depth dragging and out-of-order rejection settles on final selection', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/');
 
@@ -123,7 +123,7 @@ test.describe('Phase 07: Interactive Depth Slicer (0m to 4,000m)', () => {
     await expect(canvas).toBeVisible();
   });
 
-  test('AC03: Variable switching preserves depth level and vice-versa', async ({ page }) => {
+  test('Variable switching preserves depth level and vice-versa', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/');
 
@@ -147,7 +147,7 @@ test.describe('Phase 07: Interactive Depth Slicer (0m to 4,000m)', () => {
     await expect(depthBadge).toContainText('100m requested');
   });
 
-  test('AC02: Keyboard accessible slider navigation', async ({ page }) => {
+  test('Keyboard accessible slider navigation', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/');
 

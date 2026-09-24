@@ -1,6 +1,5 @@
 """
-SAMUDRA-3D AI Ocean Assistant Schemas
-Authority: Master Handbook physical pp. 9-14; roadmap row 15 (SIH26067)
+SAMUDRA-3D Ocean Assistant Schemas
 """
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field

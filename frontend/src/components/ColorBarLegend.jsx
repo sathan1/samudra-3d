@@ -2,7 +2,6 @@ import { getColormapCssGradient, VARIABLE_CONFIGS } from '../utils/colormaps.js'
 
 /**
  * ColorBarLegend - Scientific Oceanographic Colorbar & Legend
- * Authority: Master Handbook physical pp. 3, 9-11 (SIH26067)
  * 
  * Displays cmocean thermal (temperature) and haline (salinity) sequential colorbars,
  * variable units, numerical bounds, and range policy disclosure.

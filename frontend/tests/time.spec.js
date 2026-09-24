@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 
-const evidenceDir = path.resolve('..', 'docs', 'evidence', 'phase-08');
+const evidenceDir = path.resolve('test-results', 'screenshots');
 mkdirSync(evidenceDir, { recursive: true });
 
-test.describe('Phase 08: Time Animation Playback Controls', () => {
+test.describe('Time Animation Playback Controls', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Indian Ocean workspace' })).toBeVisible();
@@ -13,7 +13,7 @@ test.describe('Phase 08: Time Animation Playback Controls', () => {
     await page.locator('[data-testid="hud-time-badge"]').waitFor({ timeout: 15000 });
   });
 
-  test('AC02, AC03, AC08: Initial time T+00h, manual stepping forward and backward', async ({ page }) => {
+  test('Initial time T+00h, manual stepping forward and backward', async ({ page }) => {
     // 1. Initial time verification
     const timeDisplay = page.locator('[data-testid="time-value-display"]');
     const hudTimeBadge = page.locator('[data-testid="hud-time-badge"]');
@@ -51,7 +51,7 @@ test.describe('Phase 08: Time Animation Playback Controls', () => {
     expect(await timeSlider.inputValue()).toBe('1');
   });
 
-  test('AC03, AC04, AC05: Play/Pause animation advances frames automatically', async ({ page }) => {
+  test('Play/Pause animation advances frames automatically', async ({ page }) => {
     const playPauseBtn = page.locator('button#time-play-pause');
     const speedSelect = page.locator('select#time-speed');
     const hudTimeBadge = page.locator('[data-testid="hud-time-badge"]');
@@ -80,7 +80,7 @@ test.describe('Phase 08: Time Animation Playback Controls', () => {
     expect(await hudTimeBadge.innerText()).toBe(stepText);
   });
 
-  test('AC05, AC07: Non-looping behavior and variable/depth preservation', async ({ page }) => {
+  test('Non-looping behavior and variable/depth preservation', async ({ page }) => {
     const timeSlider = page.locator('input#time');
     const loopCheckbox = page.locator('input#time-loop');
     const depthSlider = page.locator('input#depth');
@@ -112,7 +112,7 @@ test.describe('Phase 08: Time Animation Playback Controls', () => {
     await loopCheckbox.check();
   });
 
-  test('AC06: Rapid scrub stress and out-of-order rejection', async ({ page }) => {
+  test('Rapid scrub stress and out-of-order rejection', async ({ page }) => {
     const timeSlider = page.locator('input#time');
     const hudTimeBadge = page.locator('[data-testid="hud-time-badge"]');
 

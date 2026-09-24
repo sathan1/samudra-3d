@@ -3,12 +3,12 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-const evidenceDir = path.resolve('..', 'docs', 'evidence', 'phase-02');
+const evidenceDir = path.resolve('test-results', 'screenshots');
 mkdirSync(evidenceDir, { recursive: true });
 
-test.describe('Phase 02: Three.js 3D Earth Globe & OrbitControls', () => {
+test.describe('Three.js 3D Earth Globe & OrbitControls', () => {
 
-  test('AC04 & AC07: 3D Globe renders, displays Indian Ocean, and responds to viewports', async ({ page, browser }) => {
+  test('3D Globe renders, displays Indian Ocean, and responds to viewports', async ({ page, browser }) => {
     const errors = [];
     page.on('pageerror', err => errors.push(err.message));
     page.on('console', msg => {
@@ -158,7 +158,7 @@ test.describe('Phase 02: Three.js 3D Earth Globe & OrbitControls', () => {
     expect(errors).toEqual([]);
   });
 
-  test('AC06: Component unmount and remount stability (no duplicate canvases or leaked RAF)', async ({ page }) => {
+  test('Component unmount and remount stability (no duplicate canvases or leaked RAF)', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.globe-canvas-wrapper canvas')).toHaveCount(1);
 
@@ -173,7 +173,7 @@ test.describe('Phase 02: Three.js 3D Earth Globe & OrbitControls', () => {
     await expect(page.locator('.globe-canvas-wrapper canvas')).toHaveCount(1);
   });
 
-  test('AC05: WebGL unsupported fallback state is readable and accessible', async ({ page }) => {
+  test('WebGL unsupported fallback state is readable and accessible', async ({ page }) => {
     // Intercept WebGL context creation to simulate unsupported hardware
     await page.addInitScript(() => {
       HTMLCanvasElement.prototype.getContext = function (type) {

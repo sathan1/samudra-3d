@@ -5,7 +5,7 @@ import React from 'react';
  * Positioned on the left/right of the 3D globe.
  * Dynamically rendered from actual NetCDF metadata (0.494m to 92.326m).
  * Never fabricates depths beyond dataset coverage.
- * Adheres to Master Prompt §27.
+ * Adheres to .
  */
 export default function VerticalDepthBar({
   availableDepths = [],

@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
-const evidence = path.resolve('..', 'docs', 'evidence', 'phase-02', `regression-shell-${new Date().toISOString().replace(/[:.]/g, '-')}`)
-mkdirSync(evidence, { recursive: true })
+const evidence = path.resolve('test-results', 'shell');
+mkdirSync(evidence, { recursive: true });
 
 for (const viewport of [{ width: 1440, height: 1000 }, { width: 1024, height: 900 }, { width: 768, height: 1024 }, { width: 390, height: 844 }, { width: 320, height: 900 }]) {
   test(`regression shell at ${viewport.width}px: layout, focus, availability, theme and refresh`, async ({ page, browser }) => {

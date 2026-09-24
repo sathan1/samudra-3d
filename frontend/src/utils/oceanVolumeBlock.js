@@ -186,7 +186,7 @@ export function createOceanVolumeBlock(volumeData, {
     return group;
   }
 
-  // Support both Phase 4 (shape & coordinates) and legacy (grid & longitude/latitude/depth)
+  // Support both 3D volume grid coordinates and legacy formats
   const lons = volumeData.coordinates?.longitude || volumeData.longitude || [];
   const lats = volumeData.coordinates?.latitude || volumeData.latitude || [];
   const depths = volumeData.coordinates?.depth || volumeData.depth || [];

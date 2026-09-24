@@ -3,7 +3,7 @@ import React from 'react';
 /**
  * LocationInspector - Sleek Floating Scientific Coordinate Inspector
  * Appears when user selects/clicks any ocean location on the 3D globe.
- * Adheres to Master Prompt §25.
+ * Adheres to .
  */
 export default function LocationInspector({
   probedPoint,

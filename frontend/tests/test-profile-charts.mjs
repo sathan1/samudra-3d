@@ -1,6 +1,5 @@
 /**
- * SAMUDRA-3D Scientific Charting Engine Unit Tests (Phase 11)
- * Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap p. 10 (SIH26067)
+ * SAMUDRA-3D Scientific Charting Engine Unit Tests
  */
 import assert from 'node:assert/strict';
 import {
@@ -13,7 +12,7 @@ import {
   generateAxisTicks
 } from '../src/utils/profileCharts.js';
 
-console.log('--- Testing SAMUDRA-3D Scientific Charting Engine (Phase 11) ---');
+console.log('--- Testing SAMUDRA-3D Scientific Charting Engine  ---');
 
 // -----------------------------------------------------------------------------
 // 1. UNESCO 1983 (EOS-80) Seawater Equation of State
@@ -139,4 +138,4 @@ const ticks = generateAxisTicks(0, 2000, 5);
 assert.deepEqual(ticks, [0, 500, 1000, 1500, 2000]);
 console.log('✓ 6. Scientific axis ticks generation verified');
 
-console.log('\nALL PHASE 11 PROFILE CHARTING TESTS PASSED (100%)\n');
+console.log('\nALL PROFILE CHARTING TESTS PASSED (100%)\n');

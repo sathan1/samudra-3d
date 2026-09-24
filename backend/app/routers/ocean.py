@@ -255,7 +255,7 @@ def get_in_depth_analysis(
         )
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Coordinate-on-Demand API (Master Prompt §6–13, §66)
+# Coordinate-on-Demand API
 # The 3D Earth is a spatial index.  The user clicks a coordinate; these endpoints
 # return ONLY the small subset of scientific data that was requested.
 # ──────────────────────────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ import React from 'react';
 /**
  * BottomControlBar - Professional Floating Scientific Dock
  * Houses the primary Ocean Variable Selector and Continuous Forecast Timeline.
- * Adheres to Master Prompt §2, §26, §28.
+ * Adheres to .
  */
 export default function BottomControlBar({
   selectedVariable,

@@ -2,7 +2,7 @@
  * SAMUDRA-3D API Client Service
  * Connects frontend to the FastAPI backend service layer.
  *
- * Architecture note (Master Prompt §1–§13, §39, §40):
+ * Architecture note :
  *   The 3D Earth is a spatial index.  Every scientific request is coordinate- and/or
  *   bounding-box-driven, and a client-side LRU cache + AbortController request-ID guard
  *   prevent redundant traffic and stale-response races.
@@ -15,7 +15,7 @@ const API_BASE = (
 );
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Client-side LRU cache (Master Prompt §39)
+ * Client-side LRU cache 
  * Key = dataset + lat + lon + variable + depth + time + bounding box + resolution
  * Repeated identical requests resolve instantly without touching the network.
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -130,7 +130,7 @@ export async function fetchMetadata(signal = null) {
 /**
  * Slices 2D ocean field by variable, time index, depth, and a REQUIRED bounding box.
  *
- * IMPORTANT (Master Prompt §18, §68): the backend rejects requests without spatial
+ * IMPORTANT : the backend rejects requests without spatial
  * bounds with HTTP 422/400.  This client sends the currently visible window so the
  * full global grid can never be transferred by accident.
  */
@@ -163,7 +163,7 @@ export async function fetchOceanData({
 }
 
 /**
- * Availability query (Master Prompt §6): lightweight metadata only, never field values.
+ * Availability query : lightweight metadata only, never field values.
  * This is the FIRST request after the user selects a coordinate on the globe.
  */
 export async function fetchLocationAvailability({ lat, lon, signal = null, useCache = true } = {}) {
@@ -173,7 +173,7 @@ export async function fetchLocationAvailability({ lat, lon, signal = null, useCa
 }
 
 /**
- * Single-value point query (Master Prompt §11).  Payload target < 10 KB.
+ * Single-value point query .  Payload target < 10 KB.
  */
 export async function fetchOceanPoint({
   lat, lon, variable = 'temperature', depth = 0, time_idx = 0, signal = null, useCache = true
@@ -192,7 +192,7 @@ export async function fetchOceanPoint({
 }
 
 /**
- * Vertical profile query (Master Prompt §12): returns only depth[] and value[]
+ * Vertical profile query : returns only depth[] and value[]
  * for the selected coordinate — far smaller than the global horizontal field.
  */
 export async function fetchOceanProfile({
@@ -209,7 +209,7 @@ export async function fetchOceanProfile({
 }
 
 /**
- * Bounded local 3D region query (Master Prompt §13, §45) — the *detailed* local
+ * Bounded local 3D region query  — the *detailed* local
  * ocean model.  Only called when the user explicitly requests a local 3D view.
  */
 export async function fetchOceanRegion({

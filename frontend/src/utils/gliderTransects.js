@@ -1,6 +1,5 @@
 /**
  * SAMUDRA-3D Underwater Glider Sawtooth Transect Utilities
- * Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap row 12, p. 10 (SIH26067)
  */
 import * as THREE from 'three';
 import { geoToCartesian, DEFAULT_GLOBE_RADIUS, DEFAULT_VERTICAL_EXAGGERATION } from './coordinates.js';

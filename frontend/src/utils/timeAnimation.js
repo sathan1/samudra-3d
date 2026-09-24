@@ -1,10 +1,9 @@
 /**
  * SAMUDRA-3D Time Animation Utilities
- * Authority: Master Handbook physical pp. 6-7, 9-11; roadmap p. 10 (SIH26067)
  * Handles 4D numerical forecast playback, discrete UTC timestamps,
  * speed calculations, loop wrapping, and bounded request throttling.
  *
- * IMPORTANT (Master Prompt Section 9): timestamps are dynamic, loaded from dataset metadata.
+ * IMPORTANT : timestamps are dynamic, loaded from dataset metadata.
  * Never hardcode scientific timestamps.  Call setForecastTimestamps() after
  * fetchMetadata() resolves so all time controls use the actual dataset timestamps.
  */
@@ -18,6 +17,7 @@ let timestamps = [
 
 /** Fallback when metadata has not been loaded yet. */
 export const DEFAULT_TIMESTAMPS = timestamps.slice();
+export const FORECAST_TIMESTAMPS = DEFAULT_TIMESTAMPS;
 
 /** Live backing count for TOTAL_FORECAST_STEPS — updated by setForecastTimestamps. */
 let _totalSteps = timestamps.length;
@@ -25,7 +25,7 @@ let _totalSteps = timestamps.length;
 /** Returns the currently active forecast timestamps (dynamic from dataset metadata). */
 export function getForecastTimestamps() { return timestamps; }
 
-/** Replaces timestamps with values from dataset metadata (Master Prompt Section 9).
+/** Replaces timestamps with values from dataset metadata .
  *  Call after fetchMetadata() resolves.  All time controls then use actual dataset timestamps. */
 export function setForecastTimestamps(newTimestamps) {
   if (!Array.isArray(newTimestamps) || newTimestamps.length === 0) return;
@@ -85,7 +85,8 @@ export function formatTimeLabel(isoString, timeIndex = 0) {
 
 /** Computes the next time step index taking loop settings into account. */
 export function computeNextStep(currentIndex, totalSteps, loop = true) {
-  if (totalSteps == null || totalSteps <= 1) totalSteps = timestamps.length;
+  if (totalSteps == null) totalSteps = timestamps.length;
+  if (totalSteps <= 1) return 0;
   const idx = Math.max(0, Math.floor(Number(currentIndex) || 0));
   if (idx < totalSteps - 1) return idx + 1;
   return loop ? 0 : idx;
@@ -93,7 +94,8 @@ export function computeNextStep(currentIndex, totalSteps, loop = true) {
 
 /** Computes the previous time step index taking loop settings into account. */
 export function computePrevStep(currentIndex, totalSteps, loop = true) {
-  if (totalSteps == null || totalSteps <= 1) totalSteps = timestamps.length;
+  if (totalSteps == null) totalSteps = timestamps.length;
+  if (totalSteps <= 1) return 0;
   const idx = Math.max(0, Math.floor(Number(currentIndex) || 0));
   if (idx > 0) return idx - 1;
   return loop ? totalSteps - 1 : 0;

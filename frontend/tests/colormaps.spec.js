@@ -2,17 +2,17 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-const evidenceDir = path.resolve('..', 'docs', 'evidence', 'phase-06');
+const evidenceDir = path.resolve('test-results', 'screenshots');
 mkdirSync(evidenceDir, { recursive: true });
 
-test.describe('Phase 06: Dynamic Thermal/Haline Color Mapping', () => {
+test.describe('Dynamic Thermal/Haline Color Mapping', () => {
 
-  test('AC04, AC06 & AC08: Switches between Thermal (Temperature) and Haline (Salinity) palettes', async ({ page }) => {
+  test('Switches between Thermal (Temperature) and Haline (Salinity) palettes', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/');
 
     // 1. Initial State: Temperature & cmocean thermal
-    await expect(page.locator('.phase-label')).toContainText(/OPERATIONAL/);
+    await expect(page.locator('.brand')).toContainText('SAMUDRA-3D');
     await expect(page.locator('.subtle-tag', { hasText: '3D Thermal Layer Active' })).toBeVisible({ timeout: 5000 });
 
     const legend = page.locator('[data-testid="color-bar-legend"]');
@@ -71,7 +71,7 @@ test.describe('Phase 06: Dynamic Thermal/Haline Color Mapping', () => {
     });
   });
 
-  test('AC05: Rapid variable switching prevents race conditions and tears', async ({ page }) => {
+  test('Rapid variable switching prevents race conditions and tears', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/');
 

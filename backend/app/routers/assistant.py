@@ -1,6 +1,5 @@
 """
 SAMUDRA-3D AI Ocean Assistant API Router
-Authority: Master Handbook physical pp. 9-14; roadmap row 15 (SIH26067)
 """
 from fastapi import APIRouter, HTTPException, status
 from backend.app.services.ai_assistant import ocean_assistant

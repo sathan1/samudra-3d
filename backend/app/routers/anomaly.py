@@ -1,6 +1,5 @@
 """
 SAMUDRA-3D 3D Difference Field and Anomaly API Router
-Authority: Master Handbook physical pp. 6, 9-11, 13; roadmap row 14 (SIH26067)
 """
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, status

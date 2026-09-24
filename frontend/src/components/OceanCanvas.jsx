@@ -77,7 +77,6 @@ const INITIAL_CAM_POS = geoToCartesian(5, 75, 0, {
 
 /**
  * OceanCanvas - Interactive 3D Earth Globe & 3D Regional Ocean Volume Block
- * Authority: Master Handbook physical pp. 6-7, 9-11; roadmap p. 10 (SIH26067)
  * 
  * Supports Dual View Modes:
  * - View Mode 1: Solid Realistic Earth Globe (no see-through ghost effect)
@@ -342,7 +341,7 @@ export default function OceanCanvas({
     let factor;
     if (len > 250)      factor = 0.72;   // large zoom from global basin
     else if (len > 130) factor = 0.85;   // medium zoom from regional
-    else                factor = 0.95;   // fine zoom at close range (Master Prompt §35)
+    else                factor = 0.95;   // fine zoom at close range 
     const newLen = Math.max(controlsRef.current.minDistance, len * factor);
     cameraRef.current.position.setLength(newLen);
     controlsRef.current.update();
@@ -1927,7 +1926,7 @@ export default function OceanCanvas({
         onToggleRangeMode={() => setRangeMode((m) => (m === 'dynamic' ? 'fixed' : 'dynamic'))}
       />
 
-      {/* Developer-only performance panel (Master Prompt Section 43).
+      {/* Developer-only performance panel .
           Enabled with ?perf=1 — never displayed for normal users. */}
       {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('perf') === '1' && (
         <div

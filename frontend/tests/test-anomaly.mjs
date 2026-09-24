@@ -1,6 +1,5 @@
 /**
- * Unit Test Suite for Frontend 3D Difference Field & Anomaly Utilities (Phase 14)
- * Authority: Master Handbook physical pp. 6, 9-11, 13; roadmap row 14 (SIH26067)
+ * Unit Test Suite for Frontend 3D Difference Field & Anomaly Utilities
  */
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -12,7 +11,7 @@ import {
   ANOMALY_COLORS
 } from '../src/utils/anomalyField.js';
 
-console.log('--- Testing SAMUDRA-3D 3D Difference Field & Anomaly Utilities (Phase 14) ---');
+console.log('--- Testing SAMUDRA-3D 3D Difference Field & Anomaly Utilities  ---');
 
 // 1. Test Diverging Color Mapping centered at zero (delta = MODEL - OBSERVED)
 console.log('1. Testing diverging color mapping for residuals...');

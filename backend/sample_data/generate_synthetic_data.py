@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 SAMUDRA-3D Synthetic Ocean NetCDF and Observation Generator
-Authority: Master Handbook physical pp. 3-4, 7, 9-10; roadmap p. 10 (SIH26067)
 
 Generates:
 1. model_indian_ocean.nc: CF-1.8 compliant 4D NetCDF (time, depth, lat, lon)
@@ -332,4 +331,4 @@ def generate_datasets(output_dir: Path, seed: int = SEED):
 if __name__ == "__main__":
     script_dir = Path(__file__).resolve().parent
     res = generate_datasets(script_dir)
-    print(f"\nPhase 3 Dataset Generation Complete: {res['nc_bytes'] / (1024*1024):.2f} MB NetCDF")
+    print(f"\nDataset Generation Complete: {res['nc_bytes'] / (1024*1024):.2f} MB NetCDF")

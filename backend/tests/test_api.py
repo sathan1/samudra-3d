@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
 """
 Automated Integration and Acceptance Tests for SAMUDRA-3D FastAPI Endpoints
-Authority: Master Handbook physical pp. 5-10, 12, 14; roadmap p. 10 (SIH26067)
 """
 
 import sys
@@ -20,7 +18,7 @@ from backend.app.main import app
 from backend.app.services.ocean_service import ocean_service
 
 def test_api_suite():
-    print("=== SAMUDRA-3D Phase 4 FastAPI Acceptance Test Suite ===")
+    print("=== SAMUDRA-3D FastAPI Endpoint Test Suite ===")
 
     # Initialize client within lifespan context
     with TestClient(app) as client:
@@ -199,7 +197,7 @@ def test_api_suite():
         print(f"[OK] Performance benchmark: 10 requests avg={avg_lat:.2f} ms, p95={p95_lat:.2f} ms")
         assert avg_lat < 100.0, f"Average latency {avg_lat} ms should be well under 100ms for in-memory slice"
 
-    print("\nALL PHASE 4 FASTAPI ACCEPTANCE TESTS PASSED (100%)")
+    print("\nALL FASTAPI INTEGRATION TESTS PASSED (100%)")
 
 if __name__ == "__main__":
     test_api_suite()

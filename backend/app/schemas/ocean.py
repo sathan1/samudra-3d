@@ -116,7 +116,7 @@ class OceanTransectResponse(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Coordinate-on-Demand Architecture (Section 6–13 of MASTER PROMPT)
+# Coordinate-on-Demand Architecture
 # Lightweight availability, point, profile, and region query schemas.
 # Every endpoint returns only the data actually requested — never the global field.
 # ──────────────────────────────────────────────────────────────────────────────

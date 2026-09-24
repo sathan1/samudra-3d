@@ -13,7 +13,6 @@ import { fetchProfileCollocation } from '../services/api.js';
 
 /**
  * ProfileModal - Interactive Oceanographic Sensor Profile Inspector
- * Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap p. 10 (SIH26067)
  */
 export default function ProfileModal({ selectedFloat = null, onSelectFloat = null, collocation = null }) {
   const [activeTab, setActiveTab] = useState('temperature'); // 'temperature' | 'salinity' | 'ts'
@@ -468,7 +467,7 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
         <span style={{ fontSize: '10px' }}>{selectedFloat.depths?.length || 0} levels</span>
       </div>
 
-      {/* 6. Model Comparison Section (Phase 13 Collocation) */}
+      {/* 6. Model Comparison Section (Model Collocation) */}
       <div
         style={{
           marginTop: '8px',
@@ -498,7 +497,7 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
               fontSize: '10px',
               fontWeight: 600
             }}
-            data-testid="phase13-tag"
+            data-testid="collocation-contract-tag"
           >
             Model Collocation Contract
           </span>

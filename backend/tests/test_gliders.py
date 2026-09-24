@@ -1,6 +1,5 @@
 """
-SAMUDRA-3D Underwater Glider Transects Acceptance Test Suite (Phase 12)
-Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap p. 10 (SIH26067)
+SAMUDRA-3D Underwater Glider Transects Test Suite
 """
 import sys
 from pathlib import Path
@@ -16,7 +15,7 @@ from backend.app.services.insitu_service import insitu_service, PRESSURE_TO_DEPT
 client = TestClient(app)
 
 def test_glider_suite():
-    print("=== SAMUDRA-3D Phase 12 Glider Transects Acceptance Test Suite ===")
+    print("=== SAMUDRA-3D Underwater Glider Transects Test Suite ===")
 
     # 1. System Status with Gliders
     r_stat = client.get("/api/insitu/status")
@@ -86,7 +85,7 @@ def test_glider_suite():
     assert r_unknown.status_code == 404
     print("[OK] HTTP 404 returned for unknown glider ID")
 
-    print("\nALL PHASE 12 GLIDER BACKEND TESTS PASSED (100%)")
+    print("\nALL GLIDER BACKEND TESTS PASSED (100%)")
 
 if __name__ == "__main__":
     test_glider_suite()

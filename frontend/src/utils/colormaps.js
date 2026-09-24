@@ -3,8 +3,7 @@
  * Implements cmocean-standard oceanographic sequential palettes:
  * - 'thermal': for Potential Temperature (°C)
  * - 'haline': for Practical Salinity (PSU)
- * 
- * Authority: Master Handbook physical pp. 3, 9-11 (SIH26067)
+ *
  */
 
 export const COLORMAP_PALETTES = {

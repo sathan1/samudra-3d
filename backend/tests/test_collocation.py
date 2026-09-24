@@ -1,6 +1,5 @@
 """
-SAMUDRA-3D Phase 13 Acceptance Test Suite
-Authority: Master Handbook physical pp. 5-6, 9-11, 13; roadmap row 13 (SIH26067)
+SAMUDRA-3D Collocation Engine Test Suite
 """
 import sys
 import math
@@ -16,13 +15,13 @@ if str(root) not in sys.path:
 from backend.app.main import app
 from backend.app.services.collocation import collocation_engine
 
-class TestPhase13Collocation(unittest.TestCase):
+class TestCollocationEngine(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.client = TestClient(app)
 
     def test_01_collocation_health_and_affine_ground_truth(self):
-        """AC04: Analytical affine field ground-truth trilinear verification."""
+        """Analytical affine field ground-truth trilinear verification."""
         res = self.client.get("/api/collocation/health")
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -35,7 +34,7 @@ class TestPhase13Collocation(unittest.TestCase):
         print(f"[OK] Analytical affine trilinear exactness verified (Max error: {affine['max_abs_error']:.6f})")
 
     def test_02_sign_convention_and_residual_metrics(self):
-        """AC05 & AC06: delta = MODEL - OBSERVED, under-prediction/over-prediction, bias, MAE, RMSE."""
+        """delta = MODEL - OBSERVED, under-prediction/over-prediction, bias, MAE, RMSE."""
         # Check delta = MODEL - OBSERVED
         # model=18.5, obs=19.1 -> delta = -0.6
         summary_neg = collocation_engine.compute_metrics([(18.5, 19.1)], "temperature", 1, 0.0, 0.0, "linear")
@@ -47,7 +46,7 @@ class TestPhase13Collocation(unittest.TestCase):
         self.assertAlmostEqual(summary_pos.bias, +0.6, places=3)
         self.assertEqual(summary_pos.prediction_tendency, "over-prediction")
 
-        # Handbook exact test case: residuals [-1, 0, 2]
+        # Reference exact test case: residuals [-1, 0, 2]
         # model - obs = -1 -> (10, 11); model - obs = 0 -> (10, 10); model - obs = 2 -> (12, 10)
         test_pairs = [(10.0, 11.0), (10.0, 10.0), (12.0, 10.0)]
         summary_hb = collocation_engine.compute_metrics(test_pairs, "temperature", 3, 0.0, 0.0, "linear")
@@ -62,7 +61,7 @@ class TestPhase13Collocation(unittest.TestCase):
         print(f"[OK] Sign convention and residual metrics verified: Bias={summary_hb.bias:.4f} (1/3), MAE={summary_hb.mae:.4f} (1.0), RMSE={summary_hb.rmse:.4f} (sqrt(5/3))")
 
     def test_03_profile_collocation_argo_synthetic(self):
-        """AC01 & AC08: Collocation of primary synthetic Argo float ARGO_2902145."""
+        """Collocation of primary Argo float ARGO_2902145."""
         res = self.client.get("/api/collocation/profile/ARGO_2902145")
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -92,7 +91,7 @@ class TestPhase13Collocation(unittest.TestCase):
         print(f"[OK] ARGO_2902145 collocated in {data['latency_ms']:.2f}ms (Health: {data['model_health']})")
 
     def test_04_qc_outlier_and_missing_levels(self):
-        """AC07: Strict exclusion of bad QC flags (flag 4) from metrics."""
+        """Strict exclusion of bad QC flags (flag 4) from metrics."""
         res = self.client.get("/api/collocation/profile/ARGO_TEST_QC_OUTLIER")
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -167,5 +166,5 @@ class TestPhase13Collocation(unittest.TestCase):
         print("[OK] Unknown platform IDs returned HTTP 404")
 
 if __name__ == "__main__":
-    print("=== SAMUDRA-3D Phase 13 Collocation Acceptance Test Suite ===")
+    print("=== SAMUDRA-3D Collocation Engine Acceptance Test Suite ===")
     unittest.main(verbosity=2)

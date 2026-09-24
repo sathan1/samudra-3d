@@ -206,7 +206,7 @@ class OceanDataService:
             time_idx=time_idx
         )
 
-    # ── Coordinate-on-Demand methods (Master Prompt §6–13) ──────────────────
+    # ── Coordinate-on-Demand methods ─────────────────────────────────────────
 
     def get_availability(self, lat: float, lon: float):
         """Lightweight availability query. Returns metadata only, never field values."""
