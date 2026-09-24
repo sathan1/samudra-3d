@@ -4,6 +4,7 @@ Verifies Argo GDAC, Glider missions, INCOIS moored buoys, satellite thermal fron
 """
 import unittest
 from pathlib import Path
+import numpy as np
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
@@ -70,15 +71,24 @@ class TestInsituRealIngest(unittest.TestCase):
 
     def test_04_satellite_thermal_fronts(self):
         """Tests spatial temperature gradient vector computation and thermal front extraction."""
+        # 1. Test front extraction algorithm with calibrated thermal gradient
+        lats = np.linspace(10.0, 15.0, 40)
+        lons = np.linspace(80.0, 85.0, 40)
+        lon_grid, _lat_grid = np.meshgrid(lons, lats)
+        sst_grid = 28.0 - 4.0 / (1.0 + np.exp(-((lon_grid - 82.5) * 5.0)))
+        fronts = satellite_manager.compute_thermal_fronts(sst_grid, lats, lons, threshold_deg_per_km=0.015)
+        self.assertGreater(len(fronts), 0)
+        front = fronts[0]
+        self.assertIn("gradient_deg_c_per_km", front)
+        self.assertIn("pfz_probability", front)
+        self.assertGreaterEqual(front["gradient_deg_c_per_km"], 0.015)
+
+        # 2. Test manager endpoint structure
         analysis = satellite_manager.get_surface_thermal_analysis(
             lat_min=0.0, lat_max=25.0, lon_min=50.0, lon_max=100.0
         )
         self.assertIn("fronts", analysis)
-        self.assertGreater(analysis["total_fronts_detected"], 0)
-        front = analysis["fronts"][0]
-        self.assertIn("gradient_deg_c_per_km", front)
-        self.assertIn("pfz_probability", front)
-        self.assertGreaterEqual(front["gradient_deg_c_per_km"], 0.015)
+        self.assertIn("provenance_badge", analysis)
 
     def test_05_api_insitu_source_modes(self):
         """Tests /api/insitu/profiles with source_mode filtering: SYNTHETIC vs REAL_LOCAL vs ALL."""

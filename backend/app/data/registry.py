@@ -136,6 +136,43 @@ class DatasetRegistry:
                 is_active=False
             )
             self._datasets[glorys_desc.dataset_id] = glorys_desc
+        else:
+            glorys_desc = DatasetDescriptor(
+                dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m",
+                name="Copernicus GLORYS12V1 Global Ocean Reanalysis",
+                provider="Copernicus Marine Service (Mercator Ocean International)",
+                product_id="GLOBAL_MULTIYEAR_PHY_001_030",
+                source_mode=SourceMode.REAL_LOCAL,
+                access_method="LOCAL_FILE",
+                local_path=None,
+                remote_url="https://data.marine.copernicus.eu/product/GLOBAL_MULTIYEAR_PHY_001_030/description",
+                format="NetCDF-4 (CF-1.4)",
+                variables=["temperature", "salinity", "currents", "u_current", "v_current"],
+                raw_variables=["thetao", "so", "uo", "vo"],
+                spatial_resolution="0.0833 degree (~8.3 km grid)",
+                spatial_resolution_km=8.33,
+                temporal_resolution="Daily Mean (P1D)",
+                coverage_bounds={"lat_min": 0.0, "lat_max": 25.0, "lon_min": 50.0, "lon_max": 100.0},
+                depth_range=[0.494, 92.326],
+                time_range=["2025-01-01T00:00:00Z", "2025-01-07T00:00:00Z"],
+                status="DOWNLOAD_REQUIRED",
+                size_bytes=0,
+                provenance={
+                    "source": "MERCATOR GLORYS12V1 (CMEMS product)",
+                    "conventions": "CF-1.4",
+                    "license_or_attribution": "Copernicus Marine Service / Mercator Ocean Open License",
+                    "copernicus_reported_size": "212.68 MB on disk, 891 MB logical xarray tensor",
+                    "variables_mapping": {
+                        "thetao": "Potential Temperature (degrees_C)",
+                        "so": "Practical Salinity (PSU / 1e-3)",
+                        "uo": "Eastward Velocity (m/s)",
+                        "vo": "Northward Velocity (m/s)"
+                    },
+                    "citation": "E.U. Copernicus Marine Service Information (GLOBAL_MULTIYEAR_PHY_001_030)"
+                },
+                is_active=False
+            )
+            self._datasets[glorys_desc.dataset_id] = glorys_desc
 
         # 3. Determine Active Dataset
         import sys

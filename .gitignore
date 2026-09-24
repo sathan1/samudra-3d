@@ -27,3 +27,7 @@ SAMUDRA_DATA/
 phase-prompts/
 scratch/
 docs/evidence/
+*.pptx
+*.docx
+*.doc
+*.pdf
