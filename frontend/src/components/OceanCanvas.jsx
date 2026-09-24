@@ -1721,14 +1721,23 @@ export default function OceanCanvas({
                   )}
 
                   {fieldState.error && (
-                    <div className="hud-badge rounded px-2.5 py-1 text-[11px] shadow bg-red-950/90 border border-red-800 text-red-200 flex items-center gap-2">
-                      <span>⚠️ {fieldState.error}</span>
+                    <div className="hud-badge rounded px-2.5 py-1 text-[11px] shadow bg-red-950/90 border border-red-800 text-red-200 flex items-center gap-2 max-w-md pointer-events-auto">
+                      <span className="truncate" title={fieldState.error}>⚠️ {fieldState.error}</span>
                       <button
                         type="button"
                         onClick={handleRetry}
-                        className="underline text-amber-300 hover:text-white"
+                        className="underline text-amber-300 hover:text-white shrink-0 text-[10px]"
                       >
                         Retry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFieldState((prev) => ({ ...prev, error: null }))}
+                        className="text-slate-400 hover:text-white shrink-0 text-[11px] px-1"
+                        title="Dismiss notification"
+                        aria-label="Dismiss error"
+                      >
+                        ✕
                       </button>
                     </div>
                   )}

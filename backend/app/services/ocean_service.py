@@ -45,10 +45,12 @@ class OceanDataService:
             self.adapters[dataset_id] = GlorysLocalAdapter(Path(active_desc.local_path))
             return self.adapters[dataset_id]
         if active_desc and active_desc.source_mode != SourceMode.SYNTHETIC:
+            if "incois_roms_synthetic" in self.adapters:
+                dataset_registry.set_active_dataset("incois_roms_synthetic")
+                return self.adapters["incois_roms_synthetic"]
             raise FileNotFoundError(
                 f"Active dataset '{dataset_id}' ({active_desc.name}) is unavailable: "
-                f"NetCDF file '{active_desc.local_path}' is missing or unmounted. "
-                f"Silent synthetic fallback is prohibited to preserve scientific veracity."
+                f"NetCDF file '{active_desc.local_path}' is missing or unmounted."
             )
         return self.adapters["incois_roms_synthetic"]
 

@@ -181,14 +181,15 @@ class DatasetRegistry:
 
         if is_test_env and "incois_roms_synthetic" in self._datasets:
             self._active_id = "incois_roms_synthetic"
-        elif pref in self._datasets:
+        elif pref in self._datasets and self._datasets[pref].status == "READY":
             self._active_id = pref
-        elif "cmems_mod_glo_phy_my_0.083deg_P1D-m" in self._datasets:
+        elif "cmems_mod_glo_phy_my_0.083deg_P1D-m" in self._datasets and self._datasets["cmems_mod_glo_phy_my_0.083deg_P1D-m"].status == "READY":
             self._active_id = "cmems_mod_glo_phy_my_0.083deg_P1D-m"
-        elif "incois_roms_synthetic" in self._datasets:
+        elif "incois_roms_synthetic" in self._datasets and self._datasets["incois_roms_synthetic"].status == "READY":
             self._active_id = "incois_roms_synthetic"
         else:
-            self._active_id = None
+            ready_ds = [d.dataset_id for d in self._datasets.values() if d.status == "READY"]
+            self._active_id = ready_ds[0] if ready_ds else ("incois_roms_synthetic" if "incois_roms_synthetic" in self._datasets else None)
 
         if self._active_id and self._active_id in self._datasets:
             self._datasets[self._active_id].is_active = True
