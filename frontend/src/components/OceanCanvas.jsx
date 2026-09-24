@@ -1508,215 +1508,235 @@ export default function OceanCanvas({
 
           {/* Viewport Floating HUD */}
           <div className="viewport-hud pointer-events-none absolute top-2 left-2 right-2 flex flex-wrap justify-between items-start gap-1.5 text-xs">
-            <div className="flex flex-col gap-1 pointer-events-auto max-w-full">
-              {hoveredCoord && hoveredCoord.value !== undefined && hoveredCoord.value !== null ? (
-                <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10.5px] text-cyan-200 shadow-xl bg-slate-950/95 border border-cyan-400/90 max-w-full flex items-center gap-2 flex-wrap" data-testid="hud-voxel-inspector">
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse inline-block" />
-                  <span className="text-cyan-300 font-bold">VOXEL INSPECTOR:</span>
-                  <span className="text-amber-300 font-bold">
-                    {hoveredCoord.value} {hoveredCoord.units || (selectedVariable === 'salinity' ? 'PSU' : (selectedVariable === 'currents' ? 'm/s' : '°C'))}
-                  </span>
-                  <span className="border-l border-slate-700 pl-2 text-sky-300">
-                    Depth: {hoveredCoord.depth != null ? `${Number(hoveredCoord.depth).toFixed(2)}m` : 'Surface'}
-                  </span>
-                  <span className="border-l border-slate-700 pl-2 text-slate-300">
-                    {hoveredCoord.lat >= 0 ? `${Number(hoveredCoord.lat).toFixed(2)}°N` : `${Math.abs(Number(hoveredCoord.lat)).toFixed(2)}°S`},{' '}
-                    {hoveredCoord.lon >= 0 ? `${Number(hoveredCoord.lon).toFixed(2)}°E` : `${Math.abs(Number(hoveredCoord.lon)).toFixed(2)}°W`}
-                  </span>
-                  {hoveredCoord.dataset && (
-                    <span className="border-l border-slate-700 pl-2 text-emerald-400 text-[10px]">
-                      {hoveredCoord.dataset}
+            {/* Left Telemetry & Context Area (Offset by 92px to cleanly avoid VerticalDepthBar) */}
+            <div className="hud-telemetry-container flex flex-col gap-1.5 pointer-events-auto ml-[92px] max-w-[calc(100%-240px)]">
+              {/* Row 1: Primary Scientific Telemetry Ribbon */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {fieldState.sliceData && (
+                  <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10px] text-slate-200 shadow-md bg-slate-950/90 border border-slate-700/80 flex items-center gap-1.5" data-testid="hud-layer-badge">
+                    <span className="text-emerald-400 font-bold">● LAYER:</span>{' '}
+                    <span>{fieldState.sliceData.variable === 'salinity' ? 'Practical Salinity' : 'Potential Temperature'}</span>{' '}
+                    <span className="text-slate-400">({(fieldState.sliceData.selected_depth ?? 0) === 0 ? '0m Surface' : `${fieldState.sliceData.selected_depth}m`})</span>
+                    <span className="text-amber-300 font-semibold border-l border-slate-700 pl-1.5">
+                      {fieldState.sliceData.min_val?.toFixed(1)} to {fieldState.sliceData.max_val?.toFixed(1)} {(fieldState.sliceData.units === 'degC' || fieldState.sliceData.units === 'celsius') ? '°C' : (fieldState.sliceData.units || (fieldState.sliceData.variable === 'salinity' ? 'PSU' : '°C'))}
                     </span>
-                  )}
-                </div>
-              ) : hoveredCoord ? (
-                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-cyan-300 shadow bg-slate-900/90 border border-cyan-500/60 max-w-full">
-                  <span className="text-cyan-400 font-bold">📍 CURSOR:</span>{' '}
-                  {hoveredCoord.lat >= 0 ? `${hoveredCoord.lat.toFixed(2)}°N` : `${Math.abs(hoveredCoord.lat).toFixed(2)}°S`},{' '}
-                  {hoveredCoord.lon >= 0 ? `${hoveredCoord.lon.toFixed(2)}°E` : `${Math.abs(hoveredCoord.lon).toFixed(2)}°W`}{' '}
-                  · <span className="text-slate-300">Click to probe data</span>
-                </div>
-              ) : null}
-              {viewMode === 'block' && (
-                <div className="hud-volume-controls flex flex-col gap-1 pointer-events-auto" data-testid="hud-block-controls">
-                  <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10px] text-cyan-300 shadow bg-slate-900/95 border border-cyan-500/70 max-w-full flex items-center gap-2 flex-wrap">
-                    <span className="text-cyan-400 font-bold">📦 3D VOLUME BLOCK:</span>
-                    <span>65°E–95°E, 0°N–25°N</span>
-                    {volumeData && (
-                      <>
-                        <span className="border-l border-slate-700 pl-1.5 text-amber-300">
-                          {volumeData.bounds?.min_depth?.toFixed(1)}m — {volumeData.bounds?.max_depth?.toFixed(1)}m
-                        </span>
-                        <span className="border-l border-slate-700 pl-1.5 text-emerald-400 font-semibold">
-                          {(volumeData.provenance?.source_mode === 'REAL_LOCAL' || volumeData.dataset?.source_mode === 'REAL_LOCAL')
-                            ? 'REAL • COPERNICUS GLORYS12V1 (~8.3 km)'
-                            : (volumeData.provenance_badge || 'SYNTHETIC • DEVELOPMENT')}
-                        </span>
-                      </>
-                    )}
                   </div>
+                )}
 
-                  {/* Volume Slice Mode Selector */}
-                  <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-700/80 rounded-lg p-1 text-[11px] shadow max-w-fit flex-wrap">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
-                      Mode:
+                {fieldState.sliceData && (
+                  <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10px] text-cyan-300 shadow-md bg-slate-950/90 border border-cyan-500/50 flex items-center gap-1.5" data-testid="hud-depth-badge">
+                    <span className="text-cyan-400 font-bold">DEPTH:</span>{' '}
+                    <span>{fieldState.sliceData.selected_depth ?? requestedDepth}m</span>{' '}
+                    <span className="text-slate-400 text-[9.5px]">
+                      {(fieldState.sliceData.selected_depth ?? 0) === 0 ? '(Surface)' : `(${fieldState.sliceData.selected_depth}m level)`}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setDepthSliceMode('full')}
-                      className={`px-2 py-0.5 rounded text-[10.5px] font-mono transition ${
-                        depthSliceMode === 'full'
-                          ? 'bg-cyan-900/90 text-cyan-200 border border-cyan-500 font-bold'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
-                      }`}
-                    >
-                      Full Volume
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDepthSliceMode('slice')}
-                      className={`px-2 py-0.5 rounded text-[10.5px] font-mono transition ${
-                        depthSliceMode === 'slice'
-                          ? 'bg-cyan-900/90 text-cyan-200 border border-cyan-500 font-bold'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
-                      }`}
-                    >
-                      Depth Slice
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDepthSliceMode('surface')}
-                      className={`px-2 py-0.5 rounded text-[10.5px] font-mono transition ${
-                        depthSliceMode === 'surface'
-                          ? 'bg-cyan-900/90 text-cyan-200 border border-cyan-500 font-bold'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
-                      }`}
-                    >
-                      Surface Only
-                    </button>
+                    {fieldState.loading && <span className="ml-1 text-amber-300">⟳ Slicing...</span>}
+                  </div>
+                )}
 
-                    {depthSliceMode === 'slice' && (volumeData?.coordinates?.depth || volumeData?.depth) && (
-                      <div className="flex items-center gap-1.5 border-l border-slate-700 pl-1.5 ml-1 flex-wrap">
-                        <label htmlFor="volume-depth-select" className="text-[10px] text-slate-400 font-mono">
-                          Depth:
-                        </label>
-                        <select
-                          id="volume-depth-select"
-                          value={selectedDepthIdx}
-                          onChange={(e) => setSelectedDepthIdx(Number(e.target.value))}
-                          className="bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10.5px] text-cyan-300 font-mono outline-none"
-                        >
-                          {(volumeData.coordinates?.depth || volumeData.depth).map((d, idx) => (
-                            <option key={idx} value={idx}>
-                              {d.toFixed(1)}m
-                            </option>
-                          ))}
-                        </select>
-                        <span className="text-[10px] font-mono text-emerald-400">
-                          REQUESTED: {requestedDepth}m | RESOLVED: {((volumeData.coordinates?.depth || volumeData.depth)[selectedDepthIdx] ?? requestedDepth).toFixed(2)}m
+                {fieldState.sliceData && (
+                  <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10px] text-amber-300 shadow-md bg-slate-950/90 border border-amber-600/50 flex items-center gap-1.5" data-testid="hud-time-badge">
+                    <span className="text-amber-400 font-bold">TIME:</span>{' '}
+                    <span>{formatTimeLabel(fieldState.sliceData.timestamp, fieldState.sliceData.time_idx ?? timeIndex)}</span>{' '}
+                    <span className="text-slate-400 font-normal">[STEP {(fieldState.sliceData.time_idx ?? timeIndex) + 1}/8]</span>
+                    {isBuffering && <span className="ml-1 text-amber-300">⟳ Buffering...</span>}
+                  </div>
+                )}
+
+                {viewMode === 'globe' && (
+                  <div className="lod-status-pill hud-badge rounded px-2.5 py-1 font-mono text-[10px] shadow-md bg-slate-950/90 border border-slate-700/80 flex items-center gap-1.5" data-testid="lod-status-pill">
+                    <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: currentLOD.color }} />
+                    <span className="font-bold text-slate-200">{currentLOD.code}</span>
+                    <span className="text-slate-500">•</span>
+                    <span className="text-slate-300">{currentLOD.label}</span>
+                    <span className="text-slate-400">({currentLOD.resolution})</span>
+                  </div>
+                )}
+
+                {showArgo && (
+                  <div className="hud-badge rounded px-2 py-1 font-mono text-[10px] text-amber-300 shadow-md bg-slate-950/90 border border-amber-600/50 flex items-center gap-1" data-testid="hud-argo-badge">
+                    <span className="text-amber-400 font-semibold">ARGO:</span>{' '}
+                    <span>{argoFloats.length} active</span>
+                  </div>
+                )}
+
+                {showGliders && (
+                  <div className="hud-badge rounded px-2 py-1 font-mono text-[10px] text-emerald-300 shadow-md bg-slate-950/90 border border-emerald-600/50 flex items-center gap-1" data-testid="hud-glider-badge">
+                    <span className="text-emerald-400 font-semibold">GLIDERS:</span>{' '}
+                    <span>{gliderTransects.length} active</span>
+                  </div>
+                )}
+
+                {showCurrents && (
+                  <div className="hud-badge rounded px-2 py-1 font-mono text-[10px] text-teal-300 shadow-md bg-slate-950/90 border border-teal-700/50 flex items-center gap-1" data-testid="hud-streamlines-badge">
+                    <span className="text-teal-400 font-semibold">STREAMLINES:</span>{' '}
+                    <span>1,500</span>
+                  </div>
+                )}
+
+                {showAnomalyField && (
+                  <div className="hud-badge rounded px-2 py-1 font-mono text-[10px] text-pink-300 shadow-md bg-slate-950/90 border border-pink-600/50 flex items-center gap-1" data-testid="hud-anomaly-badge">
+                    <span className="text-pink-400 font-semibold">ANOMALIES:</span>{' '}
+                    <span>{anomalyPoints.length}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Row 2: Contextual Inspectors & Mode Controls */}
+              {(hoveredCoord || viewMode === 'block' || probedPoint || activeTransect || fieldState.error) && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {hoveredCoord && hoveredCoord.value !== undefined && hoveredCoord.value !== null ? (
+                    <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10.5px] text-cyan-200 shadow-xl bg-slate-950/95 border border-cyan-400/90 flex items-center gap-2 flex-wrap" data-testid="hud-voxel-inspector">
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse inline-block" />
+                      <span className="text-cyan-300 font-bold">VOXEL INSPECTOR:</span>
+                      <span className="text-amber-300 font-bold">
+                        {hoveredCoord.value} {hoveredCoord.units || (selectedVariable === 'salinity' ? 'PSU' : (selectedVariable === 'currents' ? 'm/s' : '°C'))}
+                      </span>
+                      <span className="border-l border-slate-700 pl-2 text-sky-300">
+                        Depth: {hoveredCoord.depth != null ? `${Number(hoveredCoord.depth).toFixed(2)}m` : 'Surface'}
+                      </span>
+                      <span className="border-l border-slate-700 pl-2 text-slate-300">
+                        {hoveredCoord.lat >= 0 ? `${Number(hoveredCoord.lat).toFixed(2)}°N` : `${Math.abs(Number(hoveredCoord.lat)).toFixed(2)}°S`},{' '}
+                        {hoveredCoord.lon >= 0 ? `${Number(hoveredCoord.lon).toFixed(2)}°E` : `${Math.abs(Number(hoveredCoord.lon)).toFixed(2)}°W`}
+                      </span>
+                      {hoveredCoord.dataset && (
+                        <span className="border-l border-slate-700 pl-2 text-emerald-400 text-[10px]">
+                          {hoveredCoord.dataset}
                         </span>
+                      )}
+                    </div>
+                  ) : hoveredCoord ? (
+                    <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10px] text-cyan-300 shadow bg-slate-900/95 border border-cyan-500/60">
+                      <span className="text-cyan-400 font-bold">📍 CURSOR:</span>{' '}
+                      {hoveredCoord.lat >= 0 ? `${hoveredCoord.lat.toFixed(2)}°N` : `${Math.abs(hoveredCoord.lat).toFixed(2)}°S`},{' '}
+                      {hoveredCoord.lon >= 0 ? `${hoveredCoord.lon.toFixed(2)}°E` : `${Math.abs(hoveredCoord.lon).toFixed(2)}°W`}{' '}
+                      · <span className="text-slate-300">Click to probe data</span>
+                    </div>
+                  ) : null}
+
+                  {probedPoint && (
+                    <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10px] text-emerald-300 shadow bg-slate-900/95 border border-emerald-500/80 flex items-center gap-1.5" data-testid="hud-probed-badge">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                      <span className="text-emerald-400 font-semibold">PROBED CTD:</span>
+                      <span>{probedPoint.lat}°N, {probedPoint.lon}°E</span>
+                      {probeData && probeData.sst !== null && probeData.sst !== undefined && (
+                        <span className="text-amber-300 font-bold border-l border-slate-700 pl-1.5">
+                          SST: {probeData.sst}°C
+                        </span>
+                      )}
+                      {probeData && probeData.mld !== null && probeData.mld !== undefined && (
+                        <span className="text-sky-300 hidden sm:inline">
+                          · MLD: {probeData.mld}m
+                        </span>
+                      )}
+                      {isProbeLoading && (
+                        <span className="text-amber-400 text-[9.5px]">⟳ Profiling...</span>
+                      )}
+                    </div>
+                  )}
+
+                  {activeTransect && (
+                    <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10px] text-amber-300 shadow bg-slate-900/90 border border-amber-600">
+                      <span className="text-amber-400 font-semibold">ODV TRANSECT:</span> {activeTransect.total_distance_km} km ({activeTransect.lat1}°N, {activeTransect.lon1}°E → {activeTransect.lat2}°N, {activeTransect.lon2}°E)
+                    </div>
+                  )}
+
+                  {viewMode === 'block' && (
+                    <div className="hud-volume-controls flex items-center gap-1.5 flex-wrap" data-testid="hud-block-controls">
+                      <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10px] text-cyan-300 shadow bg-slate-900/95 border border-cyan-500/70 flex items-center gap-1.5">
+                        <span className="text-cyan-400 font-bold">📦 3D BLOCK:</span>
+                        <span>65°E–95°E, 0°N–25°N</span>
+                        {volumeData && (
+                          <>
+                            <span className="border-l border-slate-700 pl-1.5 text-amber-300">
+                              {volumeData.bounds?.min_depth?.toFixed(1)}m—{volumeData.bounds?.max_depth?.toFixed(1)}m
+                            </span>
+                            <span className="border-l border-slate-700 pl-1.5 text-emerald-400 font-semibold">
+                              {(volumeData.provenance?.source_mode === 'REAL_LOCAL' || volumeData.dataset?.source_mode === 'REAL_LOCAL')
+                                ? 'REAL • COPERNICUS GLORYS12V1'
+                                : (volumeData.provenance_badge || 'SYNTHETIC • DEVELOPMENT')}
+                            </span>
+                          </>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              {probedPoint && (
-                <div className="hud-badge rounded px-2.5 py-1 font-mono text-[10px] text-emerald-300 shadow bg-slate-900/95 border border-emerald-500/80 max-w-full flex items-center gap-1.5 flex-wrap" data-testid="hud-probed-badge">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-                  <span className="text-emerald-400 font-semibold">PROBED CTD:</span>
-                  <span>{probedPoint.lat}°N, {probedPoint.lon}°E</span>
-                  {probeData && probeData.sst !== null && probeData.sst !== undefined && (
-                    <span className="text-amber-300 font-bold border-l border-slate-700 pl-1.5">
-                      SST: {probeData.sst}°C
-                    </span>
+
+                      <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-700/80 rounded-lg p-1 text-[11px] shadow">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                          Mode:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setDepthSliceMode('full')}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono transition ${
+                            depthSliceMode === 'full'
+                              ? 'bg-cyan-900/90 text-cyan-200 border border-cyan-500 font-bold'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
+                          }`}
+                        >
+                          Full
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDepthSliceMode('slice')}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono transition ${
+                            depthSliceMode === 'slice'
+                              ? 'bg-cyan-900/90 text-cyan-200 border border-cyan-500 font-bold'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
+                          }`}
+                        >
+                          Slice
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDepthSliceMode('surface')}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono transition ${
+                            depthSliceMode === 'surface'
+                              ? 'bg-cyan-900/90 text-cyan-200 border border-cyan-500 font-bold'
+                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
+                          }`}
+                        >
+                          Surface
+                        </button>
+
+                        {depthSliceMode === 'slice' && (volumeData?.coordinates?.depth || volumeData?.depth) && (
+                          <div className="flex items-center gap-1 border-l border-slate-700 pl-1.5 ml-1">
+                            <label htmlFor="volume-depth-select" className="text-[10px] text-slate-400 font-mono">
+                              Depth:
+                            </label>
+                            <select
+                              id="volume-depth-select"
+                              value={selectedDepthIdx}
+                              onChange={(e) => setSelectedDepthIdx(Number(e.target.value))}
+                              className="bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[10.5px] text-cyan-300 font-mono outline-none"
+                            >
+                              {(volumeData.coordinates?.depth || volumeData.depth).map((d, idx) => (
+                                <option key={idx} value={idx}>
+                                  {d.toFixed(1)}m
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
-                  {probeData && probeData.mld !== null && probeData.mld !== undefined && (
-                    <span className="text-sky-300 hidden sm:inline">
-                      · MLD: {probeData.mld}m
-                    </span>
+
+                  {fieldState.error && (
+                    <div className="hud-badge rounded px-2.5 py-1 text-[11px] shadow bg-red-950/90 border border-red-800 text-red-200 flex items-center gap-2">
+                      <span>⚠️ {fieldState.error}</span>
+                      <button
+                        type="button"
+                        onClick={handleRetry}
+                        className="underline text-amber-300 hover:text-white"
+                      >
+                        Retry
+                      </button>
+                    </div>
                   )}
-                  {isProbeLoading && (
-                    <span className="text-amber-400 text-[9.5px]">⟳ Profiling...</span>
-                  )}
-                </div>
-              )}
-              {activeTransect && (
-                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-amber-300 shadow bg-slate-900/90 border border-amber-600 max-w-full">
-                  <span className="text-amber-400 font-semibold">ODV TRANSECT:</span> {activeTransect.total_distance_km} km ({activeTransect.lat1}°N, {activeTransect.lon1}°E → {activeTransect.lat2}°N, {activeTransect.lon2}°E)
-                </div>
-              )}
-              {fieldState.sliceData && (
-                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-slate-300 shadow bg-slate-900/90 border border-slate-700 max-w-full">
-                  <span className="text-emerald-400 font-semibold">LAYER:</span>{' '}
-                  {fieldState.sliceData.variable === 'salinity' ? 'Practical Salinity' : 'Potential Temperature'}{' '}
-                  ({(fieldState.sliceData.selected_depth ?? 0) === 0 ? '0m Surface' : `${fieldState.sliceData.selected_depth}m Subsurface`}) ·{' '}
-                  {fieldState.sliceData.min_val?.toFixed(1)} to {fieldState.sliceData.max_val?.toFixed(1)} {(fieldState.sliceData.units === 'degC' || fieldState.sliceData.units === 'celsius') ? '°C' : (fieldState.sliceData.units || (fieldState.sliceData.variable === 'salinity' ? 'PSU' : '°C'))}
-                </div>
-              )}
-              {fieldState.sliceData && (
-                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-cyan-300 shadow bg-slate-900/90 border border-slate-700 max-w-full" data-testid="hud-depth-badge">
-                  <span className="text-cyan-400 font-semibold">DEPTH:</span>{' '}
-                  {fieldState.sliceData.requested_depth ?? requestedDepth}m requested{' '}
-                  {fieldState.sliceData.selected_depth !== (fieldState.sliceData.requested_depth ?? requestedDepth)
-                    ? `(snapped to ${fieldState.sliceData.selected_depth}m model level)`
-                    : `(${(fieldState.sliceData.selected_depth ?? 0) === 0 ? 'Surface level' : `${fieldState.sliceData.selected_depth}m model layer`})`}
-                  {fieldState.loading && <span className="ml-1.5 text-amber-300">⟳ Slicing...</span>}
-                </div>
-              )}
-              {fieldState.sliceData && (
-                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-amber-300 shadow bg-slate-900/90 border border-slate-700 max-w-full" data-testid="hud-time-badge">
-                  <span className="text-amber-400 font-semibold">TIME:</span>{' '}
-                  {formatTimeLabel(fieldState.sliceData.timestamp, fieldState.sliceData.time_idx ?? timeIndex)}{' '}
-                  <span className="text-slate-400">[STEP {(fieldState.sliceData.time_idx ?? timeIndex) + 1}/8]</span>
-                  {isBuffering && <span className="ml-1.5 text-amber-300">⟳ Buffering...</span>}
-                </div>
-              )}
-              {showCurrents && (
-                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-teal-300 shadow bg-slate-900/90 border border-teal-700 max-w-full" data-testid="hud-streamlines-badge">
-                  <span className="text-teal-400 font-semibold">STREAMLINES:</span>{' '}
-                  1,500 particles active
-                </div>
-              )}
-              {showArgo && (
-                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-amber-300 shadow bg-slate-900/90 border border-amber-600 max-w-full" data-testid="hud-argo-badge">
-                  <span className="text-amber-400 font-semibold">ARGO FLOATS:</span>{' '}
-                  {argoFloats.length} active (INCOIS-DAC)
-                </div>
-              )}
-              {showGliders && (
-                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-emerald-300 shadow bg-slate-900/90 border border-emerald-600 max-w-full" data-testid="hud-glider-badge">
-                  <span className="text-emerald-400 font-semibold">GLIDERS:</span>{' '}
-                  {gliderTransects.length} active (INCOIS-Seaglider)
-                </div>
-              )}
-              {showAnomalyField && (
-                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-pink-300 shadow bg-slate-900/90 border border-pink-600 max-w-full" data-testid="hud-anomaly-badge">
-                  <span className="text-pink-400 font-semibold">ANOMALY FIELD:</span>{' '}
-                  {anomalyPoints.length} residual pairs
-                </div>
-              )}
-              {fieldState.error && (
-                <div className="hud-badge rounded px-2.5 py-1 text-[11px] shadow bg-red-950/90 border border-red-800 text-red-200 flex items-center gap-2">
-                  <span>⚠️ {fieldState.error}</span>
-                  <button
-                    type="button"
-                    onClick={handleRetry}
-                    className="underline text-amber-300 hover:text-white"
-                  >
-                    Retry
-                  </button>
-                </div>
-              )}
-              {viewMode === 'globe' && (
-                <div className="lod-status-pill hud-badge rounded px-2.5 py-0.5 font-mono text-[10px] shadow bg-slate-900/90 border border-slate-700 flex items-center gap-1.5" data-testid="lod-status-pill">
-                  <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: currentLOD.color }} />
-                  <span className="font-bold text-slate-200">{currentLOD.code}</span>
-                  <span className="text-slate-500">•</span>
-                  <span className="text-slate-300">{currentLOD.label}</span>
-                  <span className="text-slate-500">({currentLOD.resolution})</span>
                 </div>
               )}
             </div>
+
 
             <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto">
               {/* Zoom In / Out Buttons */}

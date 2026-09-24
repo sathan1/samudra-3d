@@ -27,7 +27,7 @@ export default function VerticalDepthBar({
     { target: 35.0, label: '35 m' },
     { target: 50.0, label: '50 m' },
     { target: 75.0, label: '75 m' },
-    { target: 92.326, label: '92 m (MAX)' }
+    { target: 92.326, label: '92 m' }
   ];
 
   return (

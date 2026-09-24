@@ -1963,55 +1963,81 @@ input:-webkit-autofill:focus {
   left: 16px;
   top: 50%;
   transform: translateY(-50%);
-  width: 68px;
-  padding: 10px 4px;
+  width: 82px;
+  padding: 10px 6px;
   z-index: 40;
   display: flex;
   flex-direction: column;
+  background: rgba(10, 20, 36, 0.90);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .depth-tick-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px;
+  gap: 8px;
+  padding: 4px 6px;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   cursor: pointer;
   width: 100%;
-  border-radius: 4px;
+  border-radius: 5px;
   transition: all 0.15s ease;
 }
 .depth-tick-line {
   width: 8px;
   height: 2px;
-  background: #64748b;
+  background: #475569;
   border-radius: 1px;
+  flex-shrink: 0;
   transition: all 0.15s ease;
 }
 .depth-tick-label {
   color: #94a3b8;
-  font-size: 10px;
+  font-size: 10.5px;
+  font-family: monospace;
+  font-weight: 500;
+  white-space: nowrap;
 }
-.depth-tick-btn:hover .depth-tick-line,
+.depth-tick-btn:hover {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.2);
+}
+.depth-tick-btn:hover .depth-tick-line {
+  background: #38bdf8;
+  width: 12px;
+}
+.depth-tick-btn:hover .depth-tick-label {
+  color: #e2e8f0;
+}
+.depth-tick-btn.active {
+  background: rgba(14, 165, 233, 0.2);
+  border-color: rgba(56, 189, 248, 0.45);
+}
 .depth-tick-btn.active .depth-tick-line {
   background: #38bdf8;
   width: 14px;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
 }
-.depth-tick-btn:hover .depth-tick-label,
 .depth-tick-btn.active .depth-tick-label {
-  color: #ffffff;
-  font-weight: bold;
+  color: #38bdf8;
+  font-weight: 700;
 }
 
-/* LOD Status Pill */
+/* LOD Status Pill - Inflow flex badge, never absolutely positioned */
 .lod-status-pill {
-  position: absolute;
-  top: 14px;
-  left: 16px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 10px;
-  z-index: 30;
-  pointer-events: none;
+  font-family: monospace;
+  font-size: 10px;
+  z-index: 10;
 }
 .lod-dot {
   width: 6px;
