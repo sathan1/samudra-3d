@@ -83,7 +83,8 @@ class SatelliteLayerManager:
         lat_min: float = 0.0,
         lat_max: float = 25.0,
         lon_min: float = 50.0,
-        lon_max: float = 100.0
+        lon_max: float = 100.0,
+        time_idx: int = 0
     ) -> Dict[str, Any]:
         """
         Retrieves real surface temperature field and computes thermal front boundaries.
@@ -95,7 +96,7 @@ class SatelliteLayerManager:
         if adapter:
             slice_res = adapter.slice_data(
                 variable="temperature",
-                time_idx=0,
+                time_idx=time_idx,
                 depth=0.0,
                 lat_min=lat_min,
                 lat_max=lat_max,

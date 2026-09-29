@@ -9,24 +9,59 @@ import {
   generateModelOverlaySvgPath
 } from '../utils/profileCharts.js';
 import { formatFloatCoordinates, formatFloatDate } from '../utils/argoProfiles.js';
-import { fetchProfileCollocation } from '../services/api.js';
+import { fetchProfileCollocation, fetchGliderCollocation } from '../services/api.js';
 
 /**
  * ProfileModal - Interactive Oceanographic Sensor Profile Inspector
  * Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap p. 10 (SIH26067)
  */
-export default function ProfileModal({ selectedFloat = null, onSelectFloat = null, collocation = null }) {
+export default function ProfileModal({
+  selectedFloat = null,
+  onSelectFloat = null,
+  collocation = null,
+  isLoading = false,
+  error = null,
+  onRetry = null
+}) {
   const [activeTab, setActiveTab] = useState('temperature'); // 'temperature' | 'salinity' | 'ts'
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const [showModelOverlay, setShowModelOverlay] = useState(true);
   const [fetchedCollocation, setFetchedCollocation] = useState(null);
   const closeBtnRef = useRef(null);
 
-  // Fetch collocation data when float is selected
+  const isModel = Boolean(selectedFloat?.isModelProfile || selectedFloat?.platform_type === 'model_profile');
+  const explicitType = selectedFloat?.platform_type || selectedFloat?.type;
+  const isGlider = Boolean(
+    !isModel && (
+      explicitType === 'glider' ||
+      (!explicitType && (
+        Boolean(selectedFloat?.mission_name) ||
+        (Array.isArray(selectedFloat?.waypoints) && selectedFloat.waypoints.length > 0)
+      ))
+    )
+  );
+  const isArgo = Boolean(
+    !isModel && (
+      explicitType === 'argo' ||
+      explicitType === 'sensor' ||
+      (!explicitType && !isGlider && (
+        Boolean(selectedFloat?.wmo_id) ||
+        (Array.isArray(selectedFloat?.depths) && selectedFloat.depths.length > 0)
+      ))
+    )
+  );
+
+  // Fetch collocation data when observation platform is selected (skip for model profiles)
   useEffect(() => {
     let ignore = false;
-    if (selectedFloat) {
-      fetchProfileCollocation(selectedFloat.id)
+    setFetchedCollocation(null);
+    if (selectedFloat && !isModel) {
+      if (!isGlider && !isArgo) return;
+      const fetchPromise = isGlider
+        ? fetchGliderCollocation(selectedFloat.id)
+        : fetchProfileCollocation(selectedFloat.id);
+
+      fetchPromise
         .then((data) => {
           if (!ignore && data) {
             setFetchedCollocation(data);
@@ -39,55 +74,230 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
     return () => {
       ignore = true;
     };
+  }, [selectedFloat, isModel, isGlider, isArgo]);
+
+  const activeCollocation = (selectedFloat && !isModel) ? (collocation || fetchedCollocation) : null;
+
+  // Normalize depths, temperature, and salinity across Argo (depth arrays) and Glider (waypoints)
+  const depths = useMemo(() => {
+    if (Array.isArray(selectedFloat?.depths) && selectedFloat.depths.length > 0) return selectedFloat.depths;
+    if (Array.isArray(selectedFloat?.waypoints)) return selectedFloat.waypoints.map(w => w.depth);
+    return [];
   }, [selectedFloat]);
 
-  const activeCollocation = selectedFloat ? (collocation || fetchedCollocation) : null;
+  const temperatures = useMemo(() => {
+    if (Array.isArray(selectedFloat?.temperature) && selectedFloat.temperature.length > 0) return selectedFloat.temperature;
+    if (Array.isArray(selectedFloat?.waypoints)) return selectedFloat.waypoints.map(w => w.observed_temp ?? w.temperature);
+    return [];
+  }, [selectedFloat]);
+
+  const salinities = useMemo(() => {
+    if (Array.isArray(selectedFloat?.salinity) && selectedFloat.salinity.length > 0) return selectedFloat.salinity;
+    if (Array.isArray(selectedFloat?.waypoints)) return selectedFloat.waypoints.map(w => w.observed_sal ?? w.salinity);
+    return [];
+  }, [selectedFloat]);
+
+  const hasData = Boolean(selectedFloat && selectedFloat.has_observations !== false && depths.length > 0);
 
   // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && selectedFloat) {
+      if (e.key === 'Escape' && (selectedFloat || isLoading || error)) {
         onSelectFloat?.(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedFloat, onSelectFloat]);
+  }, [selectedFloat, isLoading, error, onSelectFloat]);
 
   // Clean data for Temperature
   const tempData = useMemo(() => {
-    if (!selectedFloat) return null;
+    if (!selectedFloat || depths.length === 0) return null;
     return cleanProfileData(
-      selectedFloat.depths,
-      selectedFloat.temperature,
+      depths,
+      temperatures,
       selectedFloat.qc_flags
     );
-  }, [selectedFloat]);
+  }, [selectedFloat, depths, temperatures]);
 
   // Collocated model levels
   const currentModelLevels = useMemo(() => {
-    if (!activeCollocation) return [];
-    return activeTab === 'temperature'
-      ? activeCollocation.temperature_levels || []
-      : activeCollocation.salinity_levels || [];
-  }, [activeCollocation, activeTab]);
+    if (!activeCollocation || isModel) return [];
+    if (activeCollocation.temperature_levels || activeCollocation.salinity_levels) {
+      return activeTab === 'temperature'
+        ? activeCollocation.temperature_levels || []
+        : activeCollocation.salinity_levels || [];
+    }
+    if (activeCollocation.waypoints) {
+      return activeCollocation.waypoints.map(w => ({
+        depth: w.depth,
+        observed_value: activeTab === 'temperature' ? w.observed_temp : w.observed_sal,
+        model_value: activeTab === 'temperature' ? w.model_temp : w.model_sal,
+        delta: activeTab === 'temperature' ? w.delta_temp : w.delta_sal,
+        valid: w.valid
+      })).filter(l => l.depth !== null && l.depth !== undefined);
+    }
+    return [];
+  }, [activeCollocation, activeTab, isModel]);
 
   const currentSummary = useMemo(() => {
-    if (!activeCollocation) return null;
-    return activeTab === 'temperature'
-      ? activeCollocation.temperature
-      : activeCollocation.salinity;
-  }, [activeCollocation, activeTab]);
+    if (!activeCollocation || isModel) return null;
+    if (activeTab === 'temperature') {
+      return activeCollocation.temperature || activeCollocation.temperature_summary;
+    }
+    return activeCollocation.salinity || activeCollocation.salinity_summary;
+  }, [activeCollocation, activeTab, isModel]);
 
   // Clean data for Salinity
   const salData = useMemo(() => {
-    if (!selectedFloat) return null;
+    if (!selectedFloat || depths.length === 0) return null;
     return cleanProfileData(
-      selectedFloat.depths,
-      selectedFloat.salinity,
+      depths,
+      salinities,
       selectedFloat.qc_flags
     );
-  }, [selectedFloat]);
+  }, [selectedFloat, depths, salinities]);
+
+  if (isLoading && !hasData) {
+    return (
+      <section
+        className="profile-modal-container"
+        aria-labelledby="profile-heading"
+        data-testid="profile-modal-loading"
+        style={{
+          background: 'var(--panel)',
+          borderRadius: '8px',
+          border: '1px solid var(--border)',
+          padding: '24px',
+          marginTop: '8px',
+          textAlign: 'center'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+          <button
+            type="button"
+            onClick={() => onSelectFloat?.(null)}
+            aria-label="Close profile inspector"
+            style={{
+              padding: '3px 7px',
+              fontSize: '11px',
+              cursor: 'pointer',
+              background: 'var(--field)',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              color: 'var(--text)'
+            }}
+            data-testid="deselect-float-btn"
+          >
+            ✕ Close
+          </button>
+        </div>
+        <div style={{ padding: '24px 0' }}>
+          <span className="spinner-small" style={{ width: '24px', height: '24px', margin: '0 auto 12px', display: 'block' }} aria-hidden="true" />
+          <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+            Loading platform telemetry & profile details...
+          </p>
+          <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--muted)' }}>
+            {selectedFloat?.id ? `Fetching vertical observations for ${selectedFloat.name || selectedFloat.id}` : 'Hydrating in-situ telemetry...'}
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  if (error && !hasData) {
+    return (
+      <section
+        className="profile-modal-container"
+        aria-labelledby="profile-heading"
+        data-testid="profile-modal-error"
+        style={{
+          background: 'var(--panel)',
+          borderRadius: '8px',
+          border: '1px solid var(--border)',
+          padding: '20px',
+          marginTop: '8px'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="subtle-tag" style={{ background: '#ef4444', color: '#fff', fontWeight: 700, fontSize: '10px' }}>
+                TELEMETRY ERROR
+              </span>
+            </div>
+            <h3 id="profile-heading" style={{ fontSize: '14px', fontWeight: 600, marginTop: '4px', color: 'var(--text)' }}>
+              {selectedFloat?.name || selectedFloat?.id || 'In-Situ Platform'} • Profile Ingestion Failed
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSelectFloat?.(null)}
+            aria-label="Close profile inspector"
+            style={{
+              padding: '3px 7px',
+              fontSize: '11px',
+              cursor: 'pointer',
+              background: 'var(--field)',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              color: 'var(--text)'
+            }}
+            data-testid="deselect-float-btn"
+          >
+            ✕ Close
+          </button>
+        </div>
+
+        <div style={{ padding: '16px', backgroundColor: 'var(--field)', borderRadius: '6px', textAlign: 'center', marginBottom: '12px' }}>
+          <span style={{ fontSize: '24px', display: 'block', marginBottom: '6px' }}>⚠️</span>
+          <p style={{ margin: '0 0 6px 0', fontSize: '13px', fontWeight: 600, color: '#ef4444' }}>
+            Failed to Load Platform Profile
+          </p>
+          <p style={{ margin: 0, fontSize: '11px', color: 'var(--muted)', lineHeight: 1.4 }}>
+            {error}
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              data-testid="profile-retry-btn"
+              style={{
+                padding: '6px 12px',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: 'var(--primary, #0284c7)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px'
+              }}
+            >
+              ⟳ Retry
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onSelectFloat?.(null)}
+            style={{
+              padding: '6px 12px',
+              fontSize: '11px',
+              cursor: 'pointer',
+              background: 'var(--field)',
+              border: '1px solid var(--border)',
+              borderRadius: '4px',
+              color: 'var(--text)'
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   if (!selectedFloat) {
     return (
@@ -107,11 +317,90 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
   const dataCentre = selectedFloat.metadata?.data_centre || 'Not supplied';
   const cycleNumber = selectedFloat.metadata?.cycle_number ?? 'N/A';
   const sourceMode = selectedFloat.source_mode === 'SYNTHETIC' ? 'OPERATIONAL' : (selectedFloat.source_mode || 'OPERATIONAL');
-  const qc = selectedFloat.qc_summary || { pass_rate_pct: 100, good: 0, total: 0 };
-
-  const hasData = selectedFloat.has_observations !== false && Array.isArray(selectedFloat.depths) && selectedFloat.depths.length > 0;
+  const qc = selectedFloat.qc_summary || {
+    pass_rate_pct: selectedFloat.qc_flags && selectedFloat.qc_flags.length > 0
+      ? Math.round((selectedFloat.qc_flags.filter(f => f === 1 || f === 2).length / selectedFloat.qc_flags.length) * 100)
+      : 100,
+    good: selectedFloat.qc_flags ? selectedFloat.qc_flags.filter(f => f === 1 || f === 2).length : depths.length,
+    total: selectedFloat.qc_flags ? selectedFloat.qc_flags.length : depths.length
+  };
 
   if (!hasData) {
+    if (isModel) {
+      return (
+        <section
+          className="profile-modal-container"
+          aria-labelledby="profile-heading"
+          data-testid="profile-modal-model-unavailable"
+          style={{
+            background: 'var(--panel)',
+            borderRadius: '8px',
+            border: '1px solid var(--border)',
+            padding: '14px',
+            marginTop: '8px'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="subtle-tag" style={{ background: '#0284c7', color: '#fff', fontWeight: 700, fontSize: '10px' }}>
+                  NUMERICAL MODEL PROFILE
+                </span>
+                <span style={{ fontSize: '10px', color: '#fbbf24', background: 'rgba(245, 158, 11, 0.15)', padding: '1px 6px', borderRadius: '3px', fontWeight: 600 }}>
+                  DATA UNAVAILABLE
+                </span>
+              </div>
+              <h3 id="profile-heading" style={{ fontSize: '14px', fontWeight: 600, marginTop: '4px', color: 'var(--text)' }}>
+                Model Profile • {formatFloatCoordinates(selectedFloat.lat, selectedFloat.lon)}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => onSelectFloat?.(null)}
+              aria-label="Close profile inspector"
+              style={{
+                padding: '3px 7px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                background: 'var(--field)',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                color: 'var(--text)'
+              }}
+              data-testid="deselect-float-btn"
+            >
+              ✕ Close
+            </button>
+          </div>
+
+          <div style={{ padding: '16px', backgroundColor: 'var(--field)', borderRadius: '6px', textAlign: 'center', marginBottom: '12px' }}>
+            <span style={{ fontSize: '24px', display: 'block', marginBottom: '6px' }}>🌊</span>
+            <p style={{ margin: '0 0 6px 0', fontSize: '13px', fontWeight: 600, color: '#f59e0b' }}>
+              Model Profile Data Unavailable
+            </p>
+            <p style={{ margin: 0, fontSize: '11px', color: 'var(--muted)', lineHeight: 1.4 }}>
+              {selectedFloat.unavailableReason || 'Selected coordinate lies on land or outside active numerical model domain. Vertical column cannot be extracted.'}
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', fontSize: '11px' }}>
+            <div style={{ background: 'var(--field)', padding: '6px 8px', borderRadius: '4px' }}>
+              <span style={{ color: 'var(--muted)', display: 'block' }}>Target Location:</span>
+              <strong>{formatFloatCoordinates(selectedFloat.lat, selectedFloat.lon)}</strong>
+            </div>
+            <div style={{ background: 'var(--field)', padding: '6px 8px', borderRadius: '4px' }}>
+              <span style={{ color: 'var(--muted)', display: 'block' }}>Active Dataset:</span>
+              <strong>{selectedFloat.datasetName || 'Active Model Dataset'}</strong>
+            </div>
+            <div style={{ background: 'var(--field)', padding: '6px 8px', borderRadius: '4px' }}>
+              <span style={{ color: 'var(--muted)', display: 'block' }}>Simulation Timestamp:</span>
+              <span>{selectedFloat.timestamp ? `${formatFloatDate(selectedFloat.timestamp)} (T+${selectedFloat.time_idx ?? 0})` : 'Unavailable'}</span>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
     return (
       <section
         className="profile-modal-container"
@@ -213,28 +502,36 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span className="subtle-tag" style={{ background: 'var(--field)', color: 'var(--accent)', fontWeight: 600, fontSize: '10px' }}>
-                {selectedFloat.platform_type === 'argo' ? 'ARGO FLOAT' : 'GLIDER TRANSECT'}
+              <span className="subtle-tag" style={{ background: isModel ? '#0284c7' : 'var(--field)', color: isModel ? '#fff' : 'var(--accent)', fontWeight: 700, fontSize: '10px' }}>
+                {isModel ? 'NUMERICAL MODEL PROFILE' : (isGlider ? 'GLIDER TRANSECT' : (isArgo ? 'ARGO FLOAT' : 'UNKNOWN PLATFORM'))}
               </span>
               <span style={{ fontSize: '10px', color: 'var(--muted)', background: 'var(--field)', padding: '1px 5px', borderRadius: '3px' }}>
-                {sourceMode}
+                {isModel ? (selectedFloat.datasetName || 'Unavailable') : sourceMode}
               </span>
-              <span
-                style={{
-                  fontSize: '10px',
-                  color: qc.pass_rate_pct >= 90 ? 'var(--accent)' : '#f43f5e',
-                  background: 'var(--field)',
-                  padding: '1px 5px',
-                  borderRadius: '3px',
-                  fontWeight: 600
-                }}
-                data-testid="qc-badge"
-              >
-                {qc.pass_rate_pct}% Pass ({qc.good ?? qc.total}/{qc.total} levels)
-              </span>
+              {isModel ? (
+                <span style={{ fontSize: '10px', color: '#38bdf8', background: 'var(--field)', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>
+                  {selectedFloat.depths.length} Depths ({Math.min(...selectedFloat.depths).toFixed(1)}m – {Math.max(...selectedFloat.depths).toFixed(1)}m)
+                </span>
+              ) : (
+                <span
+                  style={{
+                    fontSize: '10px',
+                    color: qc.pass_rate_pct >= 90 ? 'var(--accent)' : '#f43f5e',
+                    background: 'var(--field)',
+                    padding: '1px 5px',
+                    borderRadius: '3px',
+                    fontWeight: 600
+                  }}
+                  data-testid="qc-badge"
+                >
+                  {qc.pass_rate_pct}% Pass ({qc.good ?? qc.total}/{qc.total} levels)
+                </span>
+              )}
             </div>
             <h3 id="profile-heading" style={{ fontSize: '14px', fontWeight: 600, marginTop: '4px', color: 'var(--text)' }} data-testid="profile-title">
-              {selectedFloat.name || `Float ${wmoId}`}
+              {isModel
+                ? `Model Water Column Profile • ${formatFloatCoordinates(selectedFloat.lat, selectedFloat.lon)}`
+                : (selectedFloat?.mission_name || selectedFloat?.name || (isGlider ? `Glider ${selectedFloat?.id}` : (isArgo ? `Float ${wmoId}` : `Platform ${selectedFloat?.id}`)))}
             </h3>
           </div>
           <button
@@ -261,22 +558,22 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
         {/* 2. Sensor Metadata Summary Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '4px', fontSize: '10px', marginBottom: '8px' }}>
           <div style={{ background: 'var(--field)', padding: '4px 6px', borderRadius: '4px' }}>
-            <span style={{ color: 'var(--muted)', display: 'block' }}>WMO ID</span>
-            <strong data-testid="wmo-number-val">{wmoId}</strong>
+            <span style={{ color: 'var(--muted)', display: 'block' }}>{isModel ? 'Profile Type' : isGlider ? 'Platform / Mission' : 'WMO ID'}</span>
+            <strong data-testid={isModel ? 'model-type-val' : 'wmo-number-val'}>{isModel ? 'Numerical Column' : (selectedFloat.mission_name || wmoId)}</strong>
           </div>
           <div style={{ background: 'var(--field)', padding: '4px 6px', borderRadius: '4px' }}>
             <span style={{ color: 'var(--muted)', display: 'block' }}>Position</span>
             <strong data-testid="float-coords-val">{formatFloatCoordinates(selectedFloat.lat, selectedFloat.lon)}</strong>
           </div>
-        <div style={{ background: 'var(--field)', padding: '4px 6px', borderRadius: '4px' }}>
-          <span style={{ color: 'var(--muted)', display: 'block' }}>Cycle / DAC</span>
-          <span>#{cycleNumber} ({dataCentre})</span>
+          <div style={{ background: 'var(--field)', padding: '4px 6px', borderRadius: '4px' }}>
+            <span style={{ color: 'var(--muted)', display: 'block' }}>{isModel ? 'Active Dataset' : 'Cycle / DAC'}</span>
+            <span>{isModel ? (selectedFloat.datasetName || 'Unavailable') : `#${cycleNumber} (${dataCentre})`}</span>
+          </div>
+          <div style={{ background: 'var(--field)', padding: '4px 6px', borderRadius: '4px' }}>
+            <span style={{ color: 'var(--muted)', display: 'block' }}>{isModel ? 'Model Time' : 'Timestamp'}</span>
+            <span style={{ fontFamily: 'monospace' }}>{selectedFloat.timestamp ? formatFloatDate(selectedFloat.timestamp) : 'Unavailable'}</span>
+          </div>
         </div>
-        <div style={{ background: 'var(--field)', padding: '4px 6px', borderRadius: '4px' }}>
-          <span style={{ color: 'var(--muted)', display: 'block' }}>Timestamp</span>
-          <span style={{ fontFamily: 'monospace' }}>{formatFloatDate(selectedFloat.timestamp)}</span>
-        </div>
-      </div>
 
       {/* 3. Variable Switching Tabs */}
       <div
@@ -413,9 +710,9 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
 
         {activeTab === 'ts' && (
           <TSDiagramSvgChart
-            depths={selectedFloat.depths}
-            temperatures={selectedFloat.temperature}
-            salinities={selectedFloat.salinity}
+            depths={depths}
+            temperatures={temperatures}
+            salinities={salinities}
             qcFlags={selectedFloat.qc_flags}
             chartWidth={chartWidth}
             chartHeight={chartHeight}
@@ -465,7 +762,7 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
         })() : (
           <span>Hover over curve data points to inspect physical depth observations.</span>
         )}
-        <span style={{ fontSize: '10px' }}>{selectedFloat.depths?.length || 0} levels</span>
+        <span style={{ fontSize: '10px' }}>{depths.length} levels</span>
       </div>
 
       {/* 6. Model Comparison Section (Phase 13 Collocation) */}
@@ -534,8 +831,10 @@ export default function ProfileModal({ selectedFloat = null, onSelectFloat = nul
             <span>
               Correlation: <strong data-testid="metric-correlation-r-val">{
                 currentSummary.correlation_r !== null && currentSummary.correlation_r !== undefined
-                  ? `R = ${currentSummary.correlation_r}`
-                  : 'R = n/a (n < 3)'
+                  ? (typeof currentSummary.correlation_r === 'number'
+                      ? (currentSummary.correlation_r > 0 ? `R = +${currentSummary.correlation_r.toFixed(4)}` : (currentSummary.correlation_r === 0 ? 'R = 0.0000' : `R = ${currentSummary.correlation_r.toFixed(4)}`))
+                      : `R = ${currentSummary.correlation_r}`)
+                  : 'R = n/a (insufficient pairs)'
               }</strong>
             </span>
             <span style={{ color: 'var(--muted)' }}>

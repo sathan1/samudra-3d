@@ -17,7 +17,11 @@ export default function BottomControlBar({
   playbackSpeed,
   onChangeSpeed,
   availableTimes = [],
+  availableVariables = [],
   currentTimeTimestamp,
+  isTransitioningDataset = false,
+  isDatasetReady = true,
+  datasetTransitionError = null,
   showCurrents: _showCurrents,
   onToggleCurrents: _onToggleCurrents,
   showObservations,
@@ -31,29 +35,39 @@ export default function BottomControlBar({
     { id: 'currents', label: 'CURRENTS', unit: 'm/s', desc: 'Horizontal Velocity Vector Field' }
   ];
 
+  const isBlocked = isTransitioningDataset || !isDatasetReady || Boolean(datasetTransitionError);
+
+  const isVarSupported = (varId) => {
+    if (isBlocked) return false;
+    if (!availableVariables || availableVariables.length === 0) return true;
+    const lower = availableVariables.map((v) => v.toLowerCase());
+    if (varId === 'temperature') {
+      return lower.some((v) => ['temperature', 'thetao', 'temp', 'sst', 'votemper'].includes(v));
+    }
+    if (varId === 'salinity') {
+      return lower.some((v) => ['salinity', 'so', 'salt', 'vosaline'].includes(v));
+    }
+    if (varId === 'currents') {
+      return lower.some((v) => ['currents', 'uo', 'vo', 'u', 'v', 'vozocrtx', 'vomecrty'].includes(v));
+    }
+    return lower.includes(varId.toLowerCase());
+  };
+
   // Map available times to clean Day labels (e.g. "Jan 01", "Jan 02")
-  const displayDays = availableTimes.length > 0
+  const displayDays = availableTimes && availableTimes.length > 0
     ? availableTimes.map((t, idx) => {
         try {
           const d = new Date(t);
           return {
             index: idx,
-            label: d.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }),
+            label: isNaN(d.getTime()) ? `T+${idx}` : d.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }),
             iso: t
           };
         } catch {
           return { index: idx, label: `Day ${idx + 1}`, iso: t };
         }
       })
-    : [
-        { index: 0, label: 'Jan 01' },
-        { index: 1, label: 'Jan 02' },
-        { index: 2, label: 'Jan 03' },
-        { index: 3, label: 'Jan 04' },
-        { index: 4, label: 'Jan 05' },
-        { index: 5, label: 'Jan 06' },
-        { index: 6, label: 'Jan 07' }
-      ];
+    : [{ index: 0, label: 'Step 1', iso: null }];
 
   return (
     <div className="bottom-control-dock glassmorphic-panel" role="region" aria-label="Variable and Timeline Controls">
@@ -65,18 +79,23 @@ export default function BottomControlBar({
           </span>
           {variables.map((v) => {
             const isActive = selectedVariable === v.id;
+            const supported = isVarSupported(v.id);
             return (
               <button
                 key={v.id}
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                title={`${v.desc} (${v.unit})`}
-                className={`variable-tab-btn ${isActive ? 'active' : ''}`}
-                onClick={() => onSelectVariable(v.id)}
+                disabled={!supported || isBlocked}
+                title={supported ? `${v.desc} (${v.unit})` : `${v.label} is not available in the active dataset`}
+                className={`variable-tab-btn ${isActive ? 'active' : ''} ${!supported || isBlocked ? 'opacity-40 cursor-not-allowed' : ''}`}
+                onClick={() => {
+                  if (supported && !isBlocked) onSelectVariable(v.id);
+                }}
               >
                 <span className="font-bold">{v.label}</span>
                 <span className="text-[10px] opacity-75 ml-1">({v.unit})</span>
+                {!supported && <span className="text-[9px] ml-1 text-slate-500 font-mono">[N/A]</span>}
               </button>
             );
           })}
@@ -111,6 +130,7 @@ export default function BottomControlBar({
             type="button"
             className="timeline-ctrl-btn"
             onClick={onStepBack}
+            disabled={isBlocked}
             aria-label="Previous Forecast Step"
             title="Step Back"
           >
@@ -120,6 +140,7 @@ export default function BottomControlBar({
             type="button"
             className="timeline-play-btn"
             onClick={onTogglePlay}
+            disabled={isBlocked}
             aria-label={isPlaying ? 'Pause Forecast Animation' : 'Play Forecast Animation'}
             title={isPlaying ? 'Pause' : 'Play'}
           >
@@ -129,6 +150,7 @@ export default function BottomControlBar({
             type="button"
             className="timeline-ctrl-btn"
             onClick={onStepForward}
+            disabled={isBlocked}
             aria-label="Next Forecast Step"
             title="Step Forward"
           >
@@ -145,7 +167,10 @@ export default function BottomControlBar({
                 key={d.index}
                 type="button"
                 className={`timeline-step-chip ${isCurrent ? 'active' : ''}`}
-                onClick={() => onSelectTime(d.index)}
+                disabled={isBlocked}
+                onClick={() => {
+                  if (!isBlocked) onSelectTime(d.index);
+                }}
               >
                 <span className="step-indicator" />
                 <span className="step-label font-mono">{d.label}</span>
@@ -163,6 +188,7 @@ export default function BottomControlBar({
                 key={s}
                 type="button"
                 className={`speed-chip ${playbackSpeed === s ? 'active' : ''}`}
+                disabled={isBlocked}
                 onClick={() => onChangeSpeed(s)}
               >
                 {s}x
@@ -170,8 +196,18 @@ export default function BottomControlBar({
             ))}
           </div>
 
-          <div className="current-timestamp-badge font-mono text-sky-300 bg-sky-950/60 px-2.5 py-1 rounded border border-sky-800/60">
-            {currentTimeTimestamp ? currentTimeTimestamp.slice(0, 10) : '2025-01-04'}
+          <div className="current-timestamp-badge font-mono text-sky-300 bg-sky-950/60 px-2.5 py-1 rounded border border-sky-800/60" data-testid="current-time-badge">
+            {datasetTransitionError ? (
+              <span className="text-rose-400 font-bold">DATASET ERROR</span>
+            ) : isBlocked ? (
+              <span className="text-amber-400">SYNCING DATASET...</span>
+            ) : availableTimes && availableTimes[timeIndex] ? (
+              availableTimes[timeIndex].includes('T') ? availableTimes[timeIndex].replace('T', ' ').slice(0, 16) + ' UTC' : availableTimes[timeIndex]
+            ) : currentTimeTimestamp ? (
+              currentTimeTimestamp.includes('T') ? currentTimeTimestamp.replace('T', ' ').slice(0, 16) + ' UTC' : currentTimeTimestamp
+            ) : (
+              'Active Simulation'
+            )}
           </div>
         </div>
       </div>

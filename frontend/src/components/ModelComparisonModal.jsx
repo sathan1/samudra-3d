@@ -4,22 +4,55 @@ import { fetchProfileCollocation, fetchGliderCollocation } from '../services/api
 /**
  * Calculates Pearson correlation coefficient (R) between two paired numerical arrays.
  */
+/**
+ * Calculates Pearson correlation coefficient (R) between two paired numerical arrays.
+ * Returns { r: number | null, reason: string | null }
+ */
 function calculatePearsonR(obsArr, modelArr) {
-  if (!obsArr || !modelArr || obsArr.length < 2 || obsArr.length !== modelArr.length) return 0.994;
-  const n = obsArr.length;
-  const meanO = obsArr.reduce((a, b) => a + b, 0) / n;
-  const meanM = modelArr.reduce((a, b) => a + b, 0) / n;
+  if (!obsArr || !modelArr) return { r: null, reason: 'missing data' };
+  const pairs = [];
+  for (let i = 0; i < Math.min(obsArr.length, modelArr.length); i++) {
+    const o = obsArr[i];
+    const m = modelArr[i];
+    if (o !== null && o !== undefined && Number.isFinite(o) &&
+        m !== null && m !== undefined && Number.isFinite(m)) {
+      pairs.push([o, m]);
+    }
+  }
+  if (pairs.length < 2) {
+    return { r: null, reason: 'n<2' };
+  }
+  const n = pairs.length;
+  const meanO = pairs.reduce((sum, p) => sum + p[0], 0) / n;
+  const meanM = pairs.reduce((sum, p) => sum + p[1], 0) / n;
   let num = 0, denO = 0, denM = 0;
   for (let i = 0; i < n; i++) {
-    const doVal = obsArr[i] - meanO;
-    const dmVal = modelArr[i] - meanM;
+    const doVal = pairs[i][0] - meanO;
+    const dmVal = pairs[i][1] - meanM;
     num += doVal * dmVal;
     denO += doVal * doVal;
     denM += dmVal * dmVal;
   }
+  if (denO === 0 || denM === 0) {
+    return { r: null, reason: 'zero variance' };
+  }
   const denom = Math.sqrt(denO * denM);
-  if (denom === 0) return 1.0;
-  return Number((num / denom).toFixed(4));
+  if (!Number.isFinite(denom) || denom === 0) {
+    return { r: null, reason: 'zero variance' };
+  }
+  const rVal = num / denom;
+  const clamped = Math.max(-1.0, Math.min(1.0, rVal));
+  return { r: Number(clamped.toFixed(4)), reason: null };
+}
+
+function formatPearsonR(pearsonObj) {
+  if (!pearsonObj || pearsonObj.r === null || pearsonObj.r === undefined) {
+    return `n/a (${pearsonObj?.reason || 'insufficient data'})`;
+  }
+  const r = pearsonObj.r;
+  if (r > 0) return `+${r.toFixed(4)}`;
+  if (r === 0) return '0.0000';
+  return `${r.toFixed(4)}`;
 }
 
 /**
@@ -30,14 +63,20 @@ function calculatePearsonR(obsArr, modelArr) {
 export default function ModelComparisonModal({
   isOpen = false,
   onClose = null,
+  comparisonContext = null,
   selectedFloat = null,
   argoFloats = [],
   gliderTransects = [],
+  isLoadingTarget = false,
+  targetLoadError = null,
+  onRetryTarget = null,
   showAnomalyField = false,
   onToggleAnomalyField = null,
-  onFocusFloat = null
+  onFocusFloat = null,
+  isTransitioningDataset = false,
+  isDatasetReady = true
 }) {
-  const [selectedPlatformId, setSelectedPlatformId] = useState(() => selectedFloat?.id || '');
+  const [selectedPlatformId, setSelectedPlatformId] = useState(() => comparisonContext?.platformId || selectedFloat?.id || '');
   const [parameter, setParameter] = useState('temperature'); // 'temperature' | 'salinity'
   const [timeStrategy, setTimeStrategy] = useState('linear');
   const [isRunningJob, setIsRunningJob] = useState(false);
@@ -50,6 +89,21 @@ export default function ModelComparisonModal({
   const [isMaximized, setIsMaximized] = useState(false);
   const [isCompactScorecard, setIsCompactScorecard] = useState(false);
   const [depthZoom, setDepthZoom] = useState('all'); // 'all' | 'thermocline' (0-250m)
+
+  // Guard against out-of-order collocation responses
+  const collocationRequestIdRef = React.useRef(0);
+
+  // Invalidate in-flight collocation or stale data when dataset becomes unready
+  useEffect(() => {
+    if (isTransitioningDataset || !isDatasetReady) {
+      ++collocationRequestIdRef.current;
+      setCollocationData(null);
+      setIsRunningJob(false);
+      if (isOpen) {
+        setJobStatusMsg('Dataset transition in progress. Collocation invalidated.');
+      }
+    }
+  }, [isTransitioningDataset, isDatasetReady, isOpen]);
 
   // Synchronize available in-situ platforms via useMemo
   const platformList = useMemo(() => {
@@ -78,63 +132,165 @@ export default function ModelComparisonModal({
       ];
     }
 
-    if (list.length === 0) {
-      list = [
-        { id: 'ARGO_2902145', name: 'Argo 2902145 (Central Arabian Sea)', type: 'argo', lat: 15.2, lon: 68.4, group: 'Argo Floats' },
-        { id: 'ARGO_2902210_REAL', name: 'Argo 2902210 (INCOIS Reference Sample)', type: 'argo', lat: 12.8, lon: 83.1, group: 'Argo Floats' },
-        { id: 'ARGO_2902146', name: 'Argo 2902146 (Bay of Bengal)', type: 'argo', lat: 14.5, lon: 88.2, group: 'Argo Floats' },
-        { id: 'GLIDER_BOB_SG01', name: 'INCOIS Seaglider SG01 (Bay of Bengal)', type: 'glider', lat: 14.2, lon: 88.6, group: 'Gliders' }
-      ];
+    if (comparisonContext?.platformId && !list.some(p => p.id === comparisonContext.platformId)) {
+      list.unshift({
+        id: comparisonContext.platformId,
+        name: comparisonContext.platformType === 'glider' ? `Glider ${comparisonContext.platformId}` : `Argo ${comparisonContext.platformId}`,
+        type: comparisonContext.platformType || 'argo',
+        lat: comparisonContext.probePoint?.lat ?? 0,
+        lon: comparisonContext.probePoint?.lon ?? 0,
+        group: comparisonContext.platformType === 'glider' ? 'Underwater Gliders' : 'Argo Float Fleet'
+      });
+    } else if (selectedFloat?.id && !list.some(p => p.id === selectedFloat.id)) {
+      const explicit = selectedFloat.platform_type || selectedFloat.type;
+      const resolved = explicit ||
+        (selectedFloat.mission_name || (Array.isArray(selectedFloat.waypoints) && selectedFloat.waypoints.length > 0) ? 'glider' :
+          (selectedFloat.wmo_id || (Array.isArray(selectedFloat.depths) && selectedFloat.depths.length > 0) ? 'argo' : 'argo'));
+      list.unshift({
+        id: selectedFloat.id,
+        name: selectedFloat.name || (resolved === 'glider' ? `Glider ${selectedFloat.id}` : `Argo ${selectedFloat.wmo_id || selectedFloat.id}`),
+        type: resolved,
+        lat: selectedFloat.lat ?? 0,
+        lon: selectedFloat.lon ?? 0,
+        group: resolved === 'glider' ? 'Underwater Gliders' : 'Argo Float Fleet'
+      });
     }
+
     return list;
-  }, [argoFloats, gliderTransects]);
+  }, [argoFloats, gliderTransects, comparisonContext, selectedFloat]);
 
-  const _activePlatformId = selectedPlatformId || selectedFloat?.id || platformList[0]?.id || '';
-
-  // Execute collocation prediction job
+  // Execute collocation prediction job with race protection
   const runPredictionJob = useCallback(async (platformId = selectedPlatformId, strat = timeStrategy) => {
     if (!platformId) return;
+    if (isTransitioningDataset || !isDatasetReady) {
+      setCollocationData(null);
+      setJobStatusMsg('Model prediction comparison unavailable while dataset is syncing or unready.');
+      setIsRunningJob(false);
+      return;
+    }
+    const reqId = ++collocationRequestIdRef.current;
     setIsRunningJob(true);
     setJobStatusMsg('Simulating 4D numerical model grid & computing trilinear collocation...');
 
     const startTime = performance.now();
     try {
-      const selected = platformList.find(p => p.id === platformId);
-      const isGlider = selected?.type === 'glider' || platformId.startsWith('GLIDER');
+      let resolvedType = null;
 
-      let res;
-      if (isGlider) {
-        res = await fetchGliderCollocation(platformId);
-      } else {
-        res = await fetchProfileCollocation(platformId, { time_strategy: strat });
+      // 1. Explicit metadata from selected platform detail (metadata owns dispatch)
+      if (selectedFloat?.id === platformId) {
+        if (selectedFloat.platform_type) {
+          resolvedType = selectedFloat.platform_type;
+        } else if (selectedFloat.type) {
+          resolvedType = selectedFloat.type;
+        }
       }
 
-      const elapsed = Math.round(performance.now() - startTime);
-      setCollocationData(res);
-      setLastRunStats({
-        elapsedMs: elapsed,
-        timestamp: new Date().toLocaleTimeString(),
-        platformId,
-        strategy: strat
-      });
-      setJobStatusMsg(`Prediction job completed in ${elapsed} ms. 4D Collocation validated.`);
+      // 2. Explicit metadata from comparison context (e.g. from probe or fleet selection)
+      if (!resolvedType && comparisonContext?.platformId === platformId) {
+        resolvedType = comparisonContext.platformType || comparisonContext.platform_type || null;
+      }
+
+      // 3. Explicit metadata from fleet platform list
+      if (!resolvedType) {
+        const found = platformList.find(p => p.id === platformId);
+        if (found?.type) {
+          resolvedType = found.type;
+        }
+      }
+
+      // 4. Shape-based inference ONLY if explicit type metadata was genuinely absent
+      if (!resolvedType && selectedFloat?.id === platformId) {
+        if (selectedFloat.mission_name || (Array.isArray(selectedFloat.waypoints) && selectedFloat.waypoints.length > 0)) {
+          resolvedType = 'glider';
+        } else if (selectedFloat.wmo_id || (Array.isArray(selectedFloat.depths) && selectedFloat.depths.length > 0)) {
+          resolvedType = 'argo';
+        }
+      }
+
+      let res;
+      if (resolvedType === 'glider') {
+        res = await fetchGliderCollocation(platformId);
+      } else if (resolvedType === 'argo' || resolvedType === 'sensor') {
+        res = await fetchProfileCollocation(platformId, { time_strategy: strat });
+      } else {
+        throw new Error(`Unsupported or unresolved platform type for ${platformId}. Only Argo floats and underwater gliders are supported.`);
+      }
+
+      if (collocationRequestIdRef.current === reqId) {
+        const elapsed = Math.round(performance.now() - startTime);
+        setCollocationData(res);
+        setLastRunStats({
+          elapsedMs: elapsed,
+          timestamp: new Date().toLocaleTimeString(),
+          platformId,
+          strategy: strat
+        });
+        setJobStatusMsg(`Prediction job completed in ${elapsed} ms. 4D Collocation validated.`);
+      }
     } catch (err) {
-      console.error('Prediction job error:', err);
-      setJobStatusMsg(`Collocation notice: ${err.message}`);
+      if (collocationRequestIdRef.current === reqId) {
+        console.error('Prediction job error:', err);
+        setCollocationData(null);
+        setJobStatusMsg(`Collocation notice: ${err.message}`);
+      }
     } finally {
+      if (collocationRequestIdRef.current === reqId) {
+        setIsRunningJob(false);
+      }
+    }
+  }, [platformList, selectedPlatformId, timeStrategy, comparisonContext, selectedFloat, isTransitioningDataset, isDatasetReady]);
+
+  // Clean up state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      ++collocationRequestIdRef.current;
+      setCollocationData(null);
+      setLastRunStats(null);
+      setJobStatusMsg('');
       setIsRunningJob(false);
     }
-  }, [platformList, selectedPlatformId, timeStrategy]);
+  }, [isOpen]);
 
-  // Run job automatically when modal opens or platform changes
+  // Sync selectedPlatformId when comparisonContext, selectedFloat changes or modal opens
   useEffect(() => {
-    if (isOpen && selectedPlatformId) {
+    if (isOpen) {
+      if (comparisonContext?.isAvailable === false) {
+        setSelectedPlatformId('');
+        setCollocationData(null);
+        setLastRunStats(null);
+        setJobStatusMsg('');
+        ++collocationRequestIdRef.current;
+      } else if (comparisonContext?.platformId) {
+        if (comparisonContext.platformId !== selectedPlatformId) {
+          setSelectedPlatformId(comparisonContext.platformId);
+          setCollocationData(null);
+          setLastRunStats(null);
+          setJobStatusMsg('');
+          ++collocationRequestIdRef.current;
+        }
+      } else if (selectedFloat?.id) {
+        if (selectedFloat.id !== selectedPlatformId) {
+          setSelectedPlatformId(selectedFloat.id);
+          setCollocationData(null);
+          setLastRunStats(null);
+          setJobStatusMsg('');
+          ++collocationRequestIdRef.current;
+        }
+      } else if (!selectedPlatformId && platformList.length > 0) {
+        setSelectedPlatformId(platformList[0].id);
+      }
+    }
+  }, [isOpen, comparisonContext, selectedFloat, platformList]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-trigger job when target changes and modal is open (and target is not currently loading detail)
+  useEffect(() => {
+    if (isOpen && selectedPlatformId && comparisonContext?.isAvailable !== false && !isLoadingTarget && !targetLoadError && !isTransitioningDataset && isDatasetReady) {
       const timer = setTimeout(() => {
-        runPredictionJob(selectedPlatformId);
+        runPredictionJob(selectedPlatformId, timeStrategy);
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [isOpen, selectedPlatformId, runPredictionJob]);
+  }, [isOpen, selectedPlatformId, timeStrategy, comparisonContext, isLoadingTarget, targetLoadError, isTransitioningDataset, isDatasetReady, runPredictionJob]);
 
   // Escape key handler
   useEffect(() => {
@@ -177,7 +333,7 @@ export default function ModelComparisonModal({
 
   // Calculated Pearson R
   const pearsonR = useMemo(() => {
-    if (!levels || levels.length < 2) return 0.994;
+    if (!levels || levels.length === 0) return null;
     const obsArr = levels.map(l => l.observed_value);
     const modArr = levels.map(l => l.model_value);
     return calculatePearsonR(obsArr, modArr);
@@ -252,6 +408,52 @@ export default function ModelComparisonModal({
   };
 
   if (!isOpen) return null;
+
+  // No-platform unavailable state: comparison was triggered from probe with no nearest observation
+  // or no platforms are available to compare.
+  const isNoPlatformUnavailable =
+    (comparisonContext && comparisonContext.isAvailable === false) ||
+    (!selectedFloat && (!platformList || platformList.length === 0));
+
+  if (isNoPlatformUnavailable) {
+    return (
+      <div
+        className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-md"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="no-platform-title"
+        data-testid="model-comparison-no-platform"
+        onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
+      >
+        <div
+          className="rounded-2xl border shadow-2xl p-8 max-w-md w-full text-center"
+          style={{ backgroundColor: 'var(--panel)', borderColor: 'var(--border)', color: 'var(--text)' }}
+        >
+          <span className="text-4xl block mb-4" aria-hidden="true">🚫</span>
+          <h2 id="no-platform-title" className="text-base font-bold tracking-tight mb-2">
+            No Nearby Observation Available
+          </h2>
+          <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
+            The ocean probe did not find a supported in-situ platform (Argo float or glider)
+            within the collocation search radius for this location. Model comparison requires
+            a real collocated observation — no substitute platform will be used.
+          </p>
+          <p className="text-xs mb-6" style={{ color: 'var(--muted)' }}>
+            Select an Argo float or glider from the Observation Fleet drawer and use its
+            Compare Model button to run a collocated prediction job.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs cursor-pointer"
+            data-testid="no-platform-close-btn"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const currentPlatform = platformList.find(p => p.id === selectedPlatformId);
   const unitStr = parameter === 'temperature' ? '°C' : 'PSU';
@@ -360,7 +562,14 @@ export default function ModelComparisonModal({
                 id="compare-platform-select"
                 data-testid="compare-platform-select"
                 value={selectedPlatformId}
-                onChange={(e) => setSelectedPlatformId(e.target.value)}
+                onChange={(e) => {
+                  const newId = e.target.value;
+                  setSelectedPlatformId(newId);
+                  setCollocationData(null);
+                  setLastRunStats(null);
+                  setJobStatusMsg('');
+                  ++collocationRequestIdRef.current;
+                }}
                 className="rounded-lg border px-3 py-1.5 text-xs font-medium outline-none transition cursor-pointer"
                 style={{ backgroundColor: 'var(--panel)', borderColor: 'var(--border)', color: 'var(--text)' }}
               >
@@ -406,7 +615,14 @@ export default function ModelComparisonModal({
                 id="time-strategy-select"
                 data-testid="time-strategy-select"
                 value={timeStrategy}
-                onChange={(e) => setTimeStrategy(e.target.value)}
+                onChange={(e) => {
+                  const newStrat = e.target.value;
+                  setTimeStrategy(newStrat);
+                  setCollocationData(null);
+                  setLastRunStats(null);
+                  setJobStatusMsg('');
+                  ++collocationRequestIdRef.current;
+                }}
                 className="rounded-lg border px-2.5 py-1.5 text-xs font-medium outline-none transition cursor-pointer"
                 style={{ backgroundColor: 'var(--panel)', borderColor: 'var(--border)', color: 'var(--text)' }}
               >
@@ -461,13 +677,13 @@ export default function ModelComparisonModal({
                 MAE: <strong data-testid="metric-mae-val" className="text-teal-400">{summary?.mae !== null && summary?.mae !== undefined ? `${summary.mae} ${unitStr}` : 'N/A'}</strong>
               </span>
               <span className="px-2 py-0.5 rounded border font-mono text-[11px]" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
-                R: <strong data-testid="metric-pearson-val" className="text-emerald-400">{pearsonR ? `+${pearsonR}` : '1.000'}</strong>
+                R: <strong data-testid="metric-pearson-val" className="text-emerald-400">{formatPearsonR(pearsonR)}</strong>
               </span>
               <span className="px-2 py-0.5 rounded border font-mono text-[11px]" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
-                Grade: <strong data-testid="metric-health-val" className="text-emerald-400">{collocationData?.model_health || 'GOOD'}</strong>
+                Grade: <strong data-testid="metric-health-val" className="text-emerald-400">{collocationData?.model_health || 'Unavailable'}</strong>
               </span>
               <span className="px-2 py-0.5 rounded border font-mono text-[11px] text-sky-400" style={{ backgroundColor: 'var(--field)', borderColor: 'var(--border)' }}>
-                Offset: <strong>{summary?.spatial_distance_km ? `${summary.spatial_distance_km} km` : 'Collocated'}</strong>
+                Offset: <strong>{summary?.spatial_distance_km ? `${summary.spatial_distance_km} km` : (collocationData ? 'Collocated' : 'Unavailable')}</strong>
               </span>
             </div>
             <button
@@ -493,7 +709,7 @@ export default function ModelComparisonModal({
                 </span>
               </div>
               <span className="text-[10px] font-semibold uppercase" style={{ color: 'var(--muted)' }}>
-                {summary?.prediction_tendency || 'Balanced Skill'}
+                {summary?.prediction_tendency || 'Unavailable'}
               </span>
             </div>
 
@@ -534,11 +750,13 @@ export default function ModelComparisonModal({
               </span>
               <div className="my-1">
                 <span className="text-lg font-extrabold font-mono text-emerald-400" data-testid="metric-pearson-val">
-                  {pearsonR ? `+${pearsonR}` : '1.000'}
+                  {formatPearsonR(pearsonR)}
                 </span>
               </div>
               <span className="text-[10px] text-emerald-400 font-semibold">
-                High Stratification Match
+                {pearsonR?.r !== null && pearsonR?.r !== undefined
+                  ? (pearsonR.r >= 0.8 ? 'High Stratification Match' : (pearsonR.r >= 0.5 ? 'Moderate Correlation' : (pearsonR.r > 0 ? 'Weak Positive Correlation' : 'Inverse / No Linear Correlation')))
+                  : `Unavailable (${pearsonR?.reason || 'insufficient data'})`}
               </span>
             </div>
 
@@ -549,7 +767,7 @@ export default function ModelComparisonModal({
               </span>
               <div className="my-1">
                 <span className="text-base font-extrabold font-mono text-emerald-400" data-testid="metric-health-val">
-                  {collocationData?.model_health || 'GOOD'}
+                  {collocationData?.model_health || 'Unavailable'}
                 </span>
               </div>
               <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
@@ -564,7 +782,7 @@ export default function ModelComparisonModal({
               </span>
               <div className="my-1">
                 <span className="text-base font-extrabold font-mono text-sky-400">
-                  {summary?.spatial_distance_km ? `${summary.spatial_distance_km} km` : 'Collocated'}
+                  {summary?.spatial_distance_km ? `${summary.spatial_distance_km} km` : (collocationData ? 'Collocated' : 'Unavailable')}
                 </span>
               </div>
               <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
@@ -643,7 +861,33 @@ export default function ModelComparisonModal({
 
         {/* 5. Main Content Area */}
         <div className="modal-content-body p-4 overflow-y-auto flex-1" style={{ backgroundColor: 'var(--bg)' }}>
-          {levels.length === 0 ? (
+          {isLoadingTarget && !collocationData ? (
+            <div className="py-16 text-center" style={{ color: 'var(--muted)' }} data-testid="compare-target-loading">
+              <span className="spinner-small" style={{ width: '28px', height: '28px', margin: '0 auto 12px', display: 'block' }} aria-hidden="true" />
+              <h3 className="text-sm font-bold" style={{ color: 'var(--text)' }}>Hydrating Platform Telemetry...</h3>
+              <p className="text-xs max-w-md mx-auto mt-1">
+                Fetching vertical oceanographic profile observations for {selectedPlatformId}...
+              </p>
+            </div>
+          ) : targetLoadError && !collocationData ? (
+            <div className="py-16 text-center" style={{ color: 'var(--muted)' }} data-testid="compare-target-error">
+              <div className="text-3xl mb-2">⚠️</div>
+              <h3 className="text-sm font-bold" style={{ color: '#ef4444' }}>Target Telemetry Load Failed</h3>
+              <p className="text-xs max-w-md mx-auto mt-1 text-red-300">
+                {targetLoadError}
+              </p>
+              {onRetryTarget && (
+                <button
+                  type="button"
+                  onClick={onRetryTarget}
+                  data-testid="compare-retry-btn"
+                  className="mt-4 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs cursor-pointer"
+                >
+                  ⟳ Retry Loading Target
+                </button>
+              )}
+            </div>
+          ) : levels.length === 0 ? (
             <div className="py-16 text-center" style={{ color: 'var(--muted)' }}>
               <div className="text-3xl mb-2">📊</div>
               <h3 className="text-sm font-bold" style={{ color: 'var(--text)' }}>No Collocation Data Available</h3>
@@ -802,10 +1046,12 @@ export default function ModelComparisonModal({
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 block">
                     Operational Skill Assessment
                   </span>
-                  <p className="text-xs leading-relaxed m-0" style={{ color: 'var(--text)' }}>
-                    {collocationData?.model_health_description ||
-                      `ROMS 3D model shows high physical fidelity with an RMSE of ${summary?.rmse || 0.42} ${unitStr} across ${levels.length} observation depths.`}
-                  </p>
+                    <p className="text-xs leading-relaxed m-0" style={{ color: 'var(--text)' }}>
+                      {collocationData?.model_health_description ||
+                        (summary?.rmse !== null && summary?.rmse !== undefined
+                          ? `ROMS 3D model shows physical fidelity with an RMSE of ${summary.rmse} ${unitStr} across ${levels.length} observation depths.`
+                          : 'Operational model skill assessment unavailable for this run.')}
+                    </p>
                 </div>
               </div>
             </div>

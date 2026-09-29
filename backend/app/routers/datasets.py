@@ -93,10 +93,10 @@ def select_dataset(req: SelectDatasetRequest):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         )
-    except FileNotFoundError as e:
+    except (FileNotFoundError, ValueError) as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Dataset file is missing or unmounted: {str(e)}"
+            detail=f"Dataset is unavailable or missing file: {str(e)}"
         )
     except Exception as e:
         raise HTTPException(

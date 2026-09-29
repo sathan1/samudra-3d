@@ -97,61 +97,57 @@ class DatasetRegistry:
                         real_file_found = f
                         break
 
-        if real_file_found and real_file_found.is_file():
-            real_size = real_file_found.stat().st_size
-            glorys_desc = DatasetDescriptor(
-                dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m",
-                name="Copernicus GLORYS12V1 Global Ocean Reanalysis",
-                provider="Copernicus Marine Service (Mercator Ocean International)",
-                product_id="GLOBAL_MULTIYEAR_PHY_001_030",
-                source_mode=SourceMode.REAL_LOCAL,
-                access_method="LOCAL_FILE",
-                local_path=str(real_file_found),
-                remote_url="https://data.marine.copernicus.eu/product/GLOBAL_MULTIYEAR_PHY_001_030/description",
-                format="NetCDF-4 (CF-1.4)",
-                variables=["temperature", "salinity", "currents", "u_current", "v_current"],
-                raw_variables=["thetao", "so", "uo", "vo"],
-                spatial_resolution="0.0833 degree (~8.3 km grid)",
-                spatial_resolution_km=8.33,
-                temporal_resolution="Daily Mean (P1D)",
-                coverage_bounds={"lat_min": 0.0, "lat_max": 25.0, "lon_min": 50.0, "lon_max": 100.0},
-                depth_range=[0.494, 92.326],
-                time_range=["2025-01-01T00:00:00Z", "2025-01-07T00:00:00Z"],
-                status="READY",
-                size_bytes=real_size,
-                provenance={
-                    "source": "MERCATOR GLORYS12V1 (CMEMS product)",
-                    "conventions": "CF-1.4",
-                    "license_or_attribution": "Copernicus Marine Service / Mercator Ocean Open License",
-                    "copernicus_reported_size": "212.68 MB on disk, 891 MB logical xarray tensor",
-                    "variables_mapping": {
-                        "thetao": "Potential Temperature (degrees_C)",
-                        "so": "Practical Salinity (PSU / 1e-3)",
-                        "uo": "Eastward Velocity (m/s)",
-                        "vo": "Northward Velocity (m/s)"
-                    },
-                    "data_retrieved_at": "2026-09-15T00:00:00Z",
-                    "citation": "E.U. Copernicus Marine Service Information (GLOBAL_MULTIYEAR_PHY_001_030)"
+        real_size = real_file_found.stat().st_size if (real_file_found and real_file_found.is_file()) else 0
+        glorys_desc = DatasetDescriptor(
+            dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m",
+            name="Copernicus GLORYS12V1 Global Ocean Reanalysis",
+            provider="Copernicus Marine Service (Mercator Ocean International)",
+            product_id="GLOBAL_MULTIYEAR_PHY_001_030",
+            source_mode=SourceMode.REAL_LOCAL,
+            access_method="LOCAL_FILE",
+            local_path=str(real_file_found) if real_file_found else None,
+            remote_url="https://data.marine.copernicus.eu/product/GLOBAL_MULTIYEAR_PHY_001_030/description",
+            format="NetCDF-4 (CF-1.4)",
+            variables=["temperature", "salinity", "currents", "u_current", "v_current"],
+            raw_variables=["thetao", "so", "uo", "vo"],
+            spatial_resolution="0.0833 degree (~8.3 km grid)",
+            spatial_resolution_km=8.33,
+            temporal_resolution="Daily Mean (P1D)",
+            coverage_bounds={"lat_min": 0.0, "lat_max": 25.0, "lon_min": 50.0, "lon_max": 100.0},
+            depth_range=[0.494, 92.326],
+            time_range=["2025-01-01T00:00:00Z", "2025-01-07T00:00:00Z"],
+            status="READY" if (real_file_found and real_file_found.is_file()) else "UNAVAILABLE",
+            size_bytes=real_size,
+            provenance={
+                "source": "MERCATOR GLORYS12V1 (CMEMS product)",
+                "conventions": "CF-1.4",
+                "license_or_attribution": "Copernicus Marine Service / Mercator Ocean Open License",
+                "copernicus_reported_size": "212.68 MB on disk, 891 MB logical xarray tensor",
+                "variables_mapping": {
+                    "thetao": "Potential Temperature (degrees_C)",
+                    "so": "Practical Salinity (PSU / 1e-3)",
+                    "uo": "Eastward Velocity (m/s)",
+                    "vo": "Northward Velocity (m/s)"
                 },
-                is_active=False
-            )
-            self._datasets[glorys_desc.dataset_id] = glorys_desc
+                "data_retrieved_at": "2026-09-15T00:00:00Z",
+                "citation": "E.U. Copernicus Marine Service Information (GLOBAL_MULTIYEAR_PHY_001_030)"
+            },
+            is_active=False
+        )
+        self._datasets[glorys_desc.dataset_id] = glorys_desc
 
-        # 3. Determine Active Dataset
-        import sys
-        is_test_env = "unittest" in sys.modules or "pytest" in sys.modules or any("test" in arg.lower() for arg in sys.argv)
+        # 3. Determine Active Dataset (must only activate a READY dataset)
         pref = getattr(settings, "DEFAULT_DATASET_ID", "cmems_mod_glo_phy_my_0.083deg_P1D-m")
 
-        if is_test_env and "incois_roms_synthetic" in self._datasets:
-            self._active_id = "incois_roms_synthetic"
-        elif pref in self._datasets:
+        if pref in self._datasets and self._datasets[pref].status == "READY":
             self._active_id = pref
-        elif "cmems_mod_glo_phy_my_0.083deg_P1D-m" in self._datasets:
+        elif "cmems_mod_glo_phy_my_0.083deg_P1D-m" in self._datasets and self._datasets["cmems_mod_glo_phy_my_0.083deg_P1D-m"].status == "READY":
             self._active_id = "cmems_mod_glo_phy_my_0.083deg_P1D-m"
-        elif "incois_roms_synthetic" in self._datasets:
+        elif "incois_roms_synthetic" in self._datasets and self._datasets["incois_roms_synthetic"].status == "READY":
             self._active_id = "incois_roms_synthetic"
         else:
-            self._active_id = None
+            ready_ds = next((d.dataset_id for d in self._datasets.values() if d.status == "READY"), None)
+            self._active_id = ready_ds
 
         if self._active_id and self._active_id in self._datasets:
             self._datasets[self._active_id].is_active = True
@@ -171,6 +167,9 @@ class DatasetRegistry:
         if dataset_id not in self._datasets:
             avail = list(self._datasets.keys())
             raise KeyError(f"Dataset '{dataset_id}' not found in registry. Available: {avail}")
+        target = self._datasets[dataset_id]
+        if target.status != "READY":
+            raise FileNotFoundError(f"Dataset '{dataset_id}' is unavailable (status: {target.status}). Local data file is missing.")
         for d in self._datasets.values():
             d.is_active = (d.dataset_id == dataset_id)
         self._active_id = dataset_id

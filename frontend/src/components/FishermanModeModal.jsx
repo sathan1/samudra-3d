@@ -1,40 +1,88 @@
 import React, { useState, useEffect } from 'react';
 import { fetchThermalFronts } from '../services/api';
+import { isFiniteNumber, extractResolutionLabel } from '../utils/scientificPresentation.js';
 
 const FISHING_HARBORS = [
-  { id: 'veraval', name: 'Veraval Fishing Harbor', state: 'Gujarat', lat: 20.90, lon: 70.37, depth_m: 14, pfz_status: 'HIGH_POTENTIAL', sst: '28.2°C', mld: '22m', thermal_gradient: '0.42°C/km (Strong Front)' },
-  { id: 'kochi', name: 'Kochi Bight & Harbor', state: 'Kerala', lat: 9.96, lon: 76.24, depth_m: 18, pfz_status: 'MODERATE_UPWELLING', sst: '28.8°C', mld: '16m', thermal_gradient: '0.31°C/km (Upwelling)' },
-  { id: 'wadge', name: 'Wadge Bank Fishery Grounds', state: 'Tamil Nadu / Kerala', lat: 7.80, lon: 77.30, depth_m: 35, pfz_status: 'EXCELLENT_PELAGIC', sst: '28.5°C', mld: '28m', thermal_gradient: '0.48°C/km (Major Bank)' },
-  { id: 'chennai', name: 'Chennai Kasimedu Harbor', state: 'Tamil Nadu', lat: 13.12, lon: 80.30, depth_m: 12, pfz_status: 'MODERATE_POTENTIAL', sst: '28.6°C', mld: '19m', thermal_gradient: '0.25°C/km (Coastal Front)' },
-  { id: 'vizag', name: 'Visakhapatnam Fishing Harbor', state: 'Andhra Pradesh', lat: 17.69, lon: 83.30, depth_m: 16, pfz_status: 'HIGH_UPWELLING', sst: '28.1°C', mld: '15m', thermal_gradient: '0.39°C/km (Upwelling Center)' },
-  { id: 'paradip', name: 'Paradip Port & Fishery Base', state: 'Odisha', lat: 20.26, lon: 86.67, depth_m: 15, pfz_status: 'HIGH_NUTRIENT', sst: '27.6°C', mld: '12m', thermal_gradient: '0.36°C/km (River Plume Front)' }
+  { id: 'veraval', name: 'Veraval Fishing Harbor', state: 'Gujarat', lat: 20.90, lon: 70.37, depth_m: 14 },
+  { id: 'kochi', name: 'Kochi Bight & Harbor', state: 'Kerala', lat: 9.96, lon: 76.24, depth_m: 18 },
+  { id: 'wadge', name: 'Wadge Bank Fishery Grounds', state: 'Tamil Nadu / Kerala', lat: 7.80, lon: 77.30, depth_m: 35 },
+  { id: 'chennai', name: 'Chennai Kasimedu Harbor', state: 'Tamil Nadu', lat: 13.12, lon: 80.30, depth_m: 12 },
+  { id: 'vizag', name: 'Visakhapatnam Fishing Harbor', state: 'Andhra Pradesh', lat: 17.69, lon: 83.30, depth_m: 16 },
+  { id: 'paradip', name: 'Paradip Port & Fishery Base', state: 'Odisha', lat: 20.26, lon: 86.67, depth_m: 15 }
 ];
 
-export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, probeData }) {
+export default function FishermanModeModal({
+  isOpen,
+  onClose,
+  onSelectHarbor,
+  probeData,
+  timeIndex = 0,
+  activeDataset = null,
+  coverageBounds = null,
+  isTransitioningDataset = false,
+  isDatasetReady = true
+}) {
   const [selectedHarbor, setSelectedHarbor] = useState(FISHING_HARBORS[0]);
   const [activeTab, setActiveTab] = useState('harbors'); // 'harbors' | 'fronts'
   const [thermalFronts, setThermalFronts] = useState([]);
   const [loadingFronts, setLoadingFronts] = useState(false);
+  const [errorFronts, setErrorFronts] = useState(null);
   const [frontsBadge, setFrontsBadge] = useState('[REAL • COPERNICUS]');
+  const frontsRequestIdRef = React.useRef(0);
 
-  const loadFronts = async () => {
-    setLoadingFronts(true);
-    try {
-      const data = await fetchThermalFronts({ lat_min: 0.0, lat_max: 25.0, lon_min: 50.0, lon_max: 100.0 });
-      setThermalFronts(data.fronts || []);
-      if (data.provenance_badge) setFrontsBadge(data.provenance_badge);
-    } catch (err) {
-      console.error('Failed to fetch thermal fronts:', err);
-    } finally {
+  const bounds = coverageBounds || activeDataset?.coverage_bounds || null;
+
+  const loadFronts = React.useCallback(async () => {
+    if (isTransitioningDataset || !isDatasetReady) {
+      setThermalFronts([]);
+      setErrorFronts('Thermal front advisory unavailable while dataset is syncing or unready.');
       setLoadingFronts(false);
+      return;
     }
-  };
+    if (!bounds || !activeDataset) {
+      setThermalFronts([]);
+      setErrorFronts('Active dataset coverage bounds unavailable.');
+      setLoadingFronts(false);
+      return;
+    }
+    const reqId = ++frontsRequestIdRef.current;
+    setLoadingFronts(true);
+    setErrorFronts(null);
+    try {
+      const data = await fetchThermalFronts({
+        lat_min: bounds.lat_min,
+        lat_max: bounds.lat_max,
+        lon_min: bounds.lon_min,
+        lon_max: bounds.lon_max,
+        time_idx: timeIndex
+      });
+      if (frontsRequestIdRef.current === reqId) {
+        setThermalFronts(data.fronts || []);
+        if (data.provenance_badge) setFrontsBadge(data.provenance_badge);
+        setLoadingFronts(false);
+      }
+    } catch (err) {
+      if (frontsRequestIdRef.current === reqId) {
+        setErrorFronts(err.message || 'Failed to fetch thermal fronts');
+        setThermalFronts([]);
+        setLoadingFronts(false);
+      }
+    }
+  }, [timeIndex, activeDataset, bounds, isTransitioningDataset, isDatasetReady]);
 
   useEffect(() => {
     if (isOpen && activeTab === 'fronts') {
       loadFronts();
     }
-  }, [isOpen, activeTab]);
+    return () => {
+      frontsRequestIdRef.current = frontsRequestIdRef.current + 1;
+    };
+  }, [isOpen, activeTab, loadFronts]);
+
+  const handleClose = () => {
+    frontsRequestIdRef.current++;
+    if (onClose) onClose();
+  };
 
   if (!isOpen) return null;
 
@@ -50,13 +98,13 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
             </div>
             <div>
               <h2 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
-                Fisherman Operational Intelligence & PFZ Advisory
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-300">MoES / INCOIS PFZ</span>
+                Fisherman Operational Intelligence & Model PFZ Proxies
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800 text-emerald-300">Model-Derived Heuristics</span>
               </h2>
               <p className="text-xs text-slate-400">Thermal front gradients, coastal upwelling, and nearest fishing landing centers.</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+          <button onClick={handleClose} aria-label="Close modal" data-testid="fisherman-modal-close-btn" className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -83,9 +131,9 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <span>🌊 Live Thermal Fronts (|∇T| ≥ 0.02°C/km)</span>
+            <span>🌊 Active Model Thermal Fronts (|∇T| ≥ 0.02°C/km)</span>
             <span className="text-[10px] font-mono px-1.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-              {thermalFronts.length > 0 ? thermalFronts.length : 'Live'}
+              {thermalFronts.length > 0 ? thermalFronts.length : 'Model'}
             </span>
           </button>
         </div>
@@ -94,8 +142,8 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
         <div className="mx-6 mt-4 p-3 bg-amber-950/50 border border-amber-800/60 rounded-lg text-amber-200 text-xs flex items-start gap-2.5">
           <svg className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
           <div className="leading-relaxed">
-            <div><strong className="font-semibold text-white">Navigational & Resolution Notice:</strong> Numerical model resolution is ~8.3 km grid (~0.083°). Coastal navigation inside harbors and near-shore shoals requires official nautical charts, port radar, and local INCOIS broadcast advisories.</div>
-            <div className="mt-1 text-slate-300"><strong className="text-emerald-300">Scientific Basis:</strong> PFZ indicators shown here are physical proxies computed from horizontal temperature gradients (|∇T| ≥ 0.015°C/km) and mixed layer upwelling. Live INCOIS biological Chlorophyll-a / PFZ multilingual bulletin APIs are planned remote integrations; no fish biomass or catch quantities are fabricated.</div>
+            <div><strong className="font-semibold text-white">Navigational & Resolution Notice:</strong> Numerical model resolution is {extractResolutionLabel(activeDataset)}. Coastal navigation inside harbors and near-shore shoals requires official nautical charts, port radar, and local INCOIS broadcast advisories.</div>
+            <div className="mt-1 text-slate-300"><strong className="text-emerald-300">Scientific Basis:</strong> PFZ indicators shown here are physical proxies computed from active model horizontal temperature gradients (|∇T| ≥ 0.015°C/km) and mixed layer upwelling. These are physical model proxies and not official MoES/INCOIS bulletins; no fish biomass or catch quantities are fabricated.</div>
           </div>
         </div>
 
@@ -112,21 +160,21 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center pt-1">
                 <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
                   <div className="text-[10px] text-slate-400">Sea Surface Temp</div>
-                  <div className="text-base font-bold text-sky-400">{probeData.sst !== null ? `${probeData.sst}°C` : 'N/A'}</div>
+                  <div className="text-base font-bold text-sky-400">{isFiniteNumber(probeData.sst) ? `${probeData.sst.toFixed(1)}°C` : 'Unavailable'}</div>
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
                   <div className="text-[10px] text-slate-400">Mixed Layer (MLD)</div>
-                  <div className="text-base font-bold text-emerald-400">{probeData.mld !== null ? `${probeData.mld} m` : 'N/A'}</div>
+                  <div className="text-base font-bold text-emerald-400">{isFiniteNumber(probeData.mld) ? `${probeData.mld.toFixed(1)} m` : 'Unavailable'}</div>
                   <div className="text-[9px] text-slate-400">Upwelling boundary</div>
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
                   <div className="text-[10px] text-slate-400">Surface Current Speed</div>
-                  <div className="text-base font-bold text-amber-400">{probeData.surface_current_speed !== null ? `${probeData.surface_current_speed} m/s` : 'N/A'}</div>
+                  <div className="text-base font-bold text-amber-400">{isFiniteNumber(probeData.surface_current_speed) ? `${probeData.surface_current_speed.toFixed(2)} m/s` : 'Unavailable'}</div>
                   <div className="text-[9px] text-slate-400">Drift velocity</div>
                 </div>
                 <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
                   <div className="text-[10px] text-slate-400">Thermocline (D20)</div>
-                  <div className="text-base font-bold text-purple-400">{probeData.d20 !== null ? `${probeData.d20} m` : 'N/A'}</div>
+                  <div className="text-base font-bold text-purple-400">{isFiniteNumber(probeData.d20) ? `${probeData.d20.toFixed(1)} m` : 'Unavailable'}</div>
                   <div className="text-[9px] text-slate-400">Nutrient barrier</div>
                 </div>
               </div>
@@ -137,7 +185,7 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
           {activeTab === 'harbors' && (
             <div className="space-y-3">
               <h3 className="font-semibold text-slate-300 uppercase tracking-wider text-[11px]">
-                Major Coastal Fishing Harbors & Potential Fishing Grounds (PFZ)
+                Major Coastal Fishing Harbors & Reference Centers
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -156,17 +204,15 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-white text-sm">{h.name}</span>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-                            {h.pfz_status}
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                            Reference Harbor
                           </span>
                         </div>
                         <div className="text-slate-400 text-[11px]">
                           {h.state} • Coordinates: <span className="font-mono text-slate-300">{h.lat}°N, {h.lon}°E</span>
                         </div>
-                        <div className="flex items-center gap-3 pt-1 text-[11px] text-slate-300">
-                          <span>SST: <strong className="text-sky-400">{h.sst}</strong></span>
-                          <span>MLD: <strong className="text-emerald-400">{h.mld}</strong></span>
-                          <span>Gradient: <strong className="text-amber-400">{h.thermal_gradient}</strong></span>
+                        <div className="text-[11px] text-slate-400 pt-1">
+                          Conditions: <span className="text-slate-300 italic">Unavailable (Reference location · use probe to inspect)</span>
                         </div>
                       </div>
 
@@ -191,7 +237,7 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
             </div>
           )}
 
-          {/* Tab 2: Live Detected Thermal Fronts */}
+          {/* Tab 2: Detected Thermal Fronts */}
           {activeTab === 'fronts' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -202,7 +248,7 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
                       {frontsBadge}
                     </span>
                   </h3>
-                  <p className="text-[11px] text-slate-400">Derived from 8.3 km horizontal temperature tensor derivatives (∂T/∂x, ∂T/∂y).</p>
+                  <p className="text-[11px] text-slate-400">Derived from horizontal temperature tensor derivatives (∂T/∂x, ∂T/∂y) across active model grid.</p>
                 </div>
                 <button
                   type="button"
@@ -214,11 +260,17 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
                 </button>
               </div>
 
+              {errorFronts && (
+                <div className="p-3 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-200">
+                  {errorFronts}
+                </div>
+              )}
+
               {loadingFronts ? (
                 <div className="p-8 text-center text-slate-400">Evaluating 2D spatial temperature gradient field across Indian Ocean domain...</div>
               ) : thermalFronts.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 bg-slate-950/60 rounded-xl border border-slate-800">
-                  No thermal fronts detected above gradient threshold for active domain.
+                  {errorFronts ? 'Thermal front evaluation failed.' : 'No thermal fronts detected above gradient threshold for active domain.'}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-1">
@@ -237,7 +289,7 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
                           Gradient: <strong className="text-amber-300 font-mono">{f.gradient_deg_c_per_km} °C/km</strong> • SST: {f.sst_celsius}°C
                         </div>
                         <div className="text-[10px] text-emerald-400 mt-0.5">
-                          PFZ Confidence: <strong>{(f.pfz_probability * 100).toFixed(0)}%</strong>
+                          PFZ Heuristic Score: <strong>{(f.pfz_probability * 100).toFixed(0)}%</strong>
                         </div>
                       </div>
                       <button
@@ -271,7 +323,7 @@ export default function FishermanModeModal({ isOpen, onClose, onSelectHarbor, pr
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-3 border-t border-slate-800 bg-slate-950/80 text-xs text-slate-400">
-          <span>Authority: MoES / INCOIS Potential Fishing Zone (PFZ) Advisory System</span>
+          <span>Operational Context: SAMUDRA-3D Model-Derived Heuristics · Not an official MoES/INCOIS broadcast</span>
           <button onClick={onClose} className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition font-medium">
             Close
           </button>

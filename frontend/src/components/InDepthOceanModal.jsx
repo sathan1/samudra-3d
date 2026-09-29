@@ -9,47 +9,80 @@ const SOUNDING_PRESETS = [
   { name: 'Equatorial Jet Current', lat: 0.0, lon: 80.5, desc: 'Wyrtki Jet - High Momentum Advection' }
 ];
 
-export default function InDepthOceanModal({ isOpen, onClose, initialCoords, currentActiveDatasetId: _currentActiveDatasetId }) {
+export default function InDepthOceanModal({
+  isOpen,
+  onClose,
+  initialCoords,
+  currentActiveDatasetId = null,
+  timeIndex = 0,
+  isTransitioningDataset = false,
+  isDatasetReady = true
+}) {
   const [coords, setCoords] = useState(initialCoords || { lat: 15.0, lon: 85.0 });
   const [activeTab, setActiveTab] = useState('acoustics'); // 'acoustics' | 'stratification' | 'water_masses' | 'heatwave' | 'hierarchy'
   const [analysisData, setAnalysisData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const analysisRequestIdRef = React.useRef(0);
 
-  const runAnalysis = React.useCallback(async (targetCoords) => {
+  // Sync coords when initialCoords changes upon opening
+  useEffect(() => {
+    if (isOpen && initialCoords) {
+      setCoords((prev) => {
+        if (prev.lat !== initialCoords.lat || prev.lon !== initialCoords.lon) {
+          return initialCoords;
+        }
+        return prev;
+      });
+    }
+  }, [isOpen, initialCoords]);
+
+  // Run analysis when coords, timeIndex, or activeDataset changes
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (isTransitioningDataset || !isDatasetReady) {
+      setLoading(false);
+      setError('Ocean physics analysis unavailable while dataset is syncing or unready.');
+      setAnalysisData(null);
+      return;
+    }
+
+    const reqId = ++analysisRequestIdRef.current;
     setLoading(true);
     setError(null);
-    try {
-      const data = await fetchInDepthOceanAnalysis({
-        lat: targetCoords.lat,
-        lon: targetCoords.lon,
-        time_idx: 0
-      });
-      setAnalysisData(data);
-    } catch (err) {
-      setError(err.message || 'Failed to evaluate in-depth ocean analysis');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
-  useEffect(() => {
-    if (isOpen) {
-      const target = initialCoords || coords;
-      const timer = setTimeout(() => {
-        if (initialCoords) {
-          setCoords(initialCoords);
+    fetchInDepthOceanAnalysis({
+      lat: coords.lat,
+      lon: coords.lon,
+      time_idx: timeIndex
+    })
+      .then((data) => {
+        if (analysisRequestIdRef.current === reqId) {
+          setAnalysisData(data);
+          setLoading(false);
         }
-        runAnalysis(target);
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, initialCoords, coords, runAnalysis]);
+      })
+      .catch((err) => {
+        if (analysisRequestIdRef.current === reqId) {
+          setError(err.message || 'Failed to evaluate in-depth ocean analysis');
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      // Invalidate pending request on unmount or dependency change
+      analysisRequestIdRef.current = reqId + 1;
+    };
+  }, [isOpen, coords.lat, coords.lon, timeIndex, currentActiveDatasetId, isTransitioningDataset, isDatasetReady]);
 
   const handleSelectPreset = (preset) => {
-    const newC = { lat: preset.lat, lon: preset.lon };
-    setCoords(newC);
-    runAnalysis(newC);
+    setCoords({ lat: preset.lat, lon: preset.lon });
+  };
+
+  const handleClose = () => {
+    analysisRequestIdRef.current++;
+    if (onClose) onClose();
   };
 
   if (!isOpen) return null;
@@ -65,7 +98,7 @@ export default function InDepthOceanModal({ isOpen, onClose, initialCoords, curr
               <span className="text-xl">🌊</span>
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
+              <h2 data-testid="indepth-modal-title" className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
                 In-Depth Ocean Physics & Acoustic Stratification
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-950 border border-indigo-800 text-indigo-300">
                   EOS-80 • Mackenzie 1981 • N² Stability
@@ -77,7 +110,9 @@ export default function InDepthOceanModal({ isOpen, onClose, initialCoords, curr
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
+            aria-label="Close modal"
+            data-testid="indepth-modal-close-btn"
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
             title="Close modal (Esc)"
           >
@@ -194,7 +229,7 @@ export default function InDepthOceanModal({ isOpen, onClose, initialCoords, curr
                       <h3 className="font-bold text-sm text-white flex items-center gap-2">
                         <span>Mackenzie (1981) Sound Velocity Profile & Underwater Acoustic Ducting</span>
                         <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
-                          {analysisData.acoustics.acoustic_duct_type}
+                          {analysisData.acoustics?.acoustic_duct_type || 'Unavailable'}
                         </span>
                       </h3>
                     </div>
@@ -202,32 +237,55 @@ export default function InDepthOceanModal({ isOpen, onClose, initialCoords, curr
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center pt-1">
                       <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
                         <div className="text-[10px] text-slate-400">Surface Sound Velocity</div>
-                        <div className="text-base font-bold text-amber-400 font-mono">{analysisData.acoustics.surface_sound_speed_mps} m/s</div>
+                        <div className="text-base font-bold text-amber-400 font-mono">
+                          {analysisData.acoustics?.surface_sound_speed_mps !== null && analysisData.acoustics?.surface_sound_speed_mps !== undefined
+                            ? `${analysisData.acoustics.surface_sound_speed_mps} m/s`
+                            : 'Unavailable'}
+                        </div>
                         <div className="text-[9px] text-slate-500">Surface duct speed</div>
                       </div>
                       <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
                         <div className="text-[10px] text-slate-400">SOFAR Channel Axis Depth</div>
-                        <div className="text-base font-bold text-cyan-400 font-mono">{analysisData.acoustics.sofar_channel_axis_depth_m} m</div>
+                        <div className="text-base font-bold text-cyan-400 font-mono">
+                          {analysisData.acoustics?.sofar_channel_axis_depth_m !== null && analysisData.acoustics?.sofar_channel_axis_depth_m !== undefined
+                            ? `${analysisData.acoustics.sofar_channel_axis_depth_m} m`
+                            : 'Unavailable'}
+                        </div>
                         <div className="text-[9px] text-slate-500">Acoustic waveguide minimum</div>
                       </div>
                       <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
                         <div className="text-[10px] text-slate-400">Minimum Sound Speed</div>
-                        <div className="text-base font-bold text-emerald-400 font-mono">{analysisData.acoustics.sofar_minimum_sound_speed_mps} m/s</div>
+                        <div className="text-base font-bold text-emerald-400 font-mono">
+                          {analysisData.acoustics?.sofar_minimum_sound_speed_mps !== null && analysisData.acoustics?.sofar_minimum_sound_speed_mps !== undefined
+                            ? `${analysisData.acoustics.sofar_minimum_sound_speed_mps} m/s`
+                            : 'Unavailable'}
+                        </div>
                         <div className="text-[9px] text-slate-500">Refraction axis velocity</div>
                       </div>
                       <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
                         <div className="text-[10px] text-slate-400">Velocity Gradient (dc/dz)</div>
-                        <div className="text-base font-bold text-purple-400 font-mono">{analysisData.acoustics.sound_speed_gradient_mps_per_100m} m/s / 100m</div>
+                        <div className="text-base font-bold text-purple-400 font-mono">
+                          {analysisData.acoustics?.sound_speed_gradient_mps_per_100m !== null && analysisData.acoustics?.sound_speed_gradient_mps_per_100m !== undefined
+                            ? `${analysisData.acoustics.sound_speed_gradient_mps_per_100m} m/s / 100m`
+                            : 'Unavailable'}
+                        </div>
                         <div className="text-[9px] text-slate-500">Refractive bending power</div>
                       </div>
                     </div>
                   </div>
 
+                  {analysisData.acoustics?.explanation && (
+                    <div className="p-3 rounded-lg bg-amber-950/40 border border-amber-800 text-amber-200 text-xs flex items-center gap-2">
+                      <span>⚠️</span>
+                      <span>{analysisData.acoustics.explanation}</span>
+                    </div>
+                  )}
+
                   {/* Scientific Explanation Box */}
                   <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2 leading-relaxed text-slate-300">
                     <h4 className="font-bold text-xs text-white">Why SOFAR Channel Sounding Matters:</h4>
                     <p>
-                      In tropical oceans, sound speed decreases rapidly from the warm sea surface through the thermocline due to falling temperature (+4.59 m/s per °C drop). Below the thermocline, increasing hydrostatic pressure (+1.63 m/s per 100m depth) reverses the gradient, creating a <strong>sound speed minimum</strong> at the SOFAR Channel Axis (~{analysisData.acoustics.sofar_channel_axis_depth_m}m).
+                      In tropical oceans, sound speed decreases rapidly from the warm sea surface through the thermocline due to falling temperature (+4.59 m/s per °C drop). Below the thermocline, increasing hydrostatic pressure (+1.63 m/s per 100m depth) reverses the gradient, creating a <strong>sound speed minimum</strong> at the SOFAR Channel Axis (~{analysisData.acoustics?.sofar_channel_axis_depth_m !== null && analysisData.acoustics?.sofar_channel_axis_depth_m !== undefined ? `${analysisData.acoustics.sofar_channel_axis_depth_m}m` : 'Unavailable'}).
                     </p>
                     <p className="text-[11px] text-slate-400">
                       Sound waves entering this channel cannot escape: they continuously refract back toward the axis through Snell's Law, allowing low-frequency sonar, submarine acoustic pulses, and baleen whale communication to propagate thousands of kilometers across the Indian Ocean basin with minimal attenuation.
@@ -243,8 +301,14 @@ export default function InDepthOceanModal({ isOpen, onClose, initialCoords, curr
                     <div className="flex items-center justify-between">
                       <h3 className="font-bold text-sm text-white flex items-center gap-2">
                         <span>UNESCO EOS-80 Potential Density & Brunt-Väisälä Frequency (N²)</span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-                          {analysisData.stratification.stability_status}
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                          analysisData.stratification?.stability_status === 'UNAVAILABLE'
+                            ? 'bg-slate-800 text-slate-300 border-slate-700'
+                            : analysisData.stratification?.stability_status === 'CONVECTIVELY_UNSTABLE'
+                            ? 'bg-rose-950 text-rose-300 border-rose-800'
+                            : 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                        }`}>
+                          {analysisData.stratification?.stability_status || 'UNAVAILABLE'}
                         </span>
                       </h3>
                     </div>
@@ -252,29 +316,52 @@ export default function InDepthOceanModal({ isOpen, onClose, initialCoords, curr
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center pt-1">
                       <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
                         <div className="text-[10px] text-slate-400">Surface Density (σθ)</div>
-                        <div className="text-base font-bold text-sky-400 font-mono">{analysisData.stratification.surface_density_sigma} kg/m³</div>
+                        <div className="text-base font-bold text-sky-400 font-mono">
+                          {analysisData.stratification?.surface_density_sigma !== null && analysisData.stratification?.surface_density_sigma !== undefined
+                            ? `${analysisData.stratification.surface_density_sigma} kg/m³`
+                            : 'Unavailable'}
+                        </div>
                       </div>
                       <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
                         <div className="text-[10px] text-slate-400">Pycnocline Core Depth</div>
-                        <div className="text-base font-bold text-emerald-400 font-mono">{analysisData.stratification.pycnocline_depth_m} m</div>
+                        <div className="text-base font-bold text-emerald-400 font-mono">
+                          {analysisData.stratification?.pycnocline_depth_m !== null && analysisData.stratification?.pycnocline_depth_m !== undefined
+                            ? `${analysisData.stratification.pycnocline_depth_m} m`
+                            : 'Unavailable'}
+                        </div>
                         <div className="text-[9px] text-slate-500">Max density gradient</div>
                       </div>
                       <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
                         <div className="text-[10px] text-slate-400">Max Density Gradient</div>
-                        <div className="text-base font-bold text-amber-400 font-mono">{analysisData.stratification.maximum_density_gradient_kg_m4} kg/m⁴</div>
+                        <div className="text-base font-bold text-amber-400 font-mono">
+                          {analysisData.stratification?.maximum_density_gradient_kg_m4 !== null && analysisData.stratification?.maximum_density_gradient_kg_m4 !== undefined
+                            ? `${analysisData.stratification.maximum_density_gradient_kg_m4} kg/m⁴`
+                            : 'Unavailable'}
+                        </div>
                         <div className="text-[9px] text-slate-500">Stratification barrier</div>
                       </div>
                       <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
                         <div className="text-[10px] text-slate-400">Deep Density (σθ)</div>
-                        <div className="text-base font-bold text-indigo-400 font-mono">{analysisData.stratification.bottom_density_sigma} kg/m³</div>
+                        <div className="text-base font-bold text-indigo-400 font-mono">
+                          {analysisData.stratification?.bottom_density_sigma !== null && analysisData.stratification?.bottom_density_sigma !== undefined
+                            ? `${analysisData.stratification.bottom_density_sigma} kg/m³`
+                            : 'Unavailable'}
+                        </div>
                       </div>
                     </div>
                   </div>
 
+                  {analysisData.stratification?.explanation && (
+                    <div className="p-3 rounded-lg bg-amber-950/40 border border-amber-800 text-amber-200 text-xs flex items-center gap-2">
+                      <span>⚠️</span>
+                      <span>{analysisData.stratification.explanation}</span>
+                    </div>
+                  )}
+
                   <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2 text-slate-300">
                     <h4 className="font-bold text-xs text-white">Dynamic Stratification & Internal Gravity Waves:</h4>
                     <p>
-                      The Brunt-Väisälä buoyancy frequency squared (N² = (g / ρ₀) · (dσ/dz)) measures the restoring force acting on a displaced water parcel. A strong pycnocline barrier at <strong>{analysisData.stratification.pycnocline_depth_m}m</strong> prevents vertical turbulence, trapping river runoff and heat in the mixed layer and acting as the propagation waveguide for large internal solitary waves common in the Andaman Sea.
+                      The Brunt-Väisälä buoyancy frequency squared (N² = (g / ρ₀) · (dσ/dz)) measures the restoring force acting on a displaced water parcel. A strong pycnocline barrier at <strong>{analysisData.stratification?.pycnocline_depth_m !== null && analysisData.stratification?.pycnocline_depth_m !== undefined ? `${analysisData.stratification.pycnocline_depth_m}m` : 'unavailable depth'}</strong> prevents vertical turbulence, trapping river runoff and heat in the mixed layer and acting as the propagation waveguide for large internal solitary waves common in the Andaman Sea.
                     </p>
                   </div>
                 </div>
@@ -283,27 +370,37 @@ export default function InDepthOceanModal({ isOpen, onClose, initialCoords, curr
               {/* Tab 3: Water Masses */}
               {activeTab === 'water_masses' && (
                 <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] text-slate-400 uppercase tracking-wider font-mono">Dominant Water Mass Identified</span>
-                        <h3 className="font-bold text-base text-white mt-0.5 flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: analysisData.water_masses.dominant_water_mass.color }}></span>
-                          {analysisData.water_masses.dominant_water_mass.name} ({analysisData.water_masses.dominant_water_mass.code})
-                        </h3>
-                        <p className="text-xs text-slate-300 mt-1">{analysisData.water_masses.dominant_water_mass.description}</p>
+                  {analysisData.water_masses?.dominant_water_mass ? (
+                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase tracking-wider font-mono">Dominant Water Mass Identified</span>
+                          <h3 className="font-bold text-base text-white mt-0.5 flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: analysisData.water_masses.dominant_water_mass.color }}></span>
+                            {analysisData.water_masses.dominant_water_mass.name} ({analysisData.water_masses.dominant_water_mass.code})
+                          </h3>
+                          <p className="text-xs text-slate-300 mt-1">{analysisData.water_masses.dominant_water_mass.description}</p>
+                        </div>
+                        <span className="text-xs font-mono px-2.5 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700 shrink-0">
+                          Origin: {analysisData.water_masses.dominant_water_mass.origin}
+                        </span>
                       </div>
-                      <span className="text-xs font-mono px-2.5 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700 shrink-0">
-                        Origin: {analysisData.water_masses.dominant_water_mass.origin}
-                      </span>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider font-mono">Dominant Water Mass Identified</span>
+                      <h3 className="font-bold text-base text-slate-300 mt-0.5">No Dominant Water Mass Identified</h3>
+                      <p className="text-xs text-slate-400">
+                        {analysisData.water_masses?.explanation || 'Insufficient valid temperature/salinity measurements to classify water masses.'}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Vertical Water Column Stack */}
                   <div className="space-y-2">
                     <h4 className="font-bold text-xs text-slate-300 uppercase tracking-wider">Vertical Water Column Stratification:</h4>
                     <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
-                      {analysisData.water_masses.vertical_profile.map((lvl, idx) => (
+                      {analysisData.water_masses?.vertical_profile?.map((lvl, idx) => (
                         <div
                           key={idx}
                           className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between"
@@ -312,16 +409,18 @@ export default function InDepthOceanModal({ isOpen, onClose, initialCoords, curr
                             <span className="font-mono text-cyan-400 font-bold w-12 text-right">{lvl.depth.toFixed(1)}m</span>
                             <span
                               className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: lvl.water_mass.color }}
-                              title={lvl.water_mass.name}
+                              style={{ backgroundColor: lvl.water_mass ? lvl.water_mass.color : '#64748b' }}
+                              title={lvl.water_mass ? lvl.water_mass.name : 'Unclassified'}
                             ></span>
-                            <span className="font-semibold text-slate-200">{lvl.water_mass.name}</span>
+                            <span className={lvl.water_mass ? 'font-semibold text-slate-200' : 'font-semibold text-slate-400'}>
+                              {lvl.water_mass ? lvl.water_mass.name : 'Unclassified (missing T/S)'}
+                            </span>
                           </div>
                           <div className="font-mono text-slate-400 flex items-center gap-4 text-[11px]">
-                            <span>T: <strong className="text-amber-300">{lvl.temperature}°C</strong></span>
-                            <span>S: <strong className="text-cyan-300">{lvl.salinity} PSU</strong></span>
-                            <span>c: <strong className="text-emerald-300">{lvl.sound_speed} m/s</strong></span>
-                            <span>σθ: <strong className="text-purple-300">{lvl.density_sigma}</strong></span>
+                            <span>T: <strong className="text-amber-300">{lvl.temperature !== null && lvl.temperature !== undefined ? `${lvl.temperature}°C` : 'Unavailable'}</strong></span>
+                            <span>S: <strong className="text-cyan-300">{lvl.salinity !== null && lvl.salinity !== undefined ? `${lvl.salinity} PSU` : 'Unavailable'}</strong></span>
+                            <span>c: <strong className="text-emerald-300">{lvl.sound_speed !== null && lvl.sound_speed !== undefined ? `${lvl.sound_speed} m/s` : 'Unavailable'}</strong></span>
+                            <span>σθ: <strong className="text-purple-300">{lvl.density_sigma !== null && lvl.density_sigma !== undefined ? lvl.density_sigma : 'Unavailable'}</strong></span>
                           </div>
                         </div>
                       ))}
@@ -337,39 +436,58 @@ export default function InDepthOceanModal({ isOpen, onClose, initialCoords, curr
                     <div className="flex items-center justify-between">
                       <h3 className="font-bold text-sm text-white">Hobday et al. (2016) Marine Heatwave (MHW) Subsurface Penetration</h3>
                       <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold border ${
-                        analysisData.marine_heatwave.status.includes('EXTREME') || analysisData.marine_heatwave.status.includes('SEVERE')
+                        analysisData.marine_heatwave?.status === 'UNAVAILABLE'
+                          ? 'bg-slate-800 text-slate-300 border-slate-700'
+                          : analysisData.marine_heatwave?.status?.includes('EXTREME') || analysisData.marine_heatwave?.status?.includes('SEVERE')
                           ? 'bg-rose-950 text-rose-300 border-rose-700'
-                          : analysisData.marine_heatwave.status.includes('STRONG') || analysisData.marine_heatwave.status.includes('MODERATE')
+                          : analysisData.marine_heatwave?.status?.includes('STRONG') || analysisData.marine_heatwave?.status?.includes('MODERATE')
                           ? 'bg-amber-950 text-amber-300 border-amber-700'
                           : 'bg-emerald-950 text-emerald-300 border-emerald-800'
                       }`}>
-                        {analysisData.marine_heatwave.status}
+                        {analysisData.marine_heatwave?.status || 'UNAVAILABLE'}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center pt-1">
                       <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
                         <div className="text-[10px] text-slate-400">Surface Thermal Anomaly</div>
-                        <div className="text-base font-bold text-amber-400 font-mono">+{analysisData.marine_heatwave.surface_anomaly_celsius}°C</div>
+                        <div className="text-base font-bold text-amber-400 font-mono">
+                          {analysisData.marine_heatwave?.surface_anomaly_celsius !== null && analysisData.marine_heatwave?.surface_anomaly_celsius !== undefined
+                            ? `+${analysisData.marine_heatwave.surface_anomaly_celsius}°C`
+                            : 'Unavailable'}
+                        </div>
                         <div className="text-[9px] text-slate-500">Above seasonal climatology</div>
                       </div>
                       <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
                         <div className="text-[10px] text-slate-400">Subsurface Penetration Depth</div>
-                        <div className="text-base font-bold text-rose-400 font-mono">{analysisData.marine_heatwave.subsurface_penetration_depth_m} m</div>
+                        <div className="text-base font-bold text-rose-400 font-mono">
+                          {analysisData.marine_heatwave?.subsurface_penetration_depth_m !== null && analysisData.marine_heatwave?.subsurface_penetration_depth_m !== undefined
+                            ? `${analysisData.marine_heatwave.subsurface_penetration_depth_m} m`
+                            : 'Unavailable'}
+                        </div>
                         <div className="text-[9px] text-slate-500">Thermal stress depth horizon</div>
                       </div>
                       <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
                         <div className="text-[10px] text-slate-400">Cyclone Heat Potential (TCHP)</div>
-                        <div className="text-base font-bold text-sky-400 font-mono">{analysisData.tchp ? `${analysisData.tchp} kJ/cm²` : 'N/A'}</div>
+                        <div className="text-base font-bold text-sky-400 font-mono">
+                          {analysisData.tchp !== null && analysisData.tchp !== undefined ? `${analysisData.tchp} kJ/cm²` : 'Unavailable'}
+                        </div>
                         <div className="text-[9px] text-slate-500">{analysisData.tchp_category || 'Upper ocean heat'}</div>
                       </div>
                     </div>
                   </div>
 
+                  {analysisData.marine_heatwave?.explanation && (
+                    <div className="p-3 rounded-lg bg-amber-950/40 border border-amber-800 text-amber-200 text-xs flex items-center gap-2">
+                      <span>⚠️</span>
+                      <span>{analysisData.marine_heatwave.explanation}</span>
+                    </div>
+                  )}
+
                   <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-300 space-y-2">
                     <h4 className="font-bold text-xs text-white">Ecological Significance of Depth Penetration:</h4>
                     <p>
-                      Surface satellites only observe the skin layer (~1mm). In-depth profiling reveals whether thermal anomalies penetrate deep into the euphotic zone ({analysisData.marine_heatwave.subsurface_penetration_depth_m}m). Deep-penetrating heatwaves deplete dissolved oxygen and trigger severe coral reef bleaching across Lakshadweep and the Andaman & Nicobar islands.
+                      Surface satellites only observe the skin layer (~1mm). In-depth profiling reveals whether thermal anomalies penetrate deep into the euphotic zone ({analysisData.marine_heatwave?.subsurface_penetration_depth_m !== null && analysisData.marine_heatwave?.subsurface_penetration_depth_m !== undefined ? `${analysisData.marine_heatwave.subsurface_penetration_depth_m}m` : 'depth horizon unavailable'}). Deep-penetrating heatwaves deplete dissolved oxygen and trigger severe coral reef bleaching across Lakshadweep and the Andaman & Nicobar islands.
                     </p>
                   </div>
                 </div>
@@ -429,7 +547,7 @@ export default function InDepthOceanModal({ isOpen, onClose, initialCoords, curr
           <span>Authority: UNESCO Intergovernmental Oceanographic Commission (IOC) & MoES / INCOIS</span>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition font-medium"
           >
             Close

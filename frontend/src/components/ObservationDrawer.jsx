@@ -39,7 +39,7 @@ export default function ObservationDrawer({
         cycle: f.cycle_number || 1,
         depthRange: f.depths ? `0 – ${Math.max(...f.depths).toFixed(0)}m` : '0 – 2000m',
         qcStatus: f.qc_status || 'PASSED',
-        raw: f
+        raw: { ...f, platform_type: f.platform_type || 'argo' }
       });
     }
 
@@ -61,7 +61,7 @@ export default function ObservationDrawer({
         cycle: waypoints.length ? `${waypoints.length} dives` : 'Sawtooth',
         depthRange: '0 – 1000m',
         qcStatus: 'PASSED',
-        raw: g
+        raw: { ...g, platform_type: g.platform_type || 'glider' }
       });
     }
 
@@ -122,21 +122,45 @@ export default function ObservationDrawer({
         />
 
         <div className="flex items-center gap-1.5">
-          {['ALL', 'ARGO', 'GLIDER', 'BUOY'].map((f) => (
-            <button
-              key={f}
-              type="button"
-              className={`filter-chip-btn ${activeFilter === f ? 'active' : ''}`}
-              onClick={() => setActiveFilter(f)}
-            >
-              {f}
-            </button>
-          ))}
+          {['ALL', 'ARGO', 'GLIDER', 'BUOY'].map((f) => {
+            const isBuoy = f === 'BUOY';
+            return (
+              <button
+                key={f}
+                type="button"
+                className={`filter-chip-btn ${activeFilter === f ? 'active' : ''} ${isBuoy ? 'buoy-filter-btn' : ''}`}
+                onClick={() => setActiveFilter(f)}
+                title={isBuoy ? 'Moored Buoy telemetry (unsupported in active API contract)' : undefined}
+                data-testid={`filter-${f.toLowerCase()}`}
+              >
+                {f}
+                {isBuoy && <span className="ml-1 text-[9px] text-amber-400/90 font-normal">(UNSUPPORTED)</span>}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       <div className="drawer-content overflow-y-auto max-h-[calc(100vh-280px)] p-3 space-y-2.5">
-        {filteredPlatforms.length === 0 ? (
+        {activeFilter === 'BUOY' ? (
+          <div className="unsupported-buoy-notice p-4 my-2 bg-amber-950/40 border border-amber-600/50 rounded text-center">
+            <span className="text-xl mb-1 block" aria-hidden="true">⚓</span>
+            <h4 className="font-mono text-xs font-bold text-amber-300 uppercase tracking-wide">
+              Moored Buoy Telemetry Unsupported
+            </h4>
+            <p className="text-[11px] text-slate-300 mt-2 leading-relaxed">
+              No moored buoy list, detail, or vertical profile contract exists in the active in-situ API service.
+              Autonomous fleet monitoring is currently operational for Argo floats and underwater gliders.
+            </p>
+            <button
+              type="button"
+              className="action-btn-secondary text-[11px] mt-3 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300"
+              onClick={() => setActiveFilter('ALL')}
+            >
+              Reset Filter to All Platforms
+            </button>
+          </div>
+        ) : filteredPlatforms.length === 0 ? (
           <div className="empty-state text-center py-8 text-xs text-slate-400">
             No observation platforms match the active filter.
           </div>

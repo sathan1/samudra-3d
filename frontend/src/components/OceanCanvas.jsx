@@ -115,8 +115,13 @@ export default function OceanCanvas({
   onToggleFullView = null,
   targetRegion = null,
   onSelectRegion = null,
-  activeDataset = null
+  activeDataset = null,
+  availableTimes = [],
+  isTransitioningDataset = false,
+  isDatasetReady = true,
+  datasetTransitionError = null
 }) {
+  const isDatasetBlocked = isTransitioningDataset || !isDatasetReady || Boolean(datasetTransitionError);
   const containerRef = useRef(null);
   const rendererRef = useRef(null);
   const controlsRef = useRef(null);
@@ -367,6 +372,12 @@ export default function OceanCanvas({
 
   // 1. Data Fetching Effect with AbortController, requestId tracking, and Debounce/Buffering
   useEffect(() => {
+    if (isDatasetBlocked) {
+      setFieldState((prev) => ({ ...prev, loading: false, error: datasetTransitionError || null, sliceData: null }));
+      onBufferingChange?.(false);
+      return;
+    }
+
     let ignore = false;
     const controller = new AbortController();
     const currentRequestId = ++latestRequestIdRef.current;
@@ -419,12 +430,12 @@ export default function OceanCanvas({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [selectedVariable, requestedDepth, timeIndex, isPlaying, retryKey, onDepthResolved, onTimeResolved, onBufferingChange]);
+  }, [selectedVariable, requestedDepth, timeIndex, isPlaying, retryKey, onDepthResolved, onTimeResolved, onBufferingChange, activeDataset?.dataset_id, isDatasetBlocked, datasetTransitionError]);
 
   // 2. Particle Streamlines Lifecycle Effect (Vector Velocity Flow)
   useEffect(() => {
     const scene = sceneRef.current;
-    const isCurrentsActive = showCurrents || selectedVariable === 'currents';
+    const isCurrentsActive = (showCurrents || selectedVariable === 'currents') && !isDatasetBlocked;
     if (!scene || !isCurrentsActive) {
       if (particleSystemRef.current) {
         particleSystemRef.current.dispose();
@@ -492,7 +503,7 @@ export default function OceanCanvas({
       ignore = true;
       controller.abort();
     };
-  }, [showCurrents, selectedVariable, timeIndex, requestedDepth, fieldState.sliceData]);
+  }, [showCurrents, selectedVariable, timeIndex, requestedDepth, fieldState.sliceData, activeDataset?.dataset_id, isDatasetBlocked]);
 
   // 3. Three.js Scalar Mesh Update Effect (Draped onto Globe)
   useEffect(() => {
@@ -512,7 +523,7 @@ export default function OceanCanvas({
       return;
     }
 
-    if (!showDataOverlay) {
+    if (!showDataOverlay || isDatasetBlocked) {
       return;
     }
 
@@ -541,11 +552,15 @@ export default function OceanCanvas({
       scene.add(mesh);
       scalarMeshRef.current = mesh;
     }
-  }, [fieldState.sliceData, rangeMode, showDataOverlay]);
+  }, [fieldState.sliceData, rangeMode, showDataOverlay, isDatasetBlocked]);
 
   // 4a. Fetch Volume Data for 3D Block View Mode
   const fetchVolumeData = useCallback(() => {
-    if (viewMode !== 'block') return;
+    if (viewMode !== 'block' || isDatasetBlocked) {
+      setVolumeData(null);
+      setVolumeLoading(false);
+      return;
+    }
     setVolumeLoading(true);
     setVolumeError(null);
 
@@ -576,7 +591,7 @@ export default function OceanCanvas({
       });
 
     return () => controller.abort();
-  }, [viewMode, activeDataset?.dataset_id, selectedVariable, timeIndex]);
+  }, [viewMode, isDatasetBlocked, activeDataset?.dataset_id, selectedVariable, timeIndex]);
 
   useEffect(() => {
     const cancel = fetchVolumeData();
@@ -1634,7 +1649,7 @@ export default function OceanCanvas({
                 </div>
               )}
               {fieldState.sliceData && (
-                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-slate-300 shadow bg-slate-900/90 border border-slate-700 max-w-full">
+                <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-slate-300 shadow bg-slate-900/90 border border-slate-700 max-w-full" data-testid="hud-layer-badge">
                   <span className="text-emerald-400 font-semibold">LAYER:</span>{' '}
                   {fieldState.sliceData.variable === 'salinity' ? 'Practical Salinity' : 'Potential Temperature'}{' '}
                   ({(fieldState.sliceData.selected_depth ?? 0) === 0 ? '0m Surface' : `${fieldState.sliceData.selected_depth}m Subsurface`}) ·{' '}
@@ -1655,7 +1670,7 @@ export default function OceanCanvas({
                 <div className="hud-badge rounded px-2 py-0.5 font-mono text-[10px] text-amber-300 shadow bg-slate-900/90 border border-slate-700 max-w-full" data-testid="hud-time-badge">
                   <span className="text-amber-400 font-semibold">TIME:</span>{' '}
                   {formatTimeLabel(fieldState.sliceData.timestamp, fieldState.sliceData.time_idx ?? timeIndex)}{' '}
-                  <span className="text-slate-400">[STEP {(fieldState.sliceData.time_idx ?? timeIndex) + 1}/8]</span>
+                  <span className="text-slate-400">[STEP {(fieldState.sliceData.time_idx ?? timeIndex) + 1}/{availableTimes?.length || 1}]</span>
                   {isBuffering && <span className="ml-1.5 text-amber-300">⟳ Buffering...</span>}
                 </div>
               )}

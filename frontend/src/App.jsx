@@ -33,7 +33,8 @@ import {
   fetchDatasets,
 
   fetchMetadata,
-  selectActiveDataset
+  selectActiveDataset,
+  setActiveDatasetId
 } from './services/api.js';
 import {
   computeNextStep,
@@ -44,6 +45,7 @@ import {
   setForecastTimestamps,
   getForecastTimestamps
 } from './utils/timeAnimation.js';
+import { createAsyncQueue } from './utils/transitionQueue.js';
 
 export default function App() {
   const [theme, setTheme] = useState('dark');
@@ -60,7 +62,16 @@ export default function App() {
   // depths/times/variables come from /api/metadata, never hardcoded.
   const [availableDepths, setAvailableDepths] = useState([]);
   const [availableTimes, setAvailableTimes] = useState([]);
-  const [_availableVariables, setAvailableVariables] = useState([]);
+  const [availableVariables, setAvailableVariables] = useState([]);
+  const [isTransitioningDataset, setIsTransitioningDataset] = useState(true);
+  const [isDatasetReady, setIsDatasetReady] = useState(false);
+  const [datasetTransitionError, setDatasetTransitionError] = useState(null);
+  const pendingTransitionTargetRef = useRef(null);
+  const datasetTransitionGenRef = useRef(0);
+  const transitionQueueRef = useRef(null);
+  if (transitionQueueRef.current == null) {
+    transitionQueueRef.current = createAsyncQueue();
+  }
   const [showCurrents, setShowCurrents] = useState(false);
   const [showArgo, setShowArgo] = useState(false);
   const [insituSourceMode, _setInsituSourceMode] = useState('REAL_LOCAL');
@@ -191,74 +202,366 @@ export default function App() {
     return () => { isMounted = false; };
   }, [authToken]);
 
+  // Unified Ocean Dataset Transition & Metadata Reconciliation Coordinator
+  const executeTransition = useCallback(async (targetDatasetId, options = {}) => {
+    const skipSelect = Boolean(options && typeof options === 'object' && options.skipSelect);
+    const fallbackDatasets = (options && typeof options === 'object' && options.fallbackDatasets)
+      ? options.fallbackDatasets
+      : (Array.isArray(options) ? options : null);
+
+    const gen = ++datasetTransitionGenRef.current;
+    pendingTransitionTargetRef.current = targetDatasetId;
+    setIsTransitioningDataset(true);
+    setIsDatasetReady(false);
+    setDatasetTransitionError(null);
+    setIsPlaying(false);
+
+    // Invalidate in-flight probe requests
+    probeRequestIdRef.current++;
+    setProbeData(null);
+    setIsProbeLoading(false);
+
+    try {
+      let confirmedDataset = null;
+      let availableList = fallbackDatasets;
+
+      // 1. Perform backend selection if target is specified and not skipping select
+      if (targetDatasetId && !skipSelect) {
+        const selectRes = await selectActiveDataset(targetDatasetId);
+        if (datasetTransitionGenRef.current !== gen) return null;
+        confirmedDataset = selectRes?.active_dataset || null;
+      }
+
+      // 2. Resolve dataset from provided catalog or hydrate from backend
+      if (!confirmedDataset && availableList) {
+        confirmedDataset = availableList.find((d) => d.dataset_id === targetDatasetId) || null;
+      }
+
+      if (!confirmedDataset || !availableList) {
+        const catRes = await fetchDatasets();
+        if (datasetTransitionGenRef.current !== gen) return null;
+        availableList = catRes.datasets || [];
+        const activeId = catRes.active_dataset_id || targetDatasetId;
+        confirmedDataset = availableList.find((d) => d.dataset_id === activeId) || confirmedDataset || availableList[0] || null;
+      }
+
+      const finalTargetId = confirmedDataset?.dataset_id || targetDatasetId;
+      if (!finalTargetId) {
+        throw new Error('No valid dataset target resolved');
+      }
+
+      // 3. Fetch metadata for confirmed dataset
+      const meta = await fetchMetadata();
+      if (datasetTransitionGenRef.current !== gen) return null;
+
+      // 4. Verify metadata identity and required dimensions
+      if (!meta || !meta.dataset_id || meta.dataset_id !== finalTargetId) {
+        throw new Error(`Metadata dataset_id (${meta?.dataset_id || 'missing'}) does not match expected target dataset (${finalTargetId})`);
+      }
+      if (!Array.isArray(meta.depth_levels_m) || meta.depth_levels_m.length === 0 || !Array.isArray(meta.time_timestamps) || meta.time_timestamps.length === 0) {
+        throw new Error('Retrieved ocean metadata is incomplete or missing required depth/time dimensions');
+      }
+
+      // 5. Synchronize cache identity and increment generation
+      setActiveDatasetId(finalTargetId);
+      setActiveDataset(confirmedDataset);
+      pendingTransitionTargetRef.current = finalTargetId;
+
+      // 6. Reconcile controls
+      const newDepths = meta?.depth_levels_m || [];
+      const newTimes = meta?.time_timestamps || [];
+      const newVars = meta?.variables ? Object.keys(meta.variables) : [];
+
+      if (newTimes.length > 0) {
+        setForecastTimestamps(newTimes);
+      }
+      setAvailableDepths(newDepths);
+      setAvailableTimes(newTimes);
+      setAvailableVariables(newVars);
+
+      // Reconcile time index safely and derive timestamp from the CHOSEN index
+      let chosenTimeIdx = 0;
+      setTimeIndex((prev) => {
+        if (newTimes.length === 0) {
+          chosenTimeIdx = 0;
+          return 0;
+        }
+        const clamped = Math.min(Math.max(0, prev), newTimes.length - 1);
+        chosenTimeIdx = clamped;
+        return clamped;
+      });
+      setCurrentTimeTimestamp(newTimes[chosenTimeIdx] || '');
+
+      // Reconcile depth if not in new dataset depths
+      setRequestedDepth((prev) => {
+        if (newDepths.length === 0) return 0;
+        if (newDepths.includes(prev)) return prev;
+        let closest = newDepths[0];
+        let minDiff = Math.abs(closest - prev);
+        for (const d of newDepths) {
+          const diff = Math.abs(d - prev);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closest = d;
+          }
+        }
+        return closest;
+      });
+
+      // Reconcile variable if currents not supported or variable not in new dataset
+      setSelectedVariable((prev) => {
+        if (prev === 'currents') {
+          const hasCurrents = newVars.some((v) => ['currents', 'uo', 'vo', 'u', 'v'].includes(v.toLowerCase()));
+          if (!hasCurrents) {
+            setShowCurrents(false);
+            return newVars[0] || 'temperature';
+          }
+          return prev;
+        }
+        if (newVars.length === 0 || newVars.includes(prev)) return prev;
+        return newVars[0] || 'temperature';
+      });
+
+      setIsTransitioningDataset(false);
+      setIsDatasetReady(true);
+      setDatasetTransitionError(null);
+      return confirmedDataset;
+    } catch (err) {
+      if (datasetTransitionGenRef.current === gen) {
+        console.warn('Dataset transition / metadata reconciliation error:', err);
+        setDatasetTransitionError(err.message || 'Failed to complete dataset transition');
+        setIsTransitioningDataset(false);
+        setIsDatasetReady(false);
+      }
+      throw err;
+    }
+  }, []);
+
+  const transitionToDataset = useCallback((targetDatasetId, options = {}) => {
+    return transitionQueueRef.current.enqueue(() => executeTransition(targetDatasetId, options));
+  }, [executeTransition]);
+
   // Load active ocean dataset catalog on mount - guarantee real Copernicus GLORYS12V1 is active
   useEffect(() => {
-    let isMounted = true;
-    fetchDatasets()
-      .then(async (data) => {
-        if (!isMounted) return;
-        if (data?.datasets) {
-          const glorys = data.datasets.find((d) => d.dataset_id === 'cmems_mod_glo_phy_my_0.083deg_P1D-m');
-          if (glorys && data.active_dataset_id !== glorys.dataset_id) {
-            try {
-              const res = await selectActiveDataset(glorys.dataset_id);
-              if (isMounted && res?.active_dataset) {
-                setActiveDataset(res.active_dataset);
-                return;
-              }
-            } catch (e) {
-              console.warn('Auto-activation of GLORYS failed:', e);
-            }
-          }
-          const found = data.datasets.find((d) => d.dataset_id === data.active_dataset_id);
-          setActiveDataset(found || glorys || data.datasets[0]);
+    let cancelled = false;
 
-         // Fetch actual metadata so the UI uses real timestamps, depths, and variables (Master Prompt Section 9)
-         try {
-           const meta = await fetchMetadata();
-           if (meta?.time_timestamps) setForecastTimestamps(meta.time_timestamps);
-           if (isMounted) {
-             setAvailableDepths(meta?.depth_levels_m || []);
-             setAvailableTimes(meta?.time_timestamps || []);
-             setAvailableVariables(meta?.variables ? Object.keys(meta.variables) : []);
-           }
-         } catch {}
+    async function initDatasetAndMetadata() {
+      try {
+        const data = await fetchDatasets();
+        if (cancelled || !data?.datasets) return;
+
+        const glorys = data.datasets.find((d) => d.dataset_id === 'cmems_mod_glo_phy_my_0.083deg_P1D-m');
+        let targetId = data.active_dataset_id || null;
+        let needsSelect = false;
+
+        if (!targetId && glorys) {
+          targetId = glorys.dataset_id;
+          needsSelect = true;
+        } else if (!targetId && data.datasets.length > 0) {
+          targetId = data.datasets[0].dataset_id;
+          needsSelect = true;
+        }
+
+        if (targetId) {
+          await transitionToDataset(targetId, { skipSelect: !needsSelect, fallbackDatasets: data.datasets });
+        } else {
+          setIsTransitioningDataset(false);
+          setIsDatasetReady(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('Startup dataset/metadata initialization error:', err);
+          setDatasetTransitionError(err.message || 'Failed to initialize dataset metadata');
+          setIsTransitioningDataset(false);
+          setIsDatasetReady(false);
+        }
+      }
+    }
+
+    initDatasetAndMetadata();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [transitionToDataset]);
+
+  const probeRequestIdRef = useRef(0);
+
+  // Synchronized Water Column Sounding & Model Profile Live Sync
+  useEffect(() => {
+    if (isTransitioningDataset || !isDatasetReady || !probedPoint || probedPoint.lat == null || probedPoint.lon == null) {
+      return;
+    }
+    const reqId = ++probeRequestIdRef.current;
+    setIsProbeLoading(true);
+
+    // Mark model profile as refreshing while query runs so stale values are not presented
+    setSelectedFloat((prev) => {
+      if (prev?.isModelProfile) {
+        return {
+          ...prev,
+          isRefreshing: true,
+          time_idx: timeIndex,
+          datasetName: activeDataset?.name || prev.datasetName
+        };
+      }
+      return prev;
+    });
+
+    fetchOceanProbe({
+      lat: probedPoint.lat,
+      lon: probedPoint.lon,
+      time_idx: timeIndex
+    })
+      .then((data) => {
+        if (probeRequestIdRef.current === reqId) {
+          setProbeData(data);
+          setIsProbeLoading(false);
+
+          // Live sync active ProfileModal if user is viewing numerical model profile
+          setSelectedFloat((prev) => {
+            if (prev?.isModelProfile) {
+              const isLand = Boolean(data?.is_land);
+              const isUnavailable = Boolean(data?.unavailable || data?.error);
+              const hasValidValues = Array.isArray(data?.temperature) &&
+                data.temperature.some((v) => v !== null && v !== undefined && !Number.isNaN(v));
+
+              if (isLand) {
+                return {
+                  ...prev,
+                  isRefreshing: false,
+                  is_land: true,
+                  timestamp: data?.timestamp || null,
+                  time_idx: data?.time_idx ?? timeIndex,
+                  depths: [],
+                  temperature: [],
+                  salinity: [],
+                  qc_flags: [],
+                  datasetName: activeDataset?.name || null,
+                  has_observations: false,
+                  unavailableReason: 'Selected coordinate lies on land. Numerical ocean model column is not defined over land terrain.'
+                };
+              } else if (isUnavailable) {
+                return {
+                  ...prev,
+                  isRefreshing: false,
+                  is_land: false,
+                  timestamp: data?.timestamp || null,
+                  time_idx: data?.time_idx ?? timeIndex,
+                  depths: [],
+                  temperature: [],
+                  salinity: [],
+                  qc_flags: [],
+                  datasetName: activeDataset?.name || null,
+                  has_observations: false,
+                  unavailableReason: data?.error || 'Selected coordinate lies outside active numerical model domain.'
+                };
+              } else if (!hasValidValues || !data?.depths?.length) {
+                return {
+                  ...prev,
+                  isRefreshing: false,
+                  is_land: false,
+                  lat: data?.lat ?? probedPoint.lat,
+                  lon: data?.lon ?? probedPoint.lon,
+                  timestamp: data?.timestamp || null,
+                  time_idx: data?.time_idx ?? timeIndex,
+                  depths: [],
+                  temperature: [],
+                  salinity: [],
+                  qc_flags: [],
+                  datasetName: activeDataset?.name || null,
+                  has_observations: false,
+                  unavailableReason: 'No valid vertical ocean measurements available for this model coordinate.'
+                };
+              } else {
+                return {
+                  ...prev,
+                  isRefreshing: false,
+                  is_land: false,
+                  lat: data.lat ?? probedPoint.lat,
+                  lon: data.lon ?? probedPoint.lon,
+                  timestamp: data.timestamp || null,
+                  time_idx: data.time_idx ?? timeIndex,
+                  depths: data.depths || [],
+                  temperature: data.temperature || [],
+                  salinity: data.salinity || [],
+                  qc_flags: (data.depths || []).map(() => 1),
+                  datasetName: activeDataset?.name || null,
+                  has_observations: true,
+                  unavailableReason: null
+                };
+              }
+            }
+            return prev;
+          });
         }
       })
-      .catch(() => {});
-    return () => { isMounted = false; };
-  }, []);
+      .catch((err) => {
+        if (probeRequestIdRef.current === reqId) {
+          console.warn('Probe fetch failed:', err.message);
+          setProbeData({
+            lat: probedPoint.lat,
+            lon: probedPoint.lon,
+            error: err.message || 'Data unavailable',
+            unavailable: true
+          });
+          setIsProbeLoading(false);
+          setSelectedFloat((prev) => {
+            if (prev?.isModelProfile) {
+              return {
+                ...prev,
+                isRefreshing: false,
+                is_land: false,
+                lat: probedPoint.lat,
+                lon: probedPoint.lon,
+                timestamp: null,
+                time_idx: timeIndex,
+                depths: [],
+                temperature: [],
+                salinity: [],
+                qc_flags: [],
+                datasetName: activeDataset?.name || null,
+                has_observations: false,
+                unavailableReason: err.message || 'Selected coordinate lies outside active numerical model domain.'
+              };
+            }
+            return prev;
+          });
+        }
+      });
+
+    return () => {
+      // Invalidate current probe request when context changes or unmounts
+      probeRequestIdRef.current = reqId + 1;
+    };
+  }, [isTransitioningDataset, isDatasetReady, probedPoint, timeIndex, activeDataset?.dataset_id, activeDataset?.name]);
 
   const handleSelectRegion = useCallback((sector) => {
     if (!sector) return;
     setSelectedSectorId(sector.id);
     setTargetRegion(sector);
-    if (sector.lat && sector.lon && (sector.level === 'Local Sector' || sector.level === 'Coastal')) {
+    if (sector.lat !== undefined && sector.lon !== undefined) {
       setProbedPoint({ lat: sector.lat, lon: sector.lon });
-      setIsProbeLoading(true);
-      fetchOceanProbe({ lat: sector.lat, lon: sector.lon, time_idx: timeIndex })
-        .then((data) => {
-          setProbeData(data);
-        })
-        .catch((err) => {
-          console.error('Probe error on sector focus:', err);
-        })
-        .finally(() => {
-          setIsProbeLoading(false);
-        });
     }
-  }, [timeIndex]);
+  }, []);
 
-  const handleDatasetSwitched = useCallback((newDataset) => {
-    setActiveDataset(newDataset);
-    if (probedPoint) {
-      setIsProbeLoading(true);
-      fetchOceanProbe({ lat: probedPoint.lat, lon: probedPoint.lon, time_idx: timeIndex })
-        .then(setProbeData)
-        .catch(() => {})
-        .finally(() => setIsProbeLoading(false));
-    }
-  }, [probedPoint, timeIndex]);
+  const handleDeselectProbe = useCallback(() => {
+    probeRequestIdRef.current++;
+    setProbedPoint(null);
+    setProbeData(null);
+    setIsProbeLoading(false);
+    setSelectedFloat((prev) => (prev?.isModelProfile ? null : prev));
+  }, []);
+
+  const handleDatasetSwitched = useCallback(async (newDataset) => {
+    const targetId = newDataset?.dataset_id || newDataset;
+    return transitionToDataset(targetId);
+  }, [transitionToDataset]);
+
+  const handleRetryDatasetTransition = useCallback(() => {
+    const target = pendingTransitionTargetRef.current || activeDataset?.dataset_id || null;
+    transitionToDataset(target);
+  }, [activeDataset, transitionToDataset]);
 
   const handleLoginSuccess = useCallback((user, token) => {
     setCurrentUser(user);
@@ -317,22 +620,136 @@ export default function App() {
     isBufferingRef.current = isBuffering;
   }, [isBuffering]);
 
+  // Selection transaction ref to guard against out-of-order async responses
+  const selectionRequestIdRef = useRef(0);
+  const [isPlatformLoading, setIsPlatformLoading] = useState(false);
+  const [platformLoadError, setPlatformLoadError] = useState(null);
+  const [comparisonContext, setComparisonContext] = useState(null);
+
+  const handleDeselectPlatform = useCallback(() => {
+    ++selectionRequestIdRef.current;
+    setSelectedFloat(null);
+    setSelectedGlider(null);
+    setIsPlatformLoading(false);
+    setPlatformLoadError(null);
+  }, []);
+
+  const handleSelectFloat = useCallback(
+    (floatOrSummary) => {
+      const reqId = ++selectionRequestIdRef.current;
+      if (!floatOrSummary) {
+        setSelectedFloat(null);
+        setSelectedGlider(null);
+        setIsPlatformLoading(false);
+        setPlatformLoadError(null);
+        return;
+      }
+      setSelectedGlider(null);
+      if (floatOrSummary.depths && floatOrSummary.temperature && floatOrSummary.temperature.length > 0) {
+        setSelectedFloat(floatOrSummary);
+        setIsPlatformLoading(false);
+        setPlatformLoadError(null);
+        return;
+      }
+      setSelectedFloat(floatOrSummary);
+      setIsPlatformLoading(true);
+      setPlatformLoadError(null);
+      fetchArgoFloatById(floatOrSummary.id)
+        .then((detail) => {
+          if (selectionRequestIdRef.current === reqId) {
+            setSelectedFloat(detail);
+            setIsPlatformLoading(false);
+            setPlatformLoadError(null);
+          }
+        })
+        .catch((err) => {
+          if (selectionRequestIdRef.current === reqId) {
+            console.warn('Could not fetch detailed float profile:', err);
+            setPlatformLoadError(err.message || 'Failed to load float profile');
+            setIsPlatformLoading(false);
+          }
+        });
+    },
+    []
+  );
+
+  const _handleSelectFloatId = useCallback(
+    (id) => {
+      if (!id) {
+        handleSelectFloat(null);
+        return;
+      }
+      const found = argoFloats.find((f) => f.id === id);
+      handleSelectFloat(found || { id });
+    },
+    [argoFloats, handleSelectFloat]
+  );
+
+  const handleSelectGlider = useCallback((gliderOrSummary) => {
+    const reqId = ++selectionRequestIdRef.current;
+    if (!gliderOrSummary) {
+      setSelectedGlider(null);
+      setSelectedFloat(null);
+      setIsPlatformLoading(false);
+      setPlatformLoadError(null);
+      return;
+    }
+    if (gliderOrSummary.waypoints && gliderOrSummary.waypoints.length > 0) {
+      setSelectedGlider(gliderOrSummary);
+      setSelectedFloat(gliderOrSummary);
+      setIsPlatformLoading(false);
+      setPlatformLoadError(null);
+      return;
+    }
+    setSelectedGlider(gliderOrSummary);
+    setSelectedFloat(gliderOrSummary);
+    setIsPlatformLoading(true);
+    setPlatformLoadError(null);
+    fetchGliderById(gliderOrSummary.id)
+      .then((detail) => {
+        if (selectionRequestIdRef.current === reqId) {
+          setSelectedGlider(detail);
+          setSelectedFloat(detail);
+          setIsPlatformLoading(false);
+          setPlatformLoadError(null);
+        }
+      })
+      .catch((err) => {
+        if (selectionRequestIdRef.current === reqId) {
+          console.warn('Could not fetch detailed glider transect:', err);
+          setPlatformLoadError(err.message || 'Failed to load glider transect');
+          setIsPlatformLoading(false);
+        }
+      });
+  }, []);
+
+  const _handleSelectGliderId = useCallback(
+    (id) => {
+      if (!id) {
+        handleSelectGlider(null);
+        return;
+      }
+      const found = gliderTransects.find((g) => g.id === id);
+      handleSelectGlider(found || { id });
+    },
+    [gliderTransects, handleSelectGlider]
+  );
+
   const _handleToggleArgo = useCallback((checked) => {
     setShowArgo(checked);
-    if (!checked && selectedFloat?.platform_type === 'argo') {
-      setSelectedFloat(null);
+    if (!checked && (selectedFloat?.platform_type === 'argo' || selectedFloat?.platform_type === 'sensor')) {
+      handleDeselectPlatform();
     }
-  }, [selectedFloat]);
+  }, [selectedFloat, handleDeselectPlatform]);
 
   const _handleToggleGliders = useCallback((checked) => {
     setShowGliders(checked);
     if (!checked) {
-      setSelectedGlider(null);
-      if (selectedFloat?.platform_type === 'glider') {
-        setSelectedFloat(null);
+      if (selectedGlider || selectedFloat?.platform_type === 'glider' || selectedFloat?.type === 'glider') {
+        handleDeselectPlatform();
       }
     }
-  }, [selectedFloat]);
+  }, [selectedGlider, selectedFloat, handleDeselectPlatform]);
 
   const handleAssistantNavigate = useCallback((action) => {
     if (!action) return;
@@ -352,19 +769,19 @@ export default function App() {
       const pid = action.platform_id.toUpperCase();
       const argo = argoFloats.find(f => (f.id || '').toUpperCase() === pid || (f.wmo_id || '').toUpperCase() === pid);
       if (argo) {
-        setSelectedFloat(argo);
+        handleSelectFloat(argo);
         setShowArgo(true);
       } else {
         const glider = gliderTransects.find(g => (g.id || '').toUpperCase() === pid);
         if (glider) {
-          setSelectedGlider(glider);
+          handleSelectGlider(glider);
           setShowGliders(true);
         }
       }
     } else if (action.type === 'TOGGLE_RESIDUALS') {
       setShowAnomalyField(prev => action.value !== undefined ? action.value : !prev);
     }
-  }, [argoFloats, gliderTransects]);
+  }, [argoFloats, gliderTransects, handleSelectFloat, handleSelectGlider]);
 
   // Phase 14: Load Anomaly Field when layer is enabled or filters change
   useEffect(() => {
@@ -391,24 +808,11 @@ export default function App() {
   const handleSelectAnomalyPoint = useCallback((point) => {
     if (!point) return;
     if (point.platform_type === 'glider') {
-      fetchGliderById(point.platform_id)
-        .then((data) => {
-          if (data) {
-            setSelectedGlider(data);
-            setSelectedFloat(data);
-          }
-        })
-        .catch(console.warn);
+      handleSelectGlider({ id: point.platform_id });
     } else {
-      fetchArgoFloatById(point.platform_id)
-        .then((data) => {
-          if (data) {
-            setSelectedFloat(data);
-          }
-        })
-        .catch(console.warn);
+      handleSelectFloat({ id: point.platform_id });
     }
-  }, []);
+  }, [handleSelectGlider, handleSelectFloat]);
 
   const handleSensorRegistered = useCallback((newSensor) => {
     if (!newSensor) return;
@@ -419,9 +823,13 @@ export default function App() {
         return [...prev, newSensor];
       });
       setShowArgo(true);
+      handleSelectFloat(newSensor);
+    } else if (newSensor.platform_type === 'glider') {
+      handleSelectGlider(newSensor);
+    } else {
+      handleSelectFloat(newSensor);
     }
-    setSelectedFloat(newSensor);
-  }, []);
+  }, [handleSelectFloat, handleSelectGlider]);
 
   // Load Argo floats and registered custom sensors when layer is enabled
   useEffect(() => {
@@ -475,76 +883,6 @@ export default function App() {
     };
   }, [showGliders, insituSourceMode]);
 
-  const handleSelectFloat = useCallback(
-    (floatOrSummary) => {
-      if (!floatOrSummary) {
-        setSelectedFloat(null);
-        return;
-      }
-      if (floatOrSummary.depths && floatOrSummary.temperature && floatOrSummary.temperature.length > 0) {
-        setSelectedFloat(floatOrSummary);
-        return;
-      }
-      fetchArgoFloatById(floatOrSummary.id)
-        .then((detail) => {
-          setSelectedFloat(detail);
-        })
-        .catch((err) => {
-          console.warn('Could not fetch detailed float profile:', err);
-          setSelectedFloat(floatOrSummary);
-        });
-    },
-    []
-  );
-
-  const _handleSelectFloatId = useCallback(
-    (id) => {
-      if (!id) {
-        setSelectedFloat(null);
-        return;
-      }
-      const found = argoFloats.find((f) => f.id === id);
-      handleSelectFloat(found || { id });
-    },
-    [argoFloats, handleSelectFloat]
-  );
-
-  const handleSelectGlider = useCallback((gliderOrSummary) => {
-    if (!gliderOrSummary) {
-      setSelectedGlider(null);
-      setSelectedFloat(null);
-      return;
-    }
-    if (gliderOrSummary.waypoints && gliderOrSummary.waypoints.length > 0) {
-      setSelectedGlider(gliderOrSummary);
-      setSelectedFloat(gliderOrSummary);
-      return;
-    }
-    fetchGliderById(gliderOrSummary.id)
-      .then((detail) => {
-        setSelectedGlider(detail);
-        setSelectedFloat(detail);
-      })
-      .catch((err) => {
-        console.warn('Could not fetch detailed glider transect:', err);
-        setSelectedGlider(gliderOrSummary);
-        setSelectedFloat(gliderOrSummary);
-      });
-  }, []);
-
-  const _handleSelectGliderId = useCallback(
-    (id) => {
-      if (!id) {
-        setSelectedGlider(null);
-        setSelectedFloat(null);
-        return;
-      }
-      const found = gliderTransects.find((g) => g.id === id);
-      handleSelectGlider(found || { id });
-    },
-    [gliderTransects, handleSelectGlider]
-  );
-
   const handleSelectVariable = useCallback((varId) => {
     setSelectedVariable(varId);
     if (varId === 'currents') {
@@ -585,13 +923,15 @@ export default function App() {
 
   const handleStepBack = useCallback(() => {
     setIsPlaying(false);
-    setTimeIndex((prev) => computePrevStep(prev, getTotalForecastSteps(), isLooping));
-  }, [isLooping]);
+    const total = availableTimes.length || getTotalForecastSteps();
+    setTimeIndex((prev) => computePrevStep(prev, total, isLooping));
+  }, [availableTimes.length, isLooping]);
 
   const handleStepForward = useCallback(() => {
     setIsPlaying(false);
-    setTimeIndex((prev) => computeNextStep(prev, getTotalForecastSteps(), isLooping));
-  }, [isLooping]);
+    const total = availableTimes.length || getTotalForecastSteps();
+    setTimeIndex((prev) => computeNextStep(prev, total, isLooping));
+  }, [availableTimes.length, isLooping]);
 
   const handleSelectTime = useCallback((newIdx) => {
     setIsPlaying(false);
@@ -606,33 +946,7 @@ export default function App() {
       return;
     }
     setProbedPoint(geo);
-    setIsProbeLoading(true);
-
-    // REAL DATA ONLY (Master Prompt Section 21): never fabricate a scientific
-    // profile as a fallback.  If the real probe fails, surface a clear error state.
-    fetchOceanProbe({
-      lat: geo.lat,
-      lon: geo.lon,
-      time_idx: timeIndex
-    })
-      .then((data) => {
-        if (data) {
-          setProbeData(data);
-        }
-        setIsProbeLoading(false);
-      })
-      .catch((err) => {
-        // DATA UNAVAILABLE — no synthetic fallback is ever used (Master Prompt Section 21, 75)
-        console.warn('Probe fetch failed:', err.message);
-        setProbeData({
-          lat: geo.lat,
-          lon: geo.lon,
-          error: err.message || 'Data unavailable',
-          unavailable: true
-        });
-        setIsProbeLoading(false);
-      });
-  }, [timeIndex]);
+  }, []);
 
   // Operational Preset Scenarios Handler
   const handleApplyPreset = useCallback((preset) => {
@@ -756,6 +1070,27 @@ export default function App() {
         selectedSectorId={selectedSectorId}
       />
       <main id="workspace" tabIndex={-1} className="scientific-workstation relative">
+        <div className="sr-only">
+          <h1>Indian Ocean workspace</h1>
+        </div>
+
+        {/* Dataset Transition Error Banner with Recovery Action */}
+        {datasetTransitionError && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-rose-950/95 border border-rose-500 rounded-lg p-3 text-rose-200 text-xs shadow-2xl flex items-center gap-3" data-testid="dataset-transition-error-banner">
+            <span>⚠️ {datasetTransitionError}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setDatasetTransitionError(null);
+                handleRetryDatasetTransition();
+              }}
+              className="px-2 py-1 bg-rose-800 hover:bg-rose-700 text-white rounded font-medium text-[11px] transition"
+            >
+              Retry Metadata
+            </button>
+          </div>
+        )}
+
         {/* Full 3D Ocean Globe Workspace */}
         <OceanCanvas
           selectedVariable={selectedVariable}
@@ -790,6 +1125,10 @@ export default function App() {
           targetRegion={targetRegion}
           onSelectRegion={handleSelectRegion}
           activeDataset={activeDataset}
+          availableTimes={availableTimes}
+          isTransitioningDataset={isTransitioningDataset}
+          isDatasetReady={isDatasetReady}
+          datasetTransitionError={datasetTransitionError}
         />
 
         {/* Minimalist Vertical Depth Selector */}
@@ -798,6 +1137,9 @@ export default function App() {
           requestedDepth={requestedDepth}
           resolvedDepth={resolvedDepth}
           onSelectDepth={setRequestedDepth}
+          isTransitioningDataset={isTransitioningDataset}
+          isDatasetReady={isDatasetReady}
+          datasetTransitionError={datasetTransitionError}
         />
 
         {/* Bottom Variable and Continuous Timeline Dock */}
@@ -813,7 +1155,11 @@ export default function App() {
           playbackSpeed={playbackSpeed}
           onChangeSpeed={setPlaybackSpeed}
           availableTimes={availableTimes}
+          availableVariables={availableVariables}
           currentTimeTimestamp={currentTimeTimestamp}
+          isTransitioningDataset={isTransitioningDataset}
+          isDatasetReady={isDatasetReady}
+          datasetTransitionError={datasetTransitionError}
           showCurrents={showCurrents}
           onToggleCurrents={setShowCurrents}
           showObservations={showArgo || showGliders || isObservationDrawerOpen}
@@ -834,10 +1180,166 @@ export default function App() {
             probeData={probeData}
             isLoading={isProbeLoading}
             currentTime={currentTimeTimestamp}
+            activeDataset={activeDataset}
             activeDatasetName={activeDataset?.name}
-            onClose={() => setProbedPoint(null)}
-            onOpenProfile={() => setIsProfileModalOpen(true)}
-            onOpenComparison={() => setIsComparisonOpen(true)}
+            onClose={handleDeselectProbe}
+            onOpenProfile={() => {
+              // Invalidate any pending in-flight platform detail requests
+              ++selectionRequestIdRef.current;
+
+              const isLand = Boolean(probeData?.is_land);
+              const isUnavailable = Boolean(probeData?.unavailable || probeData?.error);
+              const hasValidValues = Array.isArray(probeData?.temperature) &&
+                probeData.temperature.some(v => v !== null && v !== undefined && !Number.isNaN(v));
+
+              if (isLand) {
+                setSelectedFloat({
+                  isModelProfile: true,
+                  platform_type: 'model_profile',
+                  is_land: true,
+                  lat: probedPoint.lat,
+                  lon: probedPoint.lon,
+                  timestamp: probeData?.timestamp || null,
+                  time_idx: probeData?.time_idx ?? timeIndex,
+                  depths: [],
+                  temperature: [],
+                  salinity: [],
+                  qc_flags: [],
+                  datasetName: activeDataset?.name || null,
+                  has_observations: false,
+                  unavailableReason: 'Selected coordinate lies on land. Numerical ocean model column is not defined over land terrain.'
+                });
+              } else if (isUnavailable) {
+                setSelectedFloat({
+                  isModelProfile: true,
+                  platform_type: 'model_profile',
+                  is_land: false,
+                  lat: probedPoint.lat,
+                  lon: probedPoint.lon,
+                  timestamp: probeData?.timestamp || null,
+                  time_idx: probeData?.time_idx ?? timeIndex,
+                  depths: [],
+                  temperature: [],
+                  salinity: [],
+                  qc_flags: [],
+                  datasetName: activeDataset?.name || null,
+                  has_observations: false,
+                  unavailableReason: probeData?.error || 'Selected coordinate lies outside active numerical model domain.'
+                });
+              } else if (!hasValidValues || !probeData?.depths?.length) {
+                setSelectedFloat({
+                  isModelProfile: true,
+                  platform_type: 'model_profile',
+                  is_land: false,
+                  lat: probeData?.lat ?? probedPoint.lat,
+                  lon: probeData?.lon ?? probedPoint.lon,
+                  timestamp: probeData?.timestamp || null,
+                  time_idx: probeData?.time_idx ?? timeIndex,
+                  depths: [],
+                  temperature: [],
+                  salinity: [],
+                  qc_flags: [],
+                  datasetName: activeDataset?.name || null,
+                  has_observations: false,
+                  unavailableReason: 'No valid vertical ocean measurements available for this model coordinate.'
+                });
+              } else {
+                setSelectedFloat({
+                  isModelProfile: true,
+                  platform_type: 'model_profile',
+                  is_land: false,
+                  lat: probeData.lat ?? probedPoint.lat,
+                  lon: probeData.lon ?? probedPoint.lon,
+                  timestamp: probeData.timestamp || null,
+                  time_idx: probeData.time_idx ?? timeIndex,
+                  depths: probeData.depths || [],
+                  temperature: probeData.temperature || [],
+                  salinity: probeData.salinity || [],
+                  qc_flags: (probeData.depths || []).map(() => 1),
+                  datasetName: activeDataset?.name || null,
+                  has_observations: true
+                });
+              }
+              setIsProfileModalOpen(true);
+            }}
+            onOpenComparison={() => {
+              const nearest = probeData?.nearest_observation;
+              const reqId = ++selectionRequestIdRef.current;
+              setSelectedFloat(null);
+              setSelectedGlider(null);
+              setPlatformLoadError(null);
+
+              if (!nearest || !nearest.id || nearest.platform_type === 'buoy' || nearest.platform_type === 'unsupported') {
+                setIsPlatformLoading(false);
+                setComparisonContext({
+                  isAvailable: false,
+                  source: 'probe',
+                  probePoint: probedPoint,
+                  nearest: null
+                });
+                setIsComparisonOpen(true);
+              } else if (nearest.platform_type === 'glider') {
+                setIsPlatformLoading(true);
+                setComparisonContext({
+                  isAvailable: true,
+                  source: 'probe',
+                  platformId: nearest.id,
+                  platformType: 'glider',
+                  probePoint: probedPoint
+                });
+                setIsComparisonOpen(true);
+                fetchGliderById(nearest.id)
+                  .then((detail) => {
+                    if (selectionRequestIdRef.current === reqId) {
+                      setSelectedGlider(detail);
+                      setSelectedFloat(detail);
+                      setIsPlatformLoading(false);
+                      setPlatformLoadError(null);
+                    }
+                  })
+                  .catch((err) => {
+                    if (selectionRequestIdRef.current === reqId) {
+                      console.warn('Could not fetch nearest glider detail:', err);
+                      setPlatformLoadError(err.message || 'Failed to load nearest glider detail');
+                      setIsPlatformLoading(false);
+                    }
+                  });
+              } else if (nearest.platform_type === 'argo') {
+                setIsPlatformLoading(true);
+                setComparisonContext({
+                  isAvailable: true,
+                  source: 'probe',
+                  platformId: nearest.id,
+                  platformType: 'argo',
+                  probePoint: probedPoint
+                });
+                setIsComparisonOpen(true);
+                fetchArgoFloatById(nearest.id)
+                  .then((detail) => {
+                    if (selectionRequestIdRef.current === reqId) {
+                      setSelectedFloat(detail);
+                      setIsPlatformLoading(false);
+                      setPlatformLoadError(null);
+                    }
+                  })
+                  .catch((err) => {
+                    if (selectionRequestIdRef.current === reqId) {
+                      console.warn('Could not fetch nearest argo detail:', err);
+                      setPlatformLoadError(err.message || 'Failed to load nearest Argo profile');
+                      setIsPlatformLoading(false);
+                    }
+                  });
+              } else {
+                setIsPlatformLoading(false);
+                setComparisonContext({
+                  isAvailable: false,
+                  source: 'probe',
+                  unsupportedType: nearest.platform_type,
+                  probePoint: probedPoint
+                });
+                setIsComparisonOpen(true);
+              }
+            }}
             onOpenInDepthAnalysis={(pt) => {
               if (pt) setProbedPoint(pt);
               setIsInDepthModalOpen(true);
@@ -852,36 +1354,79 @@ export default function App() {
           argoFloats={argoFloats}
           gliderTransects={gliderTransects}
           selectedPlatform={selectedFloat}
-          onSelectPlatform={handleSelectFloat}
+          onSelectPlatform={(raw) => {
+            const explicit = raw?.platform_type || raw?.type;
+            const isGliderRaw = explicit === 'glider' || (!explicit && ((Array.isArray(raw?.waypoints) && raw.waypoints.length > 0) || Boolean(raw?.mission_name)));
+            if (isGliderRaw) {
+              handleSelectGlider(raw);
+            } else {
+              handleSelectFloat(raw);
+            }
+          }}
           onOpenProfile={(p) => {
-            setSelectedFloat(p);
+            const explicit = p?.platform_type || p?.type;
+            const isGliderRaw = explicit === 'glider' || (!explicit && ((Array.isArray(p?.waypoints) && p.waypoints.length > 0) || Boolean(p?.mission_name)));
+            if (isGliderRaw) {
+              handleSelectGlider(p);
+            } else {
+              handleSelectFloat(p);
+            }
             setIsProfileModalOpen(true);
           }}
           onOpenComparison={(p) => {
-            setSelectedFloat(p);
+            const explicit = p?.platform_type || p?.type;
+            const isGliderRaw = explicit === 'glider' || (!explicit && ((Array.isArray(p?.waypoints) && p.waypoints.length > 0) || Boolean(p?.mission_name)));
+            if (isGliderRaw) {
+              handleSelectGlider(p);
+            } else {
+              handleSelectFloat(p);
+            }
+            setComparisonContext({
+              isAvailable: true,
+              source: 'fleet',
+              platformId: p?.id,
+              platformType: isGliderRaw ? 'glider' : 'argo'
+            });
             setIsComparisonOpen(true);
           }}
           onFocusCoordinates={(lat, lon) => handleSelectRegion({ lat, lon, dist: 120 })}
         />
 
         {/* Dedicated Scientific Profile Modal */}
-        {isProfileModalOpen && selectedFloat && (
+        {isProfileModalOpen && (selectedFloat || isPlatformLoading || platformLoadError) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur p-4">
             <div className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               <ProfileModal
                 selectedFloat={selectedFloat}
+                isLoading={isPlatformLoading}
+                error={platformLoadError}
+                onRetry={() => {
+                  const targetId = selectedFloat?.id;
+                  const targetType = selectedFloat?.platform_type || selectedFloat?.type;
+                  if (targetId) {
+                    if (targetType === 'glider') {
+                      handleSelectGlider({ id: targetId });
+                    } else {
+                      handleSelectFloat({ id: targetId });
+                    }
+                  }
+                }}
                 onSelectFloat={(f) => {
-                  setSelectedFloat(f);
-                  if (!f) setIsProfileModalOpen(false);
+                  if (!f) {
+                    handleDeselectPlatform();
+                    setIsProfileModalOpen(false);
+                  } else {
+                    handleSelectFloat(f);
+                  }
                 }}
               />
             </div>
           </div>
         )}
         <footer className="workspace-footer flex flex-wrap justify-between gap-3">
-          <span>Ministry of Earth Sciences (MoES) <span aria-hidden="true">Â·</span> INCOIS Ocean Information Services</span>
+          <span>Ministry of Earth Sciences (MoES) <span aria-hidden="true">·</span> INCOIS Ocean Information Services</span>
           <button type="button" className="footer-source-link" onClick={() => setIsSourcesOpen(true)}>
-            Operational ROMS 3D Model Â· Data Sources & Specifications
+            Operational ROMS 3D Model · Data Sources & Specifications
           </button>
         </footer>
         <AIAssistantModal
@@ -897,21 +1442,43 @@ export default function App() {
         />
         <ModelComparisonModal
           isOpen={isComparisonOpen}
-          onClose={() => setIsComparisonOpen(false)}
+          onClose={() => {
+            ++selectionRequestIdRef.current;
+            setIsComparisonOpen(false);
+            setComparisonContext(null);
+            setIsPlatformLoading(false);
+            setPlatformLoadError(null);
+          }}
+          comparisonContext={comparisonContext}
           argoFloats={argoFloats}
           gliderTransects={gliderTransects}
           selectedFloat={selectedFloat}
+          isLoadingTarget={isPlatformLoading}
+          targetLoadError={platformLoadError}
+          onRetryTarget={() => {
+            const targetId = comparisonContext?.platformId || selectedFloat?.id;
+            const targetType = comparisonContext?.platformType || selectedFloat?.platform_type || selectedFloat?.type;
+            if (targetId) {
+              if (targetType === 'glider') {
+                handleSelectGlider({ id: targetId });
+              } else {
+                handleSelectFloat({ id: targetId });
+              }
+            }
+          }}
           showAnomalyField={showAnomalyField}
           onToggleAnomalyField={setShowAnomalyField}
           onFocusFloat={(platform) => {
             if (platform?.type === 'glider' || platform?.waypoints) {
-              setSelectedGlider(platform);
+              handleSelectGlider(platform);
               setShowGliders(true);
             } else {
-              setSelectedFloat(platform);
+              handleSelectFloat(platform);
               setShowArgo(true);
             }
           }}
+          isTransitioningDataset={isTransitioningDataset}
+          isDatasetReady={isDatasetReady}
         />
         <DataSourcesModal isOpen={isSourcesOpen} onClose={() => setIsSourcesOpen(false)} />
         <LoginModal
@@ -937,6 +1504,9 @@ export default function App() {
           isOpen={isDatasetsModalOpen}
           onClose={() => setIsDatasetsModalOpen(false)}
           onDatasetSwitched={handleDatasetSwitched}
+          onSelectDataset={transitionToDataset}
+          isTransitioning={isTransitioningDataset}
+          isDatasetReady={isDatasetReady}
           currentActiveDatasetId={activeDataset?.dataset_id}
         />
         <FishermanModeModal
@@ -944,6 +1514,11 @@ export default function App() {
           onClose={() => setIsFishermanModalOpen(false)}
           onSelectHarbor={(h) => handleSelectRegion({ id: h.id, lat: h.lat, lon: h.lon, dist: 112, level: 'Local Sector' })}
           probeData={probeData}
+          timeIndex={timeIndex}
+          activeDataset={activeDataset}
+          coverageBounds={activeDataset?.coverage_bounds}
+          isTransitioningDataset={isTransitioningDataset}
+          isDatasetReady={isDatasetReady}
         />
         <CycloneModeModal
           isOpen={isCycloneModalOpen}
@@ -956,6 +1531,9 @@ export default function App() {
           onClose={() => setIsInDepthModalOpen(false)}
           initialCoords={probedPoint || { lat: 15.0, lon: 85.0 }}
           currentActiveDatasetId={activeDataset?.dataset_id}
+          timeIndex={timeIndex}
+          isTransitioningDataset={isTransitioningDataset}
+          isDatasetReady={isDatasetReady}
         />
       </main>
     </div>

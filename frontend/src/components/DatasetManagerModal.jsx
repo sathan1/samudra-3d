@@ -9,7 +9,14 @@ import {
   startDatasetDownload
 } from '../services/api';
 
-export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched, currentActiveDatasetId: _currentActiveDatasetId }) {
+export default function DatasetManagerModal({
+  isOpen,
+  onClose,
+  onDatasetSwitched,
+  onSelectDataset,
+  isTransitioning = false,
+  currentActiveDatasetId: _currentActiveDatasetId
+}) {
   const [activeTab, setActiveTab] = useState('catalog'); // 'catalog' | 'downloader' | 'manifests' | 'estimator' | 'custom'
   const [datasets, setDatasets] = useState([]);
   const [activeId, setActiveId] = useState(_currentActiveDatasetId || '');
@@ -120,15 +127,22 @@ export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched
   }, [isOpen, loadDatasets, loadManifests, handleGenerateCommand]);
 
   const handleSelectDataset = async (datasetId) => {
+    if (isTransitioning || switchingId) return;
     setSwitchingId(datasetId);
     setError(null);
     setSuccessMsg(null);
     try {
-      const res = await selectActiveDataset(datasetId);
-      setActiveId(datasetId);
-      setSuccessMsg(`Switched active dataset to: ${res.active_dataset.name}`);
-      if (onDatasetSwitched) {
-        onDatasetSwitched(res.active_dataset);
+      if (onSelectDataset) {
+        const confirmed = await onSelectDataset(datasetId);
+        setActiveId(confirmed?.dataset_id || datasetId);
+        setSuccessMsg(`Switched active dataset to: ${confirmed?.name || datasetId}`);
+      } else {
+        const res = await selectActiveDataset(datasetId);
+        setActiveId(datasetId);
+        if (onDatasetSwitched) {
+          await onDatasetSwitched(res.active_dataset);
+        }
+        setSuccessMsg(`Switched active dataset to: ${res.active_dataset.name}`);
       }
       loadDatasets();
     } catch (err) {
@@ -214,7 +228,7 @@ export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto" data-testid="dataset-manager-modal">
       <div className="relative w-full max-w-5xl bg-slate-900 border border-slate-700 rounded-xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-100">
         
         {/* Modal Header */}
@@ -233,6 +247,8 @@ export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched
           </div>
           <button
             onClick={onClose}
+            aria-label="Close modal"
+            data-testid="dataset-manager-close-btn"
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
             title="Close modal (Esc)"
           >
@@ -348,6 +364,7 @@ export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched
                   const isActive = ds.dataset_id === activeId;
                   const isSwitching = ds.dataset_id === switchingId;
                   const isReal = ds.source_mode === 'REAL_LOCAL';
+                  const isUnavailable = ds.status === 'UNAVAILABLE' || ds.status === 'FILE_NOT_FOUND' || ds.status === 'ERROR';
 
                   return (
                     <div
@@ -361,12 +378,17 @@ export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched
                       <div className="space-y-1.5 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-sm font-bold text-white">{ds.name}</h3>
-                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
-                            isReal
-                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-700'
-                              : 'bg-amber-950 text-amber-300 border border-amber-700'
-                          }`}>
-                            {isReal ? '[REAL • COPERNICUS]' : '[SYNTHETIC • ROMS]'}
+                          <span
+                            data-testid={`dataset-status-badge-${ds.dataset_id}`}
+                            className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
+                              isUnavailable
+                                ? 'bg-rose-950/80 text-rose-300 border border-rose-800'
+                                : isReal
+                                ? 'bg-emerald-950 text-emerald-300 border border-emerald-700'
+                                : 'bg-amber-950 text-amber-300 border border-amber-700'
+                            }`}
+                          >
+                            {isUnavailable ? `[UNAVAILABLE • ${ds.status}]` : isReal ? '[REAL • COPERNICUS]' : '[SYNTHETIC • ROMS]'}
                           </span>
                           <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
                             {ds.spatial_resolution}
@@ -408,21 +430,25 @@ export default function DatasetManagerModal({ isOpen, onClose, onDatasetSwitched
                         ) : (
                           <button
                             type="button"
+                            data-testid={`activate-dataset-${ds.dataset_id}`}
                             onClick={() => handleSelectDataset(ds.dataset_id)}
-                            disabled={isSwitching || ds.status === 'FILE_NOT_FOUND'}
+                            disabled={isSwitching || isTransitioning || Boolean(switchingId) || isUnavailable}
                             className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
-                              ds.status === 'FILE_NOT_FOUND'
-                                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                              isUnavailable || isTransitioning || Boolean(switchingId)
+                                ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
                                 : 'bg-sky-600 hover:bg-sky-500 text-white shadow-md shadow-sky-900/30'
                             }`}
+                            title={isUnavailable ? `Dataset unavailable: local data file not downloaded or mounted (status: ${ds.status})` : 'Activate dataset'}
                           >
                             {isSwitching ? (
                               <>
                                 <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                 Switching...
                               </>
-                            ) : ds.status === 'FILE_NOT_FOUND' ? (
-                              'File Not Mounted'
+                            ) : isUnavailable ? (
+                              `Unavailable (${ds.status === 'FILE_NOT_FOUND' ? 'File Missing' : 'No Local File'})`
+                            ) : isTransitioning ? (
+                              'Transitioning...'
                             ) : (
                               'Activate Dataset'
                             )}

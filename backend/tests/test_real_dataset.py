@@ -139,5 +139,27 @@ class TestRealDataset(unittest.TestCase):
         self.assertEqual(r_meta_synth.json()["synthetic"], True)
         self.assertEqual(len(r_meta_synth.json()["depth_levels_m"]), 9)
 
+    def test_reject_unavailable_dataset_selection(self):
+        """Phase 04 Correction: Selecting an unavailable/missing-file dataset must be rejected (HTTP 400) and preserve active dataset."""
+        glorys = dataset_registry.get_dataset("cmems_mod_glo_phy_my_0.083deg_P1D-m")
+        if glorys and glorys.status == "UNAVAILABLE":
+            # 1. Attempt to select unavailable GLORYS
+            r = client.post("/api/datasets/select", json={"dataset_id": "cmems_mod_glo_phy_my_0.083deg_P1D-m"})
+            self.assertEqual(r.status_code, 400)
+            self.assertIn("unavailable or missing file", r.json()["detail"].lower())
+
+            # 2. Verify active dataset descriptor in registry remains incois_roms_synthetic
+            active = dataset_registry.get_active_dataset()
+            self.assertEqual(active.dataset_id, "incois_roms_synthetic")
+
+            # 3. Verify metadata endpoint continues to return synthetic identity
+            r_meta = client.get("/api/metadata")
+            self.assertEqual(r_meta.status_code, 200)
+            meta = r_meta.json()
+            self.assertEqual(meta["dataset_id"], "incois_roms_synthetic")
+            self.assertEqual(meta["source_mode"], "SYNTHETIC")
+            self.assertTrue(meta["synthetic"])
+
+
 if __name__ == "__main__":
     unittest.main()

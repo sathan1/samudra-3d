@@ -44,14 +44,28 @@ class OceanDataService:
         return self.adapters["incois_roms_synthetic"]
 
     def set_active_dataset(self, dataset_id: str):
-        dataset_registry.set_active_dataset(dataset_id)
+        # 1. Validate descriptor and status BEFORE mutating active dataset
+        desc = dataset_registry.get_dataset(dataset_id)
+        if not desc:
+            raise KeyError(f"Dataset '{dataset_id}' not found in registry.")
+        if desc.status != "READY":
+            raise FileNotFoundError(f"Dataset '{dataset_id}' is unavailable (status: {desc.status}). File is missing or not downloaded.")
+
+        # 2. Check and load adapter BEFORE mutating active dataset
         if dataset_id not in self.adapters:
-            desc = dataset_registry.get_dataset(dataset_id)
-            if desc and desc.local_path and Path(desc.local_path).exists():
-                self.adapters[dataset_id] = GlorysLocalAdapter(Path(desc.local_path))
-        adapter = self.get_active_adapter()
-        if not adapter.is_loaded():
-            adapter.load_dataset()
+            if desc.local_path and Path(desc.local_path).exists():
+                adapter = GlorysLocalAdapter(Path(desc.local_path))
+                adapter.load_dataset()
+                self.adapters[dataset_id] = adapter
+            else:
+                raise FileNotFoundError(f"Dataset '{dataset_id}' file not found at {desc.local_path}")
+        else:
+            adapter = self.adapters[dataset_id]
+            if not adapter.is_loaded():
+                adapter.load_dataset()
+
+        # 3. Only after adapter is confirmed loaded, switch active dataset in registry
+        dataset_registry.set_active_dataset(dataset_id)
 
     @property
     def active_dataset_id(self) -> str:

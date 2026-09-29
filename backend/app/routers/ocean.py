@@ -190,7 +190,8 @@ def get_thermal_fronts(
     lat_min: float = Query(0.0, description="Minimum latitude"),
     lat_max: float = Query(25.0, description="Maximum latitude"),
     lon_min: float = Query(50.0, description="Minimum longitude"),
-    lon_max: float = Query(100.0, description="Maximum longitude")
+    lon_max: float = Query(100.0, description="Maximum longitude"),
+    time_idx: int = Query(0, ge=0, description="Forecast time index")
 ):
     """
     Computes spatial temperature gradient vector |∇T| across surface SST field
@@ -202,7 +203,8 @@ def get_thermal_fronts(
             lat_min=lat_min,
             lat_max=lat_max,
             lon_min=lon_min,
-            lon_max=lon_max
+            lon_max=lon_max,
+            time_idx=time_idx
         )
     except Exception as e:
         raise HTTPException(

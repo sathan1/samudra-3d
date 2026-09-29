@@ -23,6 +23,27 @@ const CLIENT_CACHE_MAX_ENTRIES = 240;
 const clientCache = new Map();
 export const clientCacheStats = { hits: 0, misses: 0 };
 
+let currentActiveDatasetId = 'cmems_mod_glo_phy_my_0.083deg_P1D-m';
+let currentDatasetGeneration = 0;
+
+export function setActiveDatasetId(id) {
+  if (id && id !== currentActiveDatasetId) {
+    currentActiveDatasetId = id;
+    currentDatasetGeneration++;
+    clearClientCache();
+  } else if (id) {
+    currentActiveDatasetId = id;
+  }
+}
+
+export function getActiveDatasetId() {
+  return currentActiveDatasetId;
+}
+
+export function getDatasetGeneration() {
+  return currentDatasetGeneration;
+}
+
 function cacheGet(key) {
   if (!clientCache.has(key)) {
     clientCacheStats.misses += 1;
@@ -51,7 +72,12 @@ export function clearClientCache() {
 }
 
 function makeCacheKey(parts) {
-  return Object.entries(parts)
+  const explicitDatasetId = (parts && parts.dataset_id !== null && parts.dataset_id !== undefined && parts.dataset_id !== '')
+    ? parts.dataset_id
+    : null;
+  const datasetId = explicitDatasetId || currentActiveDatasetId || 'cmems_mod_glo_phy_my_0.083deg_P1D-m';
+  const cleanParts = { ...parts, dataset_id: datasetId };
+  return Object.entries(cleanParts)
     .filter(([, v]) => v !== null && v !== undefined)
     .map(([k, v]) => `${k}=${typeof v === 'number' ? Number(v).toFixed(4) : v}`)
     .sort()
@@ -66,6 +92,9 @@ async function requestJson(url, { signal = null, cacheKey = null, timeoutMs = 30
     const cached = cacheGet(cacheKey);
     if (cached) return cached;
   }
+
+  const reqGen = currentDatasetGeneration;
+  const reqDatasetId = currentActiveDatasetId;
 
   let timeoutId = null;
   const controller = new AbortController();
@@ -84,8 +113,14 @@ async function requestJson(url, { signal = null, cacheKey = null, timeoutMs = 30
       let detail = `HTTP ${res.status}`;
       try {
         const errJson = await res.json();
-        if (errJson && errJson.detail) {
-          detail = typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson.detail);
+        if (errJson) {
+          if (errJson.detail) {
+            detail = typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson.detail);
+          } else if (errJson.message) {
+            detail = typeof errJson.message === 'string' ? errJson.message : JSON.stringify(errJson.message);
+          } else if (errJson.error) {
+            detail = typeof errJson.error === 'string' ? errJson.error : JSON.stringify(errJson.error);
+          }
         }
       } catch {
         /* response body was not JSON */
@@ -93,7 +128,9 @@ async function requestJson(url, { signal = null, cacheKey = null, timeoutMs = 30
       throw new Error(detail);
     }
     const json = await res.json();
-    if (cacheKey) cacheSet(cacheKey, json);
+    if (cacheKey && reqGen === currentDatasetGeneration && reqDatasetId === currentActiveDatasetId) {
+      cacheSet(cacheKey, json);
+    }
     return json;
   } finally {
     if (timeoutId) window.clearTimeout(timeoutId);
@@ -403,11 +440,7 @@ export async function fetchArgoFloats({ qc_filter = false, source_mode = null, s
  * Retrieves single detailed Argo float profile by ID.
  */
 export async function fetchArgoFloatById(floatId, signal = null) {
-  const res = await fetch(`${API_BASE}/insitu/argo/${encodeURIComponent(floatId)}`, { signal });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch Argo float ${floatId}: HTTP ${res.status}`);
-  }
-  return res.json();
+  return requestJson(`${API_BASE}/insitu/argo/${encodeURIComponent(floatId)}`, { signal });
 }
 
 /**
@@ -442,11 +475,7 @@ export async function fetchGliderTransects({ qc_filter = false, source_mode = nu
  * Retrieves detailed glider mission transect by ID (with 3D waypoints).
  */
 export async function fetchGliderById(gliderId, signal = null) {
-  const res = await fetch(`${API_BASE}/insitu/gliders/${encodeURIComponent(gliderId)}`, { signal });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch glider ${gliderId}: HTTP ${res.status}`);
-  }
-  return res.json();
+  return requestJson(`${API_BASE}/insitu/gliders/${encodeURIComponent(gliderId)}`, { signal });
 }
 
 /**
@@ -454,11 +483,7 @@ export async function fetchGliderById(gliderId, signal = null) {
  */
 export async function fetchProfileCollocation(profileId, { time_strategy = 'linear', signal = null } = {}) {
   const url = `${API_BASE}/collocation/profile/${encodeURIComponent(profileId)}?time_strategy=${encodeURIComponent(time_strategy)}`;
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch collocation for profile ${profileId}: HTTP ${res.status}`);
-  }
-  return res.json();
+  return requestJson(url, { signal });
 }
 
 /**
@@ -466,11 +491,7 @@ export async function fetchProfileCollocation(profileId, { time_strategy = 'line
  */
 export async function fetchGliderCollocation(gliderId, signal = null) {
   const url = `${API_BASE}/collocation/glider/${encodeURIComponent(gliderId)}`;
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch collocation for glider ${gliderId}: HTTP ${res.status}`);
-  }
-  return res.json();
+  return requestJson(url, { signal });
 }
 
 /**
@@ -478,11 +499,7 @@ export async function fetchGliderCollocation(gliderId, signal = null) {
  */
 export async function fetchCollocationHealth(signal = null) {
   const url = `${API_BASE}/collocation/health`;
-  const res = await fetch(url, { signal });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch collocation health: HTTP ${res.status}`);
-  }
-  return res.json();
+  return requestJson(url, { signal });
 }
 
 /**
@@ -883,7 +900,13 @@ export async function selectActiveDataset(datasetId, signal = null) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || `Failed to switch dataset: HTTP ${res.status}`);
   }
-  return res.json();
+  const json = await res.json();
+  if (json?.active_dataset?.dataset_id) {
+    setActiveDatasetId(json.active_dataset.dataset_id);
+  } else if (datasetId) {
+    setActiveDatasetId(datasetId);
+  }
+  return json;
 }
 
 export async function estimateDatasetDownloadSize(estimateData, signal = null) {
@@ -979,12 +1002,13 @@ export async function cancelDatasetDownload(jobId, signal = null) {
   return res.json();
 }
 
-export async function fetchThermalFronts({ lat_min = 0.0, lat_max = 25.0, lon_min = 50.0, lon_max = 100.0, signal = null } = {}) {
+export async function fetchThermalFronts({ lat_min = 0.0, lat_max = 25.0, lon_min = 50.0, lon_max = 100.0, time_idx = 0, signal = null } = {}) {
   const params = new URLSearchParams({
     lat_min: String(lat_min),
     lat_max: String(lat_max),
     lon_min: String(lon_min),
-    lon_max: String(lon_max)
+    lon_max: String(lon_max),
+    time_idx: String(time_idx)
   });
   const res = await fetch(`${API_BASE}/ocean/thermal-fronts?${params.toString()}`, { signal });
   if (!res.ok) {
@@ -1002,7 +1026,7 @@ export async function fetchInDepthOceanAnalysis({ lat, lon, time_idx = 0, signal
   const res = await fetch(`${API_BASE}/ocean/in-depth-analysis?${params.toString()}`, { signal });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Failed to fetch in-depth analysis: HTTP ${res.status}`);
+    throw new Error(err.detail || `Failed to fetch in-depth ocean analysis: ${res.statusText}`);
   }
   return res.json();
 }

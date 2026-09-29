@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PRECISION_OCEAN_PLACES } from '../utils/graticules.js';
+import { getDatasetProvenance } from '../utils/scientificPresentation.js';
 
 /**
  * Header - Professional Scientific Workstation Top Bar
@@ -32,7 +33,8 @@ export default function Header({
   const menuRef = useRef(null);
 
   const isAdmin = currentUser?.role === 'ADMIN';
-  const isReal = activeDataset?.source_mode === 'REAL_LOCAL';
+  const provenance = getDatasetProvenance({ activeDataset });
+  const isReal = provenance.sourceModeLabel === 'REAL';
 
   // Close menus on click outside
   useEffect(() => {
@@ -134,6 +136,12 @@ export default function Header({
             placeholder="Search location, lat,lon or WMO..."
             value={searchQuery}
             onChange={handleSearchChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && searchResults.length > 0) {
+                e.preventDefault();
+                handleSelectSearchResult(searchResults[0]);
+              }
+            }}
             className="bg-transparent border-none outline-none text-xs w-full text-slate-200 placeholder-slate-500"
             aria-label="Search ocean location or coordinates"
           />
@@ -207,6 +215,7 @@ export default function Header({
           <button
             type="button"
             className="nav-link-btn"
+            data-testid="open-observation-drawer-btn"
             onClick={() => {
               onOpenObservationDrawer && onOpenObservationDrawer();
               setActiveMenu(null);
@@ -221,6 +230,7 @@ export default function Header({
           <button
             type="button"
             className={`nav-link-btn ${activeMenu === 'ANALYSIS' ? 'active' : ''}`}
+            data-testid="nav-analysis-btn"
             onClick={() => toggleMenu('ANALYSIS')}
             aria-expanded={activeMenu === 'ANALYSIS'}
           >
@@ -231,6 +241,7 @@ export default function Header({
               <button
                 type="button"
                 className="dropdown-item"
+                data-testid="header-compare-btn"
                 onClick={() => {
                   onOpenComparison && onOpenComparison();
                   setActiveMenu(null);
@@ -245,6 +256,7 @@ export default function Header({
               <button
                 type="button"
                 className="dropdown-item"
+                data-testid="header-physics-btn"
                 onClick={() => {
                   onOpenInDepthAnalysis && onOpenInDepthAnalysis();
                   setActiveMenu(null);
@@ -265,6 +277,7 @@ export default function Header({
           <button
             type="button"
             className={`nav-link-btn ${activeMenu === 'DATA' ? 'active' : ''}`}
+            data-testid="nav-data-btn"
             onClick={() => toggleMenu('DATA')}
             aria-expanded={activeMenu === 'DATA'}
           >
@@ -275,6 +288,7 @@ export default function Header({
               <button
                 type="button"
                 className="dropdown-item"
+                data-testid="header-datasets-btn"
                 onClick={() => {
                   onOpenDatasetsModal && onOpenDatasetsModal();
                   setActiveMenu(null);
@@ -283,7 +297,7 @@ export default function Header({
                 <span className="icon">📁</span>
                 <div>
                   <div className="title">Dataset Registry & Downloads</div>
-                  <div className="desc">Manage Copernicus GLORYS and subset volume estimator</div>
+                  <div className="desc">Manage ocean datasets and subset volume estimator</div>
                 </div>
               </button>
               <button
@@ -341,7 +355,7 @@ export default function Header({
                 <span className="icon">🌀</span>
                 <div>
                   <div className="title">Cyclone & Marine Conditions</div>
-                  <div className="desc">TCHP, D26, MLD, and atmospheric track correlation</div>
+                  <div className="desc">TCHP, D26, MLD, and column heat content metrics</div>
                 </div>
               </button>
             </div>
@@ -357,10 +371,11 @@ export default function Header({
           tabIndex={0}
           onClick={onOpenDatasetsModal}
           className={`source-badge-pill ${isReal ? 'real' : 'synthetic'} hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase cursor-pointer hover:opacity-90 transition`}
-          title={`Active dataset: ${activeDataset?.name || 'Copernicus GLORYS12V1'} (Click to manage datasets)`}
+          title={`Active dataset: ${activeDataset?.name || provenance.provider} (Click to manage datasets)`}
+          data-testid="header-source-badge"
         >
           <span className="dot" aria-hidden="true" />
-          <span>{isReal ? 'REAL • COPERNICUS GLORYS12V1 (~8.3 km)' : 'SYNTHETIC • DEVELOPMENT'}</span>
+          <span>{provenance.badgeText}</span>
         </div>
 
         {/* AI Assistant Button */}
