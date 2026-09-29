@@ -19,6 +19,17 @@ client = TestClient(app)
 
 class TestDownloadManager(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        """Ensures at least one manifest fixture exists for CI and fresh clones."""
+        if len(download_manager.list_manifests()) == 0:
+            from backend.app.core.config import settings
+            if settings.SYNTHETIC_NETCDF_PATH.exists():
+                download_manager.create_manifest(
+                    settings.SYNTHETIC_NETCDF_PATH,
+                    dataset_id="cmems_mod_glo_phy_my_0.083deg_P1D-m"
+                )
+
     def test_01_safe_command_generation(self):
         """Tests that a standard regional subset generates a valid CLI command and SAFE status."""
         req = SubsetCommandRequest(

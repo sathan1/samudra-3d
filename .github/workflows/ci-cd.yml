@@ -29,6 +29,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+          cache-dependency-path: 'backend/requirements.txt'
 
       - name: Install System Dependencies for NetCDF & HDF5
         run: |
@@ -39,7 +40,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-          pip install sqlalchemy alembic "psycopg[binary]" pydantic
+          pip install sqlalchemy alembic "psycopg[binary]" pydantic httpx pytest
 
       - name: Create Test Data Directories
         run: |

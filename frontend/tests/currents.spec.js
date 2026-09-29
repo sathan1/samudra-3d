@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 
-const evidenceDir = path.resolve('..', 'docs', 'evidence', 'phase-09');
+const evidenceDir = path.resolve('test-results', 'screenshots');
 mkdirSync(evidenceDir, { recursive: true });
 
-test.describe('Phase 09: 3D Current Vector Particle Streamlines', () => {
+test.describe('3D Current Vector Particle Streamlines', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Indian Ocean workspace' })).toBeVisible();
@@ -13,7 +13,7 @@ test.describe('Phase 09: 3D Current Vector Particle Streamlines', () => {
     await page.locator('[data-testid="hud-time-badge"]').waitFor({ timeout: 15000 });
   });
 
-  test('AC02, AC03, AC06, AC08: Toggle Current streamlines on, display HUD badge and render particles', async ({ page }) => {
+  test('Toggle Current streamlines on, display HUD badge and render particles', async ({ page }) => {
     const currentsToggle = page.locator('[data-testid="current-streamlines-toggle"]');
     const layerState = page.locator('[data-testid="currents-layer-state"]');
     const hudStreamlinesBadge = page.locator('[data-testid="hud-streamlines-badge"]');
@@ -40,7 +40,7 @@ test.describe('Phase 09: 3D Current Vector Particle Streamlines', () => {
     await page.screenshot({ path: path.join(evidenceDir, '01-surface-currents-overlay.png'), fullPage: true });
   });
 
-  test('AC07: Depth slicing and variable switching preserves current streamlines', async ({ page }) => {
+  test('Depth slicing and variable switching preserves current streamlines', async ({ page }) => {
     const currentsToggle = page.locator('[data-testid="current-streamlines-toggle"]');
     const depthSlider = page.locator('input#depth');
     const variableSelect = page.locator('select#variable');
@@ -71,7 +71,7 @@ test.describe('Phase 09: 3D Current Vector Particle Streamlines', () => {
     await page.screenshot({ path: path.join(evidenceDir, '03-currents-with-salinity.png'), fullPage: true });
   });
 
-  test('AC06, AC10: Toggle currents off and verify clean disposal and FPS performance', async ({ page }) => {
+  test('Toggle currents off and verify clean disposal and FPS performance', async ({ page }) => {
     const currentsToggle = page.locator('[data-testid="current-streamlines-toggle"]');
     const layerState = page.locator('[data-testid="currents-layer-state"]');
     const hudStreamlinesBadge = page.locator('[data-testid="hud-streamlines-badge"]');

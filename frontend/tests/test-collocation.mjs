@@ -1,11 +1,10 @@
 /**
- * Unit Test Suite for Frontend Collocation Utilities & Model Overlays (Phase 13)
- * Authority: Master Handbook physical pp. 5-6, 9-11, 13; roadmap row 13 (SIH26067)
+ * Unit Test Suite for Frontend Collocation Utilities & Model Overlays
  */
 import assert from 'node:assert/strict';
 import { generateModelOverlaySvgPath, createProfileScales } from '../src/utils/profileCharts.js';
 
-console.log('--- Testing SAMUDRA-3D Frontend Collocation & Model Overlay Engine (Phase 13) ---');
+console.log('--- Testing SAMUDRA-3D Frontend Collocation & Model Overlay Engine  ---');
 
 // 1. Test Sign Convention and Residual Math
 console.log('1. Testing residual delta sign convention (delta = MODEL - OBSERVED)...');
@@ -120,4 +119,4 @@ console.log('4. Testing model overlay gap segmentation on invalid or unmasked le
   console.log('✓ 4. Model overlay gap segmentation verified (invalid levels break curve into disconnected sub-paths)');
 }
 
-console.log('\nALL PHASE 13 FRONTEND COLLOCATION TESTS PASSED (100%)');
+console.log('\nALL FRONTEND COLLOCATION TESTS PASSED (100%)');

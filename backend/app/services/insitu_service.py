@@ -1,6 +1,5 @@
 """
 SAMUDRA-3D In-situ Observation Service
-Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap p. 10 (SIH26067)
 Ingests real Argo GDAC, IFREMER gliders, INCOIS moored buoys, and user-registered sensors.
 """
 from pathlib import Path

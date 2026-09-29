@@ -1,6 +1,5 @@
 /**
  * SAMUDRA-3D 3D Difference Field & Anomaly Heatmap Visualizer
- * Authority: Master Handbook physical pp. 6, 9-11, 13; roadmap row 14 (SIH26067)
  *
  * Implements 3D sparse residual visualization:
  * - Diverging color scale centered at zero (delta = MODEL - OBSERVED)

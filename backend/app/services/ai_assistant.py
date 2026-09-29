@@ -1,11 +1,10 @@
 """
-SAMUDRA-3D Grounded AI Ocean Assistant Service
-Authority: Master Handbook physical pp. 9-14; roadmap row 15 (SIH26067)
+SAMUDRA-3D Grounded Ocean Assistant Service
 
 Provides deterministic, grounded scientific answers evaluated directly from:
-- 4D NetCDF ocean model fields (ROMS)
+- 4D NetCDF ocean model fields (Copernicus GLORYS12V1 / Numerical Model)
 - In-situ Argo CTD profiles and Glider sawtooth transects
-- Phase 13/14 Spatio-Temporal Collocations & Difference Field Residuals
+- Spatio-Temporal Collocations & Difference Field Residuals
 
 Strictly immune to prompt injection; data is never treated as instruction source.
 No fabricated operational warnings, physical hazards, or unverified forecasts.

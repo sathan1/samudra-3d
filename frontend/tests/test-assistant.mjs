@@ -1,10 +1,9 @@
 /**
- * Unit Test Suite for Frontend AI Ocean Assistant Utilities (Phase 15)
- * Authority: Master Handbook physical pp. 9-14; roadmap row 15 (SIH26067)
+ * Unit Test Suite for Frontend AI Ocean Assistant Utilities
  */
 import assert from 'node:assert/strict';
 
-console.log('--- Testing SAMUDRA-3D AI Ocean Assistant Utilities (Phase 15) ---');
+console.log('--- Testing SAMUDRA-3D AI Ocean Assistant Utilities  ---');
 
 // 1. Test Prompt Sanitization and Injection Defense
 console.log('1. Testing prompt sanitization against adversarial patterns...');

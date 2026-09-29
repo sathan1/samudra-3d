@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
 """
-Unit and numerical validation test suite for SAMUDRA-3D Phase 3
-Authority: Master Handbook physical pp. 3-4, 7, 9-10; roadmap p. 10 (SIH26067)
+Unit and numerical validation test suite for SAMUDRA-3D Datasets
 """
 
 import os
@@ -13,7 +11,7 @@ import numpy as np
 import netCDF4 as nc
 
 def run_tests():
-    print("=== SAMUDRA-3D Phase 3 Numerical & Data Validation ===")
+    print("=== SAMUDRA-3D Numerical & Data Validation ===")
     root_dir = Path(__file__).resolve().parents[2]
     if str(root_dir) not in sys.path:
         sys.path.insert(0, str(root_dir))
@@ -147,7 +145,7 @@ def run_tests():
             assert json.load(f1) == json.load(f2), "JSON profile content must be deterministically identical"
 
     print("[OK] Deterministic regeneration test PASSED: Bit-for-bit array equality verified across two independent runs")
-    print("\nALL PHASE 3 NUMERICAL AND DATA CHECKS PASSED (100%)")
+    print("\nALL NUMERICAL AND DATA CHECKS PASSED (100%)")
 
 if __name__ == "__main__":
     run_tests()

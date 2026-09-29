@@ -1,6 +1,5 @@
 /**
  * SAMUDRA-3D Argo Float Markers and Profile Utilities
- * Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap p. 10 (SIH26067)
  */
 import * as THREE from 'three';
 import { geoToCartesian, DEFAULT_GLOBE_RADIUS } from './coordinates.js';
@@ -91,7 +90,7 @@ export function createArgoMarker(floatData, isSelected = false) {
   const normal = pos.clone().normalize();
   group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
 
-  // Screen-space marker (Master Prompt Section 33): the marker is a small,
+  // Screen-space marker : the marker is a small,
   // constant-size reference glyph — NOT a giant world-unit stem.  Depth
   // information belongs in the profile/analysis view, not in world space.
   const baseSize = isSelected ? 0.85 : 0.6;
@@ -100,7 +99,7 @@ export function createArgoMarker(floatData, isSelected = false) {
   // 1b removed: the 2000m world-unit profiling stem is gone (it visually
   // dominated the globe). See the profile/analysis view for depth data.
 
-  // Screen-space marker sprites (Master Prompt Section 33, 37-38): the beacon
+  // Screen-space marker sprites : the beacon
   // and halo keep a constant pixel footprint (sizeAttenuation: false), so a
   // 2000m observation never visually dominates the globe.  Depth information
   // belongs in the profile/analysis view, not in world space.
@@ -203,6 +202,7 @@ export function updateMarkerSelectionVisuals(markersGroup, selectedId) {
     if (beacon && beacon.material) {
       beacon.material.color.setHex(color);
       beacon.material.opacity = 0.95;
+      beacon.scale.setScalar(isSelected ? 1.35 : 1.0);
     }
 
     if (ring && ring.material) {

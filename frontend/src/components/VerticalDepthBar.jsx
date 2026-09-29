@@ -5,7 +5,7 @@ import React, { useMemo } from 'react';
  * Positioned on the left/right of the 3D globe.
  * Dynamically rendered from actual NetCDF metadata.
  * Never fabricates depths beyond dataset coverage.
- * Adheres to Master Prompt §27.
+ * Adheres to .
  */
 export default function VerticalDepthBar({
   availableDepths = [],

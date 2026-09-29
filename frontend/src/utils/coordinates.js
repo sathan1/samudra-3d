@@ -1,6 +1,5 @@
 /**
  * SAMUDRA-3D Coordinate Conversion Utilities
- * Authority: Master Handbook physical pp. 6-7, 9-11; roadmap p. 10 (SIH26067)
  * 
  * Implements spherical-to-Cartesian mapping:
  *   X = r * cos(lat) * sin(lon)
@@ -116,7 +115,7 @@ export function cartesianToGeo(x, y, z, options = {}) {
  * to lat/lon, and derive a conservative lat/lon bbox.
  *
  * Used by the frontend so fetchOceanData ALWAYS carries explicit bounds
- * (Master Prompt Section 18).  The full global grid can never be requested by accident.
+ * .  The full global grid can never be requested by accident.
  */
 export function cameraVisibleBoundingBox(camera, globeRadius = DEFAULT_GLOBE_RADIUS, _maxSpanDeg = 180) {
   const dist = Math.max(0.001, camera.position.length());

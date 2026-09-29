@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-const evidenceDir = path.resolve('..', 'docs', 'evidence', 'phase-11');
+const evidenceDir = path.resolve('test-results', 'screenshots');
 mkdirSync(evidenceDir, { recursive: true });
 
-test.describe('Phase 11: Vertical Depth Profile Modal Curves & T-S Correlation Diagrams', () => {
+test.describe('Vertical Depth Profile Modal Curves & T-S Correlation Diagrams', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
@@ -126,7 +126,7 @@ test.describe('Phase 11: Vertical Depth Profile Modal Curves & T-S Correlation D
     await page.screenshot({ path: path.join(evidenceDir, '03-ts-diagram-isopycnals.png') });
   });
 
-  test('4. QC flag outlier gap rendering and Phase 13 Model Contract', async ({ page }) => {
+  test('4. QC flag outlier gap rendering and Model Collocation Contract', async ({ page }) => {
     await page.locator('input#layer-argo').check();
 
     // Select Outlier Float: ARGO_TEST_QC_OUTLIER
@@ -147,16 +147,16 @@ test.describe('Phase 11: Vertical Depth Profile Modal Curves & T-S Correlation D
     // Verify QC Gap banner is displayed
     await expect(page.locator('text=⚠ QC Flag Discontinuity (Gap Rendered)')).toBeVisible();
 
-    // Check Phase 13 model comparison contract section
+    // Check Model comparison contract section
     const modelSection = page.locator('[data-testid="model-contract-section"]');
     await expect(modelSection).toBeVisible();
-    await expect(page.locator('[data-testid="phase13-tag"]')).toHaveText('Model Collocation Contract');
+    await expect(page.locator('[data-testid="collocation-contract-tag"]')).toHaveText('Model Collocation Contract');
 
-    // Checkbox is enabled for Phase 13 collocation overlay
+    // Checkbox is enabled for Collocation overlay
     const overlayCheckbox = modelSection.locator('input[type="checkbox"]');
     await expect(overlayCheckbox).toBeEnabled();
 
-    // Capture Screenshot 4: QC Outlier Gap Handling & Phase 13 Contract
+    // Capture Screenshot 4: QC Outlier Gap Handling & Collocation Contract
     await page.waitForTimeout(300);
     await page.screenshot({ path: path.join(evidenceDir, '04-qc-outlier-gap-handling.png') });
 

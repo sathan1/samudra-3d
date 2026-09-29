@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-const evidenceDir = path.resolve('..', 'docs', 'evidence', 'phase-13');
+const evidenceDir = path.resolve('test-results', 'screenshots');
 mkdirSync(evidenceDir, { recursive: true });
 
-test.describe('Phase 13: In-situ Observation vs Model Collocation & Bias Analytics', () => {
+test.describe('In-situ Observation vs Model Collocation & Bias Analytics', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');

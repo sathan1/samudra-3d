@@ -1,6 +1,5 @@
 """
 SAMUDRA-3D 3D Difference Field & Anomaly Heatmap Schemas
-Authority: Master Handbook physical pp. 6, 9-11, 13; roadmap row 14 (SIH26067)
 """
 from typing import Optional, List
 from pydantic import BaseModel, Field
@@ -65,7 +64,7 @@ class AnomalySummaryResponse(BaseModel):
     salinity: AnomalyFieldResponse
     platform_count: int = Field(0)
     timestamp: str = Field("")
-    engine: str = Field("SAMUDRA-3D Phase 14 Anomaly Engine")
+    engine: str = Field("SAMUDRA-3D Anomaly Engine")
     health_score_status: str = Field(
         "DEFERRED (D07): No percentage health score implemented. "
         "Use Bias/MAE/RMSE/threshold alerts for model skill assessment.",

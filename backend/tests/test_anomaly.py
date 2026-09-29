@@ -1,6 +1,5 @@
 """
-SAMUDRA-3D Phase 14 Anomaly Engine Acceptance Test Suite
-Authority: Master Handbook physical pp. 6, 9-11, 13; roadmap row 14 (SIH26067)
+SAMUDRA-3D Anomaly Engine Test Suite
 """
 import sys
 import math
@@ -16,13 +15,13 @@ if str(root) not in sys.path:
 from backend.app.main import app
 from backend.app.services.anomaly_engine import anomaly_engine
 
-class TestPhase14Anomaly(unittest.TestCase):
+class TestAnomalyEngine(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.client = TestClient(app)
 
     def test_01_anomaly_field_sign_convention_and_points(self):
-        """AC01 & AC02: delta = MODEL - OBSERVED, points structure, units."""
+        """Verify delta = MODEL - OBSERVED, points structure, and physical units."""
         res = self.client.get("/api/anomaly/field?variable=temperature")
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -39,7 +38,7 @@ class TestPhase14Anomaly(unittest.TestCase):
             self.assertGreaterEqual(pt["depth"], 0.0)
 
     def test_02_threshold_boundary(self):
-        """AC03: Threshold boundary logic (|delta| >= threshold triggers alert)."""
+        """Threshold boundary logic (|delta| >= threshold triggers alert)."""
         # 1. Default threshold 0.5
         res = self.client.get("/api/anomaly/field?variable=temperature&threshold=0.5")
         self.assertEqual(res.status_code, 200)
@@ -68,7 +67,7 @@ class TestPhase14Anomaly(unittest.TestCase):
             self.assertFalse(pt["is_alert"])
 
     def test_03_qc_and_missing_exclusion(self):
-        """AC04: Bad QC flags (3, 4) and missing values excluded from anomaly field."""
+        """Bad QC flags (3, 4) and missing values excluded from anomaly field."""
         res = self.client.get("/api/anomaly/field?variable=temperature")
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -95,7 +94,7 @@ class TestPhase14Anomaly(unittest.TestCase):
         self.assertEqual(res_inv.status_code, 400)
 
     def test_05_coverage_bins_and_sparse_disclaimer(self):
-        """AC05: Coverage bins, support radius, and mandatory sparse disclaimer."""
+        """Coverage bins, support radius, and mandatory sparse disclaimer."""
         res = self.client.get("/api/anomaly/field?variable=temperature")
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -114,7 +113,7 @@ class TestPhase14Anomaly(unittest.TestCase):
         self.assertIn("No interpolation", data["no_data_warning"])
 
     def test_06_summary_endpoint(self):
-        """AC01 & AC08: /api/anomaly/summary and explicit deferral of 88.4% health score."""
+        """Verify /api/anomaly/summary endpoint structure."""
         res = self.client.get("/api/anomaly/summary")
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -141,7 +140,7 @@ class TestPhase14Anomaly(unittest.TestCase):
         self.assertEqual(res_neg.status_code, 422)
 
     def test_08_field_latency(self):
-        """AC10: Performance check: /api/anomaly/field completes in < 500ms."""
+        """Performance check: /api/anomaly/field completes in < 500ms."""
         t0 = time.perf_counter()
         res = self.client.get("/api/anomaly/field?variable=temperature")
         dt_ms = (time.perf_counter() - t0) * 1000.0

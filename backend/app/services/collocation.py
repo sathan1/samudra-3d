@@ -1,6 +1,5 @@
 """
 SAMUDRA-3D Spatio-Temporal Collocation Engine & Bias Analytics
-Authority: Master Handbook physical pp. 5-6, 9-11, 13; roadmap row 13 (SIH26067)
 
 Features:
 1. 3D Rectilinear Trilinear Spatial Interpolation across (lat, lon, depth).

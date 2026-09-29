@@ -43,17 +43,17 @@ export default function LocationInspector({
         </div>
         <button
           type="button"
-          className="icon-close-btn"
+          className="icon-close-btn flex items-center justify-center w-6 h-6 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
           onClick={onClose}
           aria-label="Close Location Inspector"
         >
-          &times;
+          ✕
         </button>
       </div>
 
       <div className="inspector-body mt-2">
         <div className="coordinate-display font-mono text-base font-bold text-white tracking-wide">
-          {latStr} &nbsp;&bull;&nbsp; {lonStr}
+          {latStr} &nbsp;•&nbsp; {lonStr}
         </div>
 
         <div className="metadata-badges-row flex flex-wrap gap-2 mt-2">

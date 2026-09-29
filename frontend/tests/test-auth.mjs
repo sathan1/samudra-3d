@@ -1,6 +1,5 @@
 /**
  * SAMUDRA-3D Frontend Authentication & User Personas Unit Tests
- * Authority: MoES / INCOIS Operational Ocean Digital Twin Architecture
  */
 import assert from 'node:assert/strict';
 

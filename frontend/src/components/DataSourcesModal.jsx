@@ -45,6 +45,16 @@ const DATA_SOURCES = [
         note: 'Monterey US Navy / NOAA Global Data Assembly Centre mirror providing global Argo profiles and real-time synchronizations.'
       },
       {
+        name: 'IFREMER Argo — Indian Ocean (Direct NetCDF Geo Archive)',
+        url: 'https://data-argo.ifremer.fr/geo/indian_ocean/',
+        note: 'Direct geographic directory of Indian Ocean Argo profiles, trajectories, and cycle files organized geographically for rapid regional retrieval.'
+      },
+      {
+        name: 'IFREMER Argo — INCOIS DAC',
+        url: 'https://data-argo.ifremer.fr/dac/incois/',
+        note: 'National Data Assembly Centre repository holding all Indian National Centre for Ocean Information Services deployed floats.'
+      },
+      {
         name: 'INCOIS Argo Regional Centre (ARC India)',
         url: 'https://incois.gov.in/argo/argo.jsp',
         note: 'Dedicated Indian Ocean Argo regional data portal featuring floats deployed by India and international partners with specialized quality control.'
@@ -63,6 +73,11 @@ const DATA_SOURCES = [
         name: 'OceanGliders GDAC (HTTPS Web Mirror)',
         url: 'https://data-glider.ifremer.fr/',
         note: 'Direct HTTPS access to OceanGliders GDAC NetCDF files, missions, and deployment trajectories without requiring an FTP client.'
+      },
+      {
+        name: 'OceanGliders Data Portal (GitHub)',
+        url: 'https://oceangliders.github.io/data/',
+        note: 'Official OceanGliders community data specifications, NetCDF conventions, and global mission discovery resources.'
       },
       {
         name: 'Australian IMOS / AODN Glider Facility (Indian Ocean)',
@@ -163,8 +178,27 @@ export default function DataSourcesModal({ isOpen, onClose }) {
         <div className="source-truth">
           <span>Operational Numerical Model</span>
           <p>
-            The digital twin renders operational hydrodynamic model fields (ROMS Indian Ocean domain) calibrated with verified in-situ observational platforms.
+            The digital twin renders operational hydrodynamic model fields (ROMS & GLORYS12V1 Indian Ocean domain) calibrated with verified in-situ observational platforms (Argo & Gliders).
           </p>
+        </div>
+
+        <div className="bg-slate-950/80 border border-sky-500/40 rounded-lg p-3 mx-4 my-2 text-xs">
+          <div className="flex items-center justify-between text-sky-400 font-mono text-[11px] mb-1.5">
+            <span className="font-bold flex items-center gap-1.5">
+              <span>⚡</span> COPERNICUS MARINE CLI SUBSET (NORTH INDIAN OCEAN)
+            </span>
+            <span className="text-[10px] text-slate-400">50°E–100°E, 0°N–25°N</span>
+          </div>
+          <pre className="bg-slate-900/90 text-slate-200 p-2.5 rounded font-mono text-[10.5px] overflow-x-auto leading-relaxed border border-slate-800">
+{`copernicusmarine subset \\
+  --dataset-id cmems_mod_glo_phy_my_0.083deg_P1D-m \\
+  --variable thetao --variable so --variable uo --variable vo \\
+  --minimum-longitude 50.0 --maximum-longitude 100.0 \\
+  --minimum-latitude 0.0 --maximum-latitude 25.0 \\
+  --minimum-depth 0.49 --maximum-depth 100.0 \\
+  --start-datetime 2025-01-01 --end-datetime 2026-09-10 \\
+  --output-filename indian_ocean_glorys12v1.nc`}
+          </pre>
         </div>
 
         <div className="source-list">

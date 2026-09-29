@@ -1,6 +1,5 @@
 """
 SAMUDRA-3D Model vs In-situ Collocation & Bias Analytics Schemas
-Authority: Master Handbook physical pp. 5-6, 9-11, 13; roadmap row 13 (SIH26067)
 """
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field

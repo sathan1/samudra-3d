@@ -10,7 +10,7 @@ import {
   ParticleSystem
 } from '../src/utils/particleStreamlines.js';
 
-console.log('--- Testing SAMUDRA-3D Current Vector Streamlines (Phase 09) ---');
+console.log('--- Testing SAMUDRA-3D Current Vector Streamlines  ---');
 
 // 1. Tangent Basis Orthonormality Check across latitudes
 const testLats = [0, 5, 12.5, 20, 25];
@@ -124,4 +124,4 @@ ps.dispose();
 assert.equal(ps.mesh, null, 'dispose() cleans up mesh reference');
 console.log('✓ 7. ParticleSystem budget and lifecycle verified');
 
-console.log('\nALL PHASE 09 CURRENT VECTOR TESTS PASSED (100%)');
+console.log('\nALL CURRENT VECTOR TESTS PASSED (100%)');

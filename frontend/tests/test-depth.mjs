@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { geoToCartesian, getVisualDepthScale, DEFAULT_GLOBE_RADIUS } from '../src/utils/coordinates.js';
 import { buildScalarFieldGeometry } from '../src/utils/scalarField.js';
 
-console.log('--- Testing SAMUDRA-3D Interactive Depth Slicer (Phase 07) ---');
+console.log('--- Testing SAMUDRA-3D Interactive Depth Slicer  ---');
 
 // 1. Inward Radial Movement Verification
 {
@@ -83,4 +83,4 @@ console.log('--- Testing SAMUDRA-3D Interactive Depth Slicer (Phase 07) ---');
   console.log(`[OK] Visual exaggeration independence verified (30x: ${scale30.toFixed(6)}, 50x: ${scale50.toFixed(6)})`);
 }
 
-console.log('ALL PHASE 07 DEPTH NUMERICAL TESTS PASSED (100%)');
+console.log('ALL DEPTH NUMERICAL TESTS PASSED (100%)');

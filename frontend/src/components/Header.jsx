@@ -4,7 +4,7 @@ import { getDatasetProvenance } from '../utils/scientificPresentation.js';
 
 /**
  * Header - Professional Scientific Workstation Top Bar
- * Adheres to Master Prompt §2, §3, §24.
+ * Adheres to .
  * 
  * Top-left: SAMUDRA-3D / Ocean Intelligence Platform
  * Center: Global Search Box + Clean Primary Navigation (EXPLORE, OBSERVATIONS, ANALYSIS, DATA, OPERATIONS)

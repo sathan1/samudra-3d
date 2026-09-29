@@ -1,8 +1,7 @@
 """
 SAMUDRA-3D 3D Difference Field & Anomaly Engine
-Authority: Master Handbook physical pp. 6, 9-11, 13; roadmap row 14 (SIH26067)
 
-Aggregates Phase 13 collocation residuals (delta = MODEL - OBSERVED) from all
+Aggregates collocation residuals (delta = MODEL - OBSERVED) from all
 available in-situ platforms into a sparse residual field.
 
 Scientific policy:
@@ -10,8 +9,7 @@ Scientific policy:
   or extrapolation beyond source collocation (support radius ~55 km / 0.5 deg).
 - Bad WMO QC flags (3, 4) are excluded before anomaly computation.
 - Alerts are labelled "Model-observation discrepancy" — never "hazard" or "prediction".
-- The 88.4% health score wireframe value (handbook p. 11) is explicitly deferred (D07).
-  Metrics: Bias, MAE, RMSE, alert counts, and valid pair counts only.
+- Metrics: Bias, MAE, RMSE, alert counts, and valid pair counts.
 """
 from typing import List, Tuple, Optional, Dict, Any
 from datetime import datetime, timezone

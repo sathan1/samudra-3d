@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 /**
  * ObservationDrawer - Dockable / Slide-out Scientific In-Situ Observation Fleet Drawer
  * Replaces permanent sidebar clutter with clean, contextual filtering and selection.
- * Adheres to Master Prompt §17.
+ * Adheres to .
  */
 export default function ObservationDrawer({
   isOpen,

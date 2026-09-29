@@ -1,9 +1,0 @@
-Timestamp: 2026-09-11T10:48:05.1355838+05:30
-Directory: D:\Samudra 3D\frontend
-Command: npm.cmd run build
-PowerShell: 7.6.5
-
-> samudra-3d-frontend@0.1.0 build
-> vite build
-
-Exit code: 1

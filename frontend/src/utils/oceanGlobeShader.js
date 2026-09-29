@@ -67,10 +67,16 @@ export const oceanGlobeFragmentShader = `
     vec3 viewDir = normalize(vViewPosition);
     vec3 sunDir = normalize(uSunDirection);
 
-    // Sample textures
-    vec4 dayTex = texture2D(uDayTexture, vUv);
-    vec4 bathyTex = texture2D(uBathymetryTexture, vUv);
-    vec4 specTex = texture2D(uSpecularMap, vUv);
+    // Exact Geographic Texture Alignment:
+    // Three.js SphereGeometry places +Z (lon=0°) at vertex UV u = 0.25.
+    // Standard equirectangular textures place lon=0° at U = 0.50.
+    // texUv aligns the equirectangular textures 1:1 with geoToCartesian coordinates.
+    vec2 texUv = vec2(fract(vUv.x + 0.25), vUv.y);
+
+    // Sample textures with unified equirectangular UV
+    vec4 dayTex = texture2D(uDayTexture, texUv);
+    vec4 bathyTex = texture2D(uBathymetryTexture, texUv);
+    vec4 specTex = texture2D(uSpecularMap, texUv);
 
     // Specular mask: 1.0 = ocean water, 0.0 = continental land
     float isWater = specTex.r;

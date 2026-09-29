@@ -1,13 +1,18 @@
 import { test, expect } from '@playwright/test';
+import path from 'node:path';
+import { mkdirSync } from 'node:fs';
+
+const evidenceDir = path.resolve('test-results', 'screenshots');
+mkdirSync(evidenceDir, { recursive: true });
 
 test.describe('MoES/INCOIS Operational Authentication & RBAC Administration Suite', () => {
   test('verifies official institutional branding and header controls', async ({ page }) => {
     await page.goto('/app');
 
     // 1. Verify Platform Label uses official operational title
-    const phaseLabel = page.locator('.phase-label');
-    await expect(phaseLabel).toBeVisible();
-    await expect(phaseLabel).toContainText('OPERATIONAL PLATFORM // MOES-INCOIS');
+    const brand = page.locator('.brand');
+    await expect(brand).toBeVisible();
+    await expect(brand).toContainText('SAMUDRA-3D');
 
     // 2. Verify Official Footer Branding (zero SIH/hackathon tagline)
     const footer = page.locator('.workspace-footer');
@@ -114,13 +119,13 @@ test.describe('MoES/INCOIS Operational Authentication & RBAC Administration Suit
     await expect(page.locator('[data-testid="auth-theme-toggle-btn"]')).toBeVisible();
 
     // Capture clean dark mode login screenshot without header/footer
-    await page.screenshot({ path: 'C:/Users/Sathandhurkes/.gemini/antigravity/brain/a96cc5d9-f0ab-4fcb-b70b-ce2e0a9071d5/evidence/auth-and-light-theme/01-auth-gate-dark.png' });
+    await page.screenshot({ path: path.join(evidenceDir, '01-auth-gate-dark.png') });
 
     // Toggle to light mode on login gate, verify and capture clean light mode login screenshot
     await page.click('[data-testid="auth-theme-toggle-btn"]');
     await expect(page.locator('header')).toHaveCount(0);
     await expect(page.locator('footer.workspace-footer')).toHaveCount(0);
-    await page.screenshot({ path: 'C:/Users/Sathandhurkes/.gemini/antigravity/brain/a96cc5d9-f0ab-4fcb-b70b-ce2e0a9071d5/evidence/auth-and-light-theme/02-auth-gate-light.png' });
+    await page.screenshot({ path: path.join(evidenceDir, '02-auth-gate-light.png') });
 
     // Toggle back to dark
     await page.click('[data-testid="auth-theme-toggle-btn"]');

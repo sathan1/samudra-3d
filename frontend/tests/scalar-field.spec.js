@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-const evidenceDir = path.resolve('..', 'docs', 'evidence', 'phase-05');
+const evidenceDir = path.resolve('test-results', 'screenshots');
 mkdirSync(evidenceDir, { recursive: true });
 
 // Sample slice payload matching backend/sample_data/model_indian_ocean.nc
@@ -29,9 +29,9 @@ const mockSliceData = {
   valid_count: 23
 };
 
-test.describe('Phase 05: 3D Scalar Temperature Field Rendering', () => {
+test.describe('3D Scalar Temperature Field Rendering', () => {
 
-  test('AC04, AC05 & AC07: Scalar field loads, renders on globe, and displays thermal legend', async ({ page }) => {
+  test('Scalar field loads, renders on globe, and displays thermal legend', async ({ page }) => {
     // Intercept ocean-data route to provide consistent deterministic test slice
     await page.route('**/api/ocean-data*', async (route) => {
       await route.fulfill({
@@ -44,9 +44,8 @@ test.describe('Phase 05: 3D Scalar Temperature Field Rendering', () => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/');
 
-    // Check header and phase badge
-    await expect(page.getByRole('heading', { name: '3D Indian Ocean Globe' })).toBeVisible();
-    await expect(page.locator('.phase-label')).toContainText('OPERATIONAL');
+    // Check header and brand badge
+    await expect(page.locator('.brand')).toContainText('SAMUDRA-3D');
 
     // Check 3D Thermal Layer Active tag
     const tag = page.locator('.subtle-tag', { hasText: '3D Thermal Layer Active' });
@@ -100,7 +99,7 @@ test.describe('Phase 05: 3D Scalar Temperature Field Rendering', () => {
     await page.waitForTimeout(500);
   });
 
-  test('AC07: Handles API failure gracefully with honest error state and retry recovery', async ({ page }) => {
+  test('Handles API failure gracefully with honest error state and retry recovery', async ({ page }) => {
     let failRequest = true;
 
     // Intercept and conditionally fail

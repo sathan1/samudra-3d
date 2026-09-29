@@ -8,7 +8,7 @@ import {
 
 /**
  * Builds depth chips from the ACTUAL dataset depth coordinate values
- * (Master Prompt Section 7-8).  Never fabricate depth options — if metadata
+ * .  Never fabricate depth options — if metadata
  * has not loaded yet, return an empty list and let the caller show a
  * "loading depths from dataset" placeholder instead of hardcoded values.
  */
@@ -190,7 +190,7 @@ export default function SidebarControls({
                 aria-describedby="variable-help"
                 className="w-full text-xs p-1.5 rounded bg-slate-950 border border-slate-700 text-slate-100"
               >
-                {/* Variables come from the ACTIVE dataset metadata, never hardcoded (Master Prompt Section 10) */}
+                {/* Variables come from the ACTIVE dataset metadata, never hardcoded  */}
                 {(availableVariables.length > 0 ? availableVariables : ['temperature', 'salinity', 'currents']).map((v) => {
                   const labels = {
                     temperature: 'Potential Temperature (°C)',
@@ -223,7 +223,7 @@ export default function SidebarControls({
               </span>
             </div>
 
-            {/* Depth Chips — built from ACTUAL dataset metadata (Master Prompt Section 7-8) */}
+            {/* Depth Chips — built from ACTUAL dataset metadata  */}
             {(() => {
               const depthChips = buildDepthChips(availableDepths);
               if (depthChips.length === 0) {
@@ -258,7 +258,7 @@ export default function SidebarControls({
               );
             })()}
 
-            {/* Fine Depth Range Slider — bounds from ACTUAL dataset metadata (Master Prompt Section 7) */}
+            {/* Fine Depth Range Slider — bounds from ACTUAL dataset metadata  */}
             {(() => {
               const minDepth = availableDepths.length > 0 ? availableDepths[0] : 0;
               const maxDepth = availableDepths.length > 0 ? Math.max(...availableDepths) : 100;

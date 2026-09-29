@@ -1,6 +1,5 @@
 """
 SAMUDRA-3D Collocation API Router
-Authority: Master Handbook physical pp. 5-6, 9-11, 13; roadmap row 13 (SIH26067)
 """
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, status

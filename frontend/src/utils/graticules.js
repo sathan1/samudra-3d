@@ -1305,14 +1305,26 @@ export function updatePlaceLabelsLOD(placesGroup, camera, globeRadius = DEFAULT_
     }
     alpha = THREE.MathUtils.clamp(alpha, 0.0, 1.0);
 
-    // 4. Dynamic scale compensation so close-up labels remain crisp and don't blow up
+    // 4. Dynamic scale compensation based on true camera-to-sprite distance
     // In perspective projection, objects enlarge as camera approaches.
-    // By damping the scale with (camDist / 140), labels keep a balanced screen size.
-    const distFactor = THREE.MathUtils.clamp(camDist / 140.0, 0.72, 1.25);
+    // By scaling directly with (distToCam / 130), labels maintain a balanced, compact chip size
+    // on screen, completely preventing them from blowing up into oversized billboards.
+    const distToCam = camera.position.distanceTo(worldPos);
+    const distFactor = THREE.MathUtils.clamp(distToCam / 130.0, 0.05, 1.2);
     sprite.scale.set(p.baseScale.x * distFactor, p.baseScale.y * distFactor, 1);
 
+    // 5. Close-proximity smooth fade: as the camera approaches within 8 units of the sea surface,
+    // gracefully fade out place chips so oceanographers have a 100% unobstructed view of data & probe pin.
+    let closeFade = 1.0;
+    if (distToCam < 8.0) {
+      closeFade = THREE.MathUtils.clamp((distToCam - 2.5) / 5.5, 0.0, 1.0);
+    }
+
     if (sprite.material) {
-      sprite.material.opacity = alpha * 0.94;
+      sprite.material.opacity = alpha * closeFade * 0.94;
+      if (sprite.material.opacity < 0.02) {
+        sprite.visible = false;
+      }
     }
   });
 }

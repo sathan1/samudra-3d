@@ -1,6 +1,5 @@
 /**
- * Unit Test Suite for Underwater Glider Sawtooth Transects (Phase 12)
- * Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap p. 10 (SIH26067)
+ * Unit Test Suite for Underwater Glider Sawtooth Transects
  */
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -13,7 +12,7 @@ import {
 } from '../src/utils/gliderTransects.js';
 import { DEFAULT_GLOBE_RADIUS, getVisualDepthScale } from '../src/utils/coordinates.js';
 
-console.log('--- Testing SAMUDRA-3D Underwater Glider Transects Engine (Phase 12) ---');
+console.log('--- Testing SAMUDRA-3D Underwater Glider Transects Engine  ---');
 
 // 1. Waypoint to Cartesian with Visual Depth Exaggeration
 console.log('1. Testing waypoint coordinate projection and depth exaggeration...');
@@ -122,4 +121,4 @@ disposeGliderTransects(selectedMesh);
 assert.equal(selectedMesh.children.length, 0, 'Disposed selected mesh group must have 0 children');
 console.log('✓ 6. Clean resource disposal verified');
 
-console.log('\nALL PHASE 12 GLIDER TRANSECT TESTS PASSED (100%)');
+console.log('\nALL GLIDER TRANSECT TESTS PASSED (100%)');

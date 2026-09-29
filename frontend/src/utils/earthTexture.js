@@ -35,12 +35,10 @@ export function createProceduralNaturalEarthCanvas() {
   ctx.fillRect(0, 0, width, height);
 
   function toX(lon) {
-    let norm = (lon + 90) % 360;
-    if (norm < 0) norm += 360;
-    return (norm / 360) * width;
+    return ((lon + 180.0) / 360.0) * width;
   }
   function toY(lat) {
-    return ((90 - lat) / 180) * height;
+    return ((90.0 - lat) / 180.0) * height;
   }
 
   // Geographic polygons [lat, lon]
@@ -161,12 +159,10 @@ export function createProceduralBathymetryCanvas() {
   const ctx = canvas.getContext('2d');
 
   function toX(lon) {
-    let norm = (lon + 90) % 360;
-    if (norm < 0) norm += 360;
-    return (norm / 360) * width;
+    return ((lon + 180.0) / 360.0) * width;
   }
   function toY(lat) {
-    return ((90 - lat) / 180) * height;
+    return ((90.0 - lat) / 180.0) * height;
   }
 
   // 1. Base Abyssal Ocean Fill (3500m - 5500m Deep Ocean Basin)

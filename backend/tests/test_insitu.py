@@ -1,6 +1,5 @@
 """
-SAMUDRA-3D In-situ Observation Acceptance Test Suite (Phase 10)
-Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap p. 10 (SIH26067)
+SAMUDRA-3D In-situ Observation Test Suite
 """
 import sys
 from pathlib import Path
@@ -16,7 +15,7 @@ from backend.app.services.insitu_service import insitu_service, PRESSURE_TO_DEPT
 client = TestClient(app)
 
 def test_insitu_suite():
-    print("=== SAMUDRA-3D Phase 10 In-situ Argo Acceptance Test Suite ===")
+    print("=== SAMUDRA-3D In-situ Argo Test Suite ===")
 
     # 1. Health and System Status
     r_stat = client.get("/api/insitu/status")
@@ -123,7 +122,7 @@ def test_insitu_suite():
     assert insitu_service.is_in_domain(10.0, 130.0) is False # East of 120°E
     print("[OK] Domain bounding validation verified (30°S to 30°N, 30°E to 120°E)")
 
-    print("\nALL PHASE 10 IN-SITU ACCEPTANCE TESTS PASSED (100%)")
+    print("\nALL IN-SITU ACCEPTANCE TESTS PASSED (100%)")
 
 if __name__ == "__main__":
     test_insitu_suite()

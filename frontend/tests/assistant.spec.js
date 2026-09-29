@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-const evidenceDir = path.resolve('..', 'docs', 'evidence', 'phase-15');
+const evidenceDir = path.resolve('test-results', 'screenshots');
 mkdirSync(evidenceDir, { recursive: true });
 
-test.describe('Phase 15: AI Ocean Assistant & Grounded Intelligence', () => {
+test.describe('AI Ocean Assistant & Grounded Intelligence', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');

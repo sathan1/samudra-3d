@@ -1,6 +1,5 @@
 /**
  * SAMUDRA-3D Oceanographic Scientific Charting Engine
- * Authority: Master Handbook physical pp. 4, 6, 9-11, 13; roadmap p. 10 (SIH26067)
  * 
  * Features:
  * - Positive-down vertical depth axis inversion (depth 0m at top down to 2,000m/4,000m).

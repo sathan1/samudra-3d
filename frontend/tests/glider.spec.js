@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-const evidenceDir = path.resolve('..', 'docs', 'evidence', 'phase-12');
+const evidenceDir = path.resolve('test-results', 'screenshots');
 mkdirSync(evidenceDir, { recursive: true });
 
-test.describe('Phase 12: Underwater Glider Sawtooth Transects', () => {
+test.describe('Underwater Glider Sawtooth Transects', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
