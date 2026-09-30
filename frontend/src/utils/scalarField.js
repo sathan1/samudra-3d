@@ -60,6 +60,13 @@ export function buildScalarFieldGeometry(sliceData, options = {}) {
 
   const ny = lats.length;
   const nx = lons.length;
+  // A gridded model has a rectangular coverage boundary. Fade only inside
+  // that boundary so the final valid cell does not look like a floating box;
+  // never extend colors into unobserved coordinates or masked land.
+  const latSpan = Math.abs(lats[ny - 1] - lats[0]);
+  const lonSpan = Math.abs(lons[nx - 1] - lons[0]);
+  const latFeather = Math.min(2, latSpan * 0.2);
+  const lonFeather = Math.min(2, lonSpan * 0.2);
 
   const variable = sliceData.variable || 'temperature';
   let defaultMin = 2.0;
@@ -112,10 +119,19 @@ export function buildScalarFieldGeometry(sliceData, options = {}) {
           ];
         }
 
+        const latEdge = Math.min(Math.abs(lat - lats[0]), Math.abs(lat - lats[ny - 1]));
+        const lonEdge = Math.min(Math.abs(lon - lons[0]), Math.abs(lon - lons[nx - 1]));
+        const edgeFraction = Math.max(0, Math.min(
+          1,
+          latFeather > 0 ? latEdge / latFeather : 0,
+          lonFeather > 0 ? lonEdge / lonFeather : 0
+        ));
+        const alpha = edgeFraction * edgeFraction * (3 - 2 * edgeFraction);
+
         row.push({
           valid: true,
           pos: [cart.x, cart.y, cart.z],
-          color: rgb
+          color: [...rgb, alpha]
         });
       }
     }
@@ -148,7 +164,7 @@ export function buildScalarFieldGeometry(sliceData, options = {}) {
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 4));
   geometry.computeVertexNormals();
 
   return geometry;

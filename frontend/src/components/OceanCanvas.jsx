@@ -75,6 +75,24 @@ const INITIAL_CAM_POS = geoToCartesian(5, 75, 0, {
   verticalExaggeration: 0
 });
 
+// At the old 102-unit zoom minimum, the camera nearly touched the 100-unit
+// globe. A finite thermal/salinity patch then filled the screen like a box.
+function minimumGlobeDistance(camera) {
+  const halfVerticalFov = THREE.MathUtils.degToRad(camera.fov) / 2;
+  const visibleHalfWidth = Math.tan(halfVerticalFov) * camera.aspect;
+  const desiredRadiusFraction = 0.85;
+  return Math.sqrt(
+    DEFAULT_GLOBE_RADIUS ** 2 +
+    (DEFAULT_GLOBE_RADIUS / (visibleHalfWidth * desiredRadiusFraction)) ** 2
+  );
+}
+
+function configureGlobeZoom(camera, controls, normalMaximum = 500) {
+  const minimum = minimumGlobeDistance(camera);
+  controls.minDistance = minimum;
+  controls.maxDistance = Math.max(normalMaximum, minimum * 1.25);
+}
+
 /**
  * OceanCanvas - Interactive 3D Earth Globe & 3D Regional Ocean Volume Block
  * 
@@ -265,8 +283,7 @@ export default function OceanCanvas({
       } else {
         cameraRef.current.position.set(INITIAL_CAM_POS.x, INITIAL_CAM_POS.y, INITIAL_CAM_POS.z);
         controlsRef.current.target.set(0, 0, 0);
-        controlsRef.current.minDistance = 102;
-        controlsRef.current.maxDistance = 500;
+        configureGlobeZoom(cameraRef.current, controlsRef.current);
         controlsRef.current.update();
       }
     }
@@ -276,7 +293,7 @@ export default function OceanCanvas({
   const handleZoomBasin = useCallback((preset) => {
     if (!cameraRef.current || !controlsRef.current || viewMode !== 'globe') return;
     const targetPos = geoToCartesian(preset.lat, preset.lon, 0, {
-      globeRadius: Math.max(105, preset.dist || 120)
+      globeRadius: Math.max(minimumGlobeDistance(cameraRef.current), preset.dist || 120)
     });
     const startPos = cameraRef.current.position.clone();
     const startTime = window.performance.now();
@@ -302,7 +319,7 @@ export default function OceanCanvas({
   const handleZoomToCoordinate = useCallback((lat, lon, targetDist = 120) => {
     if (!cameraRef.current || !controlsRef.current || viewMode !== 'globe') return;
     const targetPos = geoToCartesian(lat, lon, 0, {
-      globeRadius: Math.max(105, targetDist)
+      globeRadius: Math.max(minimumGlobeDistance(cameraRef.current), targetDist)
     });
     const startPos = cameraRef.current.position.clone();
     const startTime = window.performance.now();
@@ -672,6 +689,12 @@ export default function OceanCanvas({
     if (cameraRef.current && controlsRef.current) {
       const cam = cameraRef.current;
       const ctrl = controlsRef.current;
+      if (isBlock) {
+        ctrl.minDistance = 20;
+        ctrl.maxDistance = 350;
+      } else {
+        configureGlobeZoom(cam, ctrl, 420);
+      }
 
       const targetCamPos = isBlock
         ? new THREE.Vector3(65, 55, 75)
@@ -700,13 +723,6 @@ export default function OceanCanvas({
         if (progress < 1) {
           animId = requestAnimationFrame(animateTransition);
         } else {
-          if (isBlock) {
-            ctrl.minDistance = 20;
-            ctrl.maxDistance = 350;
-          } else {
-            ctrl.minDistance = 108;
-            ctrl.maxDistance = 420;
-          }
           ctrl.update();
         }
       };
@@ -729,6 +745,10 @@ export default function OceanCanvas({
       if (w > 0 && h > 0) {
         cameraRef.current.aspect = w / h;
         cameraRef.current.updateProjectionMatrix();
+        if (viewModeRef.current === 'globe' && controlsRef.current) {
+          configureGlobeZoom(cameraRef.current, controlsRef.current);
+          controlsRef.current.update();
+        }
         rendererRef.current.setSize(w, h);
       }
     };
@@ -791,8 +811,7 @@ export default function OceanCanvas({
     controls.dampingFactor = 0.06;
     controls.rotateSpeed = 0.75;
     controls.zoomSpeed = 0.85;
-    controls.minDistance = 102;
-    controls.maxDistance = 500;
+    configureGlobeZoom(camera, controls);
     controls.target.set(0, 0, 0);
     controlsRef.current = controls;
 
@@ -1240,6 +1259,10 @@ export default function OceanCanvas({
       if (newWidth > 0 && newHeight > 0) {
         camera.aspect = newWidth / newHeight;
         camera.updateProjectionMatrix();
+        if (viewModeRef.current === 'globe') {
+          configureGlobeZoom(camera, controls);
+          controls.update();
+        }
         renderer.setSize(newWidth, newHeight);
       }
     };
